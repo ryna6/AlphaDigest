@@ -21,7 +21,7 @@ export const todayMock: TodayPayload = {
     ]
   },
   marketSummary: [
-    { label: "Leading sectors", value: "XLK, XLC, XLE", change: "+0.82% / +0.61% / +0.44%", tone: "positive" },
+    { label: "Leading sectors", value: "Tech, Communication Services, Energy", change: "+0.82% / +0.61% / +0.44%", tone: "positive" },
     { label: "Risk-on / risk-off", value: "1.22", change: "VIX3M / VIX", tone: "neutral" },
     { label: "Today’s earnings", value: "2 earnings", change: "ABM, DOCU", tone: "neutral" },
     { label: "Put/call ratio", value: "0.91", change: "Neutral", tone: "neutral" }
@@ -67,19 +67,27 @@ const tiles = (items: Array<[string, string, number, number]>) =>
   }));
 
 export const marketsMock = (): MarketsPayload => ({
-  strip: todayMock.keyStats.slice(0, 7),
+  strip: [
+    { label: "S&P 500", value: "5,352.96", change: "+18.12", changePercent: "+0.34%", tone: "positive" },
+    { label: "Nasdaq 100", value: "18,968.20", change: "+102.51", changePercent: "+0.54%", tone: "positive" },
+    { label: "WTI oil", value: "$78.28", change: "+$0.42", changePercent: "+0.54%", tone: "warning" },
+    { label: "Gold", value: "$2,336.20", change: "+$5.10", changePercent: "+0.22%", tone: "neutral" },
+    { label: "Bitcoin", value: "$68,420", change: "+$710", changePercent: "+1.05%", tone: "positive" },
+    { label: "VIX", value: "13.42", change: "-0.38", changePercent: "-2.75%", tone: "positive" },
+    { label: "U.S. 10-year yield", value: "4.29%", change: "+2 bps", changePercent: "", tone: "warning" }
+  ],
   heatmaps: {
     globalMarkets: tiles([
-      ["SPX", "S&P 500", 0.34, 20], ["NDX", "Nasdaq", 0.54, 18], ["DAX", "DAX", -0.18, 10], ["NIKKEI", "Nikkei", 0.22, 10], ["BTC", "Bitcoin", 1.05, 14], ["WTI", "WTI crude oil", 0.54, 8]
+      ["SPY", "US market", 0.34, 18], ["EWC", "Canadian market", 0.18, 10], ["IEUR", "EU market", -0.12, 12], ["EWJ", "Japan market", 0.22, 10], ["EWT", "Taiwan market", 0.48, 9], ["EWH", "Hong Kong market", -0.31, 9], ["EWY", "Korean market", 0.15, 9], ["INDA", "Indian market", 0.27, 10]
     ]),
     sectors: tiles([
-      ["XLK", "Technology", 0.82, 18], ["XLF", "Financials", 0.12, 13], ["XLE", "Energy", 0.44, 10], ["XLV", "Healthcare", -0.21, 12], ["XLY", "Consumer Discretionary", 0.31, 11], ["XLU", "Utilities", -0.31, 8]
+      ["XLK", "Tech", 0.82, 18], ["XLF", "Financials", 0.12, 13], ["XLC", "Communication Services", 0.61, 11], ["XLY", "Consumer Discretionary", 0.31, 11], ["XLI", "Industrials", 0.18, 10], ["XLV", "Healthcare", -0.21, 12], ["XLP", "Consumer Staples", -0.08, 8], ["XLU", "Utilities", -0.31, 8], ["XLB", "Materials", 0.09, 7], ["XLE", "Energy", 0.44, 10], ["XLRE", "Real Estate", -0.16, 7]
     ]),
     crypto: tiles([
-      ["BTC", "Bitcoin", 1.05, 28], ["ETH", "Ethereum", 0.72, 22], ["SOL", "Solana", 2.1, 12], ["XRP", "XRP", -0.4, 8], ["DOGE", "Dogecoin", -1.2, 6]
+      ["BTC", "Bitcoin", 1.05, 28], ["ETH", "Ethereum", 0.72, 22], ["SOL", "Solana", 2.1, 12], ["XRP", "XRP", -0.4, 8], ["BNB", "BNB", 0.35, 8], ["TRX", "TRON", 0.18, 7], ["ADA", "Cardano", -0.65, 7], ["DOGE", "Dogecoin", -1.2, 6]
     ]),
     macro: tiles([
-      ["GOLD", "Gold", 0.22, 12], ["SILVER", "Silver", -0.36, 8], ["WTI", "WTI crude oil", 0.54, 10], ["BRENT", "Brent crude oil", 0.49, 10], ["10Y", "10Y Treasury", 0.02, 12], ["HY", "High-yield spread", -0.03, 10], ["VIX", "VIX", -2.75, 10]
+      ["GOLD", "Gold", 0.22, 12], ["SILVER", "Silver", -0.36, 8], ["WTI", "Crude oil", 0.54, 10], ["NATGAS", "Natgas", -0.42, 8], ["SHY", "Short-term bond", 0.03, 10], ["TLT", "Long-term bond", -0.18, 12], ["HYG", "High-risk corp bond", 0.11, 10], ["DXY", "U.S. Dollar Index", -0.07, 10]
     ])
   },
   heatmapKeyMessages: getFinnhubKeyStatus().filter((result) => !result.ok).map((result) => result.message),

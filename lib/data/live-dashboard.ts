@@ -6,34 +6,47 @@ import type { MarketsPayload, TodayPayload } from "./schemas/dashboard";
 
 const quoteSymbols: Record<FinnhubFeatureArea, Array<{ symbol: string; label: string; weight: number }>> = {
   "global-markets": [
-    { symbol: "SPY", label: "S&P 500", weight: 20 },
-    { symbol: "QQQ", label: "Nasdaq 100", weight: 18 },
-    { symbol: "DIA", label: "Dow Jones", weight: 12 },
-    { symbol: "IWM", label: "Russell 2000", weight: 12 },
-    { symbol: "EFA", label: "Developed ex-US", weight: 10 },
-    { symbol: "EEM", label: "Emerging markets", weight: 10 }
+    { symbol: "SPY", label: "US market", weight: 18 },
+    { symbol: "EWC", label: "Canadian market", weight: 10 },
+    { symbol: "IEUR", label: "EU market", weight: 12 },
+    { symbol: "EWJ", label: "Japan market", weight: 10 },
+    { symbol: "EWT", label: "Taiwan market", weight: 9 },
+    { symbol: "EWH", label: "Hong Kong market", weight: 9 },
+    { symbol: "EWY", label: "Korean market", weight: 9 },
+    { symbol: "INDA", label: "Indian market", weight: 10 }
   ],
   "sectors-heatmap": [
-    { symbol: "XLK", label: "Technology", weight: 18 },
+    { symbol: "XLK", label: "Tech", weight: 18 },
     { symbol: "XLF", label: "Financials", weight: 13 },
-    { symbol: "XLE", label: "Energy", weight: 10 },
-    { symbol: "XLV", label: "Healthcare", weight: 12 },
+    { symbol: "XLC", label: "Communication Services", weight: 11 },
     { symbol: "XLY", label: "Consumer Discretionary", weight: 11 },
-    { symbol: "XLC", label: "Communication Services", weight: 10 },
     { symbol: "XLI", label: "Industrials", weight: 10 },
-    { symbol: "XLU", label: "Utilities", weight: 8 }
+    { symbol: "XLV", label: "Healthcare", weight: 12 },
+    { symbol: "XLP", label: "Consumer Staples", weight: 8 },
+    { symbol: "XLU", label: "Utilities", weight: 8 },
+    { symbol: "XLB", label: "Materials", weight: 7 },
+    { symbol: "XLE", label: "Energy", weight: 10 },
+    { symbol: "XLRE", label: "Real Estate", weight: 7 }
   ],
   "crypto-heatmap": [
-    { symbol: "COIN", label: "Crypto equity proxy", weight: 14 },
-    { symbol: "MSTR", label: "Bitcoin equity proxy", weight: 12 }
+    { symbol: "BTC", label: "Bitcoin", weight: 28 },
+    { symbol: "ETH", label: "Ethereum", weight: 22 },
+    { symbol: "SOL", label: "Solana", weight: 12 },
+    { symbol: "XRP", label: "XRP", weight: 8 },
+    { symbol: "BNB", label: "BNB", weight: 8 },
+    { symbol: "TRX", label: "TRON", weight: 7 },
+    { symbol: "ADA", label: "Cardano", weight: 7 },
+    { symbol: "DOGE", label: "Dogecoin", weight: 6 }
   ],
   "macro-heatmap": [
     { symbol: "GLD", label: "Gold", weight: 12 },
     { symbol: "SLV", label: "Silver", weight: 8 },
-    { symbol: "USO", label: "WTI crude oil", weight: 10 },
-    { symbol: "BNO", label: "Brent crude oil", weight: 10 },
-    { symbol: "TLT", label: "Long Treasuries", weight: 12 },
-    { symbol: "HYG", label: "High yield credit", weight: 10 }
+    { symbol: "USO", label: "Crude oil", weight: 10 },
+    { symbol: "UNG", label: "Natgas", weight: 8 },
+    { symbol: "SHY", label: "Short-term bond", weight: 10 },
+    { symbol: "TLT", label: "Long-term bond", weight: 12 },
+    { symbol: "HYG", label: "High-risk corp bond", weight: 10 },
+    { symbol: "DXY", label: "U.S. Dollar Index", weight: 10 }
   ]
 };
 
@@ -111,10 +124,11 @@ export async function getMarketsPayload(): Promise<{ payload: MarketsPayload; mo
   const stripCandidates: Array<Metric | null> = await Promise.all([
     quoteMetric("global-markets", "SPY", "S&P 500"),
     quoteMetric("global-markets", "QQQ", "Nasdaq 100"),
-    quoteMetric("global-markets", "DIA", "Dow Jones"),
-    quoteMetric("macro-heatmap", "USO", "WTI crude oil"),
+    quoteMetric("macro-heatmap", "USO", "WTI oil"),
     quoteMetric("macro-heatmap", "GLD", "Gold"),
-    quoteMetric("macro-heatmap", "TLT", "Long Treasuries")
+    quoteMetric("crypto-heatmap", "BTC", "Bitcoin"),
+    quoteMetric("macro-heatmap", "VIX", "VIX"),
+    quoteMetric("macro-heatmap", "TNX", "U.S. 10-year yield")
   ]);
   const strip = stripCandidates.filter((metric): metric is Metric => Boolean(metric));
 
@@ -147,12 +161,12 @@ export async function getTodayPayload(): Promise<{ payload: TodayPayload; mode: 
     payload: {
       ...todayMock,
       marketSummary: [
-        { label: "Leading sectors", value: leading.map((item) => item.symbol).join(", "), change: leading.map((item) => formatPercent(item.changePercent)).join(" / "), tone: leading[0]?.changePercent >= 0 ? "positive" : "negative" },
+        { label: "Leading sectors", value: leading.map((item) => item.label).join(", "), change: leading.map((item) => formatPercent(item.changePercent)).join(" / "), tone: leading[0]?.changePercent >= 0 ? "positive" : "negative" },
         { label: "Risk-on / risk-off", value: riskRatio, change: "VIX3M / VIX", tone: "neutral" },
         { label: "Today’s earnings", value: `${todayMock.earnings.length} earnings`, change: earnings, tone: "neutral" },
         { label: "Put/call ratio", value: todayMock.marketSummary[3].value, change: todayMock.marketSummary[3].change, tone: "neutral" }
       ],
-      keyStats: markets.strip.length ? markets.strip : todayMock.keyStats,
+      keyStats: mode === "live" && markets.strip.length ? markets.strip : todayMock.keyStats,
       sectorSnapshot: leading.map((item) => ({ label: item.label, value: formatPercent(item.changePercent), tone: toneFromChange(item.changePercent) }))
     },
     mode,
