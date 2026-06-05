@@ -16,6 +16,6 @@ The browser never calls third-party APIs directly. Secrets are read only in serv
 ## Failure handling
 
 - Missing environment variables return explicit messages.
-- Failed adapters mark source status degraded.
+- Failed adapters return clear missing-data notices.
 - Stale cached snapshots remain visible with warnings.
 - Mock data is clearly labeled.

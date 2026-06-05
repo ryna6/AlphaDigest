@@ -13,8 +13,11 @@ const vars = [
   "FINNHUB_CRYPTO_HEATMAP_API_KEY",
   "FINNHUB_MACRO_HEATMAP_API_KEY",
   "TWELVE_DATA_API_KEY",
+  "COINGECKO_API_KEY",
   "FRED_API_KEY",
   "SEC_API_KEY",
+  "UNUSUAL_WHALES_API_KEY",
+  "SCRAPER_ENABLED",
   "HORMUZ_TRACKER_ENABLED"
 ];
 
@@ -25,7 +28,7 @@ export default function SettingsPage() {
       <Panel>
         <SectionHeader
           title="Netlify Environment Variable Status"
-          subtitle="Client page shows names only. Secret values stay server-side. Unusual Whales is scraper-based and CoinGecko does not require an app-level key."
+          subtitle="Client page shows names only. Secret values stay server-side. Optional provider keys are checked by internal API routes and Netlify functions."
         />
         <DataTable
           rows={vars.map((v) => ({

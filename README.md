@@ -2,7 +2,7 @@
 
 A professional, Netlify-ready market recap dashboard that answers: **what is happening in markets today, why it matters, where money is moving, and what to look at next.**
 
-The initial repository prioritizes a polished scaffold, typed server API routes, Netlify deployment readiness, source freshness modeling, Supabase schema design, and clearly labeled mock data. It does **not** present mock financial data as live market data.
+The initial repository prioritizes a polished scaffold, typed server API routes, Netlify deployment readiness, Supabase schema design, and clearly labeled mock data. It does **not** present mock financial data as live market data.
 
 ## Tech stack
 
@@ -43,7 +43,7 @@ This is the correct Netlify shape for a Next.js App Router project because the N
 8. Deploy the site.
 9. Verify API routes such as `/api/today`, `/api/markets`, and `/api/sources/status` are working.
 10. Confirm mock/live data status in the UI.
-11. Check source freshness indicators on dashboard panels.
+11. Check source coverage indicators on dashboard panels.
 12. Review Netlify Function logs when future refresh jobs are enabled.
 
 ## Required Netlify environment variables
@@ -90,8 +90,8 @@ Finnhub usage is split into four heatmap-specific API keys:
 
 Oil prices are expected to come from **Finnhub, Twelve Data, FRED where appropriate, or another available/free market data provider**:
 
-- WTI crude oil: Finnhub / Twelve Data / available market data provider
-- Brent crude oil: Finnhub / Twelve Data / available market data provider
+- WTI crude oil: configured server-side commodity provider chain
+- Brent crude oil: configured server-side commodity provider chain
 - Oil historical charts: Twelve Data if available
 - Oil macro context: FRED where appropriate
 
@@ -109,7 +109,7 @@ All third-party integrations must run server-side. The frontend calls internal r
 - `/api/ticker/[symbol]`
 - `/api/sources/status`
 
-Routes return typed JSON envelopes validated with Zod and include freshness, mode, notices, and ET timezone metadata.
+Routes return typed JSON envelopes validated with Zod and include mode, notices, and ET timezone metadata.
 
 ## Netlify Functions and future ingestion
 
@@ -166,15 +166,6 @@ The schema proposal lives in:
 
 It includes raw snapshots, source runs, dashboard snapshots, normalized market data, news, calendars, flow, 13F holdings, macro, sentiment, breadth, and optional Hormuz updates.
 
-## Data freshness statuses
-
-- `fresh`
-- `delayed`
-- `stale`
-- `degraded`
-- `unavailable`
-
-Panels can show source, last updated, status, and mode.
 
 ## Disclaimer
 

@@ -10,14 +10,14 @@ MarketRecap is a compact, professional, data-forward market recap platform for d
 - Dark dashboard shell
 - Today, Markets, News & Calendar, Flow & Ownership, Economy & Sentiment, Ticker Explorer, Sources & Methodology, Settings
 - Typed API stubs with mock payloads
-- Source freshness and degraded state UI
+- Source coverage and missing-data UI
 - Finnhub heatmap key router
 - Commodity provider strategy
 - Supabase schema draft
 
 ## Future phases
 
-1. CoinGecko no-key crypto, FRED, Finnhub, Twelve Data integrations.
+1. CoinGecko crypto, FRED, Finnhub, Twelve Data integrations.
 2. Supabase-backed raw snapshots and normalized tables.
 3. Netlify Scheduled Functions.
 4. Ticker cache prioritization.
