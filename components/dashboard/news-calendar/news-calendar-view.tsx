@@ -3,7 +3,6 @@
 import { useMemo, useState } from "react";
 import Link from "next/link";
 import type {
-  EarningsEvent,
   EconomicEvent,
   NewsCalendarPayload,
   NewsItem,
@@ -13,14 +12,19 @@ import { PageTitle } from "@/components/dashboard/page-title";
 import { Panel } from "@/components/ui/panel";
 import { SectionHeader } from "@/components/ui/section-header";
 import { DataTable } from "@/components/ui/data-table";
-import { formatEtDateTime, formatEtTime, timestampTitle } from "@/lib/utils/time";
-import {
-  formatCompactNumber,
-  formatCurrency,
-  formatDateShort,
-  formatMarketCap,
-  formatReportTime
-} from "@/lib/utils/formatters";
+import { formatEtDateKey, formatEtDateTime, formatEtTime, timestampTitle } from "@/lib/utils/time";
+import { cn } from "@/lib/utils/cn";
+
+const MIN_VISIBLE_MARKET_CAP = 5_000_000_000;
+type WeekOffset = -1 | 0 | 1;
+type EarningsGroupKey = "premarket" | "postmarket" | "other";
+
+type DaySelection = {
+  weekOffset: WeekOffset;
+  selectedDate: string;
+  selectedWeekday: number;
+  days: Array<{ date: string; label: string; weekday: number }>;
+};
 
 function importanceStars(importance: EconomicEvent["importance"]) {
   const count = { Low: 1, Medium: 2, High: 3 }[importance];
@@ -56,76 +60,300 @@ function NewsList({ news }: { news: NewsItem[] }) {
   );
 }
 
-function freshnessLabel(timestamp?: string | null) {
-  if (!timestamp) return "Auto-refreshes server-side";
-  return `Updated ${formatEtDateTime(timestamp)}`;
+function parseDateKey(dateKey: string) {
+  return new Date(`${dateKey}T12:00:00`);
 }
 
-function dateRangeLabel(events: UnusualWhalesEarningsEvent[]) {
-  if (!events.length) return "Rolling earnings window";
-  const dates = events.map((event) => event.reportDate).sort();
-  return `${formatDateShort(dates[0])} – ${formatDateShort(dates[dates.length - 1])}`;
+function dateKey(date: Date) {
+  const year = date.getFullYear();
+  const month = `${date.getMonth() + 1}`.padStart(2, "0");
+  const day = `${date.getDate()}`.padStart(2, "0");
+  return `${year}-${month}-${day}`;
 }
 
-function formatEstimate(value: number | null | undefined) {
-  return value === null || value === undefined || !Number.isFinite(value) ? "—" : value.toFixed(2);
+function addDays(date: Date, days: number) {
+  const next = new Date(date);
+  next.setDate(next.getDate() + days);
+  return next;
 }
 
-function legacyEarningsRows(events: EarningsEvent[]) {
-  return events.map((e) => ({
-    Ticker: e.ticker,
-    Company: e.company,
-    Time: e.time,
-    "Expected EPS": e.expectedEps,
-    "Actual EPS": e.actualEps ?? "—",
-    "Expected Rev": e.expectedRevenue ?? "—",
-    "Actual Rev": e.actualRevenue ?? "—",
-    "Market Cap": e.marketCap ?? "—"
-  }));
+function mondayForWeek(date: Date) {
+  const day = date.getDay();
+  const daysFromMonday = day === 0 ? 6 : day - 1;
+  return addDays(date, -daysFromMonday);
 }
 
-function detailedEarningsRows(events: UnusualWhalesEarningsEvent[]) {
-  return events.map((event) => ({
-    Date: formatDateShort(event.reportDate),
-    Ticker: event.symbol,
-    Company: event.companyName ?? "—",
-    Time: formatReportTime(event.reportTime),
-    "Expected EPS": formatEstimate(event.epsMeanEstimate ?? event.streetMeanEstimate),
-    "Expected Move": formatCurrency(event.expectedMove),
-    "Market Cap": formatMarketCap(event.marketCap),
-    OI: formatCompactNumber(event.openInterest),
-    "Call / Put": `${formatCompactNumber(event.callVolume)} / ${formatCompactNumber(event.putVolume)}`
-  }));
+function selectedWeekdayFor(date: Date) {
+  const weekday = date.getDay();
+  return weekday >= 1 && weekday <= 5 ? weekday : 1;
 }
 
-function EarningsSnapshot({ data }: { data: NewsCalendarPayload }) {
-  const rows = legacyEarningsRows(data.earnings.slice(0, 10));
+function buildWeekDays(weekOffset: WeekOffset, today = new Date()) {
+  const monday = addDays(mondayForWeek(today), weekOffset * 7);
+  return Array.from({ length: 5 }, (_, index) => {
+    const date = addDays(monday, index);
+    return {
+      date: dateKey(date),
+      label: new Intl.DateTimeFormat("en-US", {
+        weekday: "short",
+        month: "short",
+        day: "numeric"
+      }).format(date),
+      weekday: index + 1
+    };
+  });
+}
+
+function initialDaySelection(): DaySelection {
+  const today = new Date();
+  const selectedWeekday = selectedWeekdayFor(today);
+  const days = buildWeekDays(0, today);
+  return {
+    weekOffset: 0,
+    selectedWeekday,
+    selectedDate: days[selectedWeekday - 1]?.date ?? days[0].date,
+    days
+  };
+}
+
+function WeekdaySelector({
+  selection,
+  onChange
+}: {
+  selection: DaySelection;
+  onChange: (next: DaySelection) => void;
+}) {
+  const moveWeek = (direction: -1 | 1) => {
+    const nextOffset = Math.max(-1, Math.min(1, selection.weekOffset + direction)) as WeekOffset;
+    const days = buildWeekDays(nextOffset);
+    const selectedDay = days.find((day) => day.weekday === selection.selectedWeekday) ?? days[0];
+    onChange({
+      weekOffset: nextOffset,
+      selectedWeekday: selectedDay.weekday,
+      selectedDate: selectedDay.date,
+      days
+    });
+  };
+
+  return (
+    <div className="mt-4 rounded-2xl border border-borderStrong bg-panel/80 p-2 shadow-panel">
+      <div className="grid grid-cols-2 gap-2 md:grid-cols-7">
+        <button
+          type="button"
+          disabled={selection.weekOffset === -1}
+          onClick={() => moveWeek(-1)}
+          className="rounded-xl border border-borderStrong bg-surfaceSubtle px-3 py-2 text-xs font-semibold text-textSecondary transition disabled:cursor-not-allowed disabled:opacity-40 enabled:hover:border-accentBlue/60 enabled:hover:text-textPrimary"
+        >
+          Last Week
+        </button>
+        {selection.days.map((day) => {
+          const active = day.date === selection.selectedDate;
+          return (
+            <button
+              key={day.date}
+              type="button"
+              onClick={() =>
+                onChange({
+                  ...selection,
+                  selectedDate: day.date,
+                  selectedWeekday: day.weekday
+                })
+              }
+              className={cn(
+                "rounded-xl border px-3 py-2 text-xs font-semibold transition",
+                active
+                  ? "border-accentBlue/70 bg-accentBlue/15 text-textPrimary shadow-sm shadow-accentBlue/10"
+                  : "border-borderStrong bg-surfaceSubtle text-textSecondary hover:border-accentBlue/60 hover:text-textPrimary"
+              )}
+            >
+              {day.label}
+            </button>
+          );
+        })}
+        <button
+          type="button"
+          disabled={selection.weekOffset === 1}
+          onClick={() => moveWeek(1)}
+          className="rounded-xl border border-borderStrong bg-surfaceSubtle px-3 py-2 text-xs font-semibold text-textSecondary transition disabled:cursor-not-allowed disabled:opacity-40 enabled:hover:border-accentBlue/60 enabled:hover:text-textPrimary"
+        >
+          Next Week
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function groupKeyForReportTime(reportTime: string | null | undefined): EarningsGroupKey {
+  switch (reportTime?.toLowerCase()) {
+    case "premarket":
+      return "premarket";
+    case "postmarket":
+      return "postmarket";
+    default:
+      return "other";
+  }
+}
+
+function formatMovePct(value: number | null | undefined) {
+  return value === null || value === undefined || !Number.isFinite(value)
+    ? "—"
+    : `${value.toFixed(1)}%`;
+}
+
+function selectedDayTitle(selectedDate: string) {
+  const date = parseDateKey(selectedDate);
+  return new Intl.DateTimeFormat("en-US", {
+    weekday: "long",
+    month: "short",
+    day: "numeric"
+  }).format(date);
+}
+
+function companyInitials(symbol: string) {
+  return symbol.slice(0, 2).toUpperCase();
+}
+
+function EarningsRow({ event }: { event: UnusualWhalesEarningsEvent }) {
+  return (
+    <div className="flex items-center gap-3 rounded-xl border border-borderStrong/70 bg-surfaceSubtle/60 px-3 py-2.5">
+      <div className="flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-full border border-borderStrong bg-panel text-[11px] font-bold text-textSecondary">
+        {event.logo ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={event.logo} alt="" className="h-full w-full object-cover" />
+        ) : (
+          companyInitials(event.symbol)
+        )}
+      </div>
+      <div className="min-w-0 flex-1">
+        <div className="text-sm font-semibold tracking-wide text-textPrimary">{event.symbol}</div>
+        {event.companyName ? (
+          <div className="truncate text-xs text-textMuted">{event.companyName}</div>
+        ) : null}
+      </div>
+      <div className="shrink-0 text-right">
+        <div className="text-[10px] uppercase tracking-[0.18em] text-textMuted">Implied Move</div>
+        <div className="tabular text-sm font-semibold text-textPrimary">
+          {formatMovePct(event.impliedMovePct)}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function EarningsGroup({ title, events }: { title: string; events: UnusualWhalesEarningsEvent[] }) {
+  return (
+    <div>
+      <div className="mb-2 flex items-center justify-between text-[11px] font-semibold uppercase tracking-[0.18em] text-textMuted">
+        <span>{title}</span>
+        <span className="tabular text-textSecondary">{events.length}</span>
+      </div>
+      {events.length ? (
+        <div className="space-y-2">
+          {events.map((event) => (
+            <EarningsRow key={event.id} event={event} />
+          ))}
+        </div>
+      ) : (
+        <div className="rounded-xl border border-dashed border-borderStrong px-3 py-4 text-center text-xs text-textMuted">
+          No qualifying earnings.
+        </div>
+      )}
+    </div>
+  );
+}
+
+function EarningsCalendar({
+  data,
+  selectedDate
+}: {
+  data: NewsCalendarPayload;
+  selectedDate: string;
+}) {
+  const grouped = useMemo(() => {
+    const groups: Record<EarningsGroupKey, UnusualWhalesEarningsEvent[]> = {
+      premarket: [],
+      postmarket: [],
+      other: []
+    };
+
+    data.unusualWhalesEarnings
+      .filter((event) => event.reportDate === selectedDate)
+      .filter((event) => (event.marketCap ?? 0) > MIN_VISIBLE_MARKET_CAP)
+      .forEach((event) => groups[groupKeyForReportTime(event.reportTime)].push(event));
+
+    const sortBySymbol = (a: UnusualWhalesEarningsEvent, b: UnusualWhalesEarningsEvent) =>
+      a.symbol.localeCompare(b.symbol);
+    groups.premarket.sort(sortBySymbol);
+    groups.postmarket.sort(sortBySymbol);
+    groups.other.sort(sortBySymbol);
+    return groups;
+  }, [data.unusualWhalesEarnings, selectedDate]);
+
   return (
     <Panel>
-      <SectionHeader
-        title="Earnings Calendar"
-        subtitle={`${dateRangeLabel(data.unusualWhalesEarnings)} • ${freshnessLabel(data.earningsMetadata?.fetchedAt)}`}
-        action={
-          <Link
-            href="/news-calendar/earnings"
-            className="border border-borderStrong px-3 py-1 text-xs text-textSecondary transition-colors hover:border-accentBlue/50 hover:text-textPrimary"
-          >
-            View All
-          </Link>
-        }
-      />
+      <SectionHeader title="Earnings Calendar" />
       {data.earningsMetadata?.ok === false ? (
         <div className="mb-3 rounded-md border border-red-500/30 bg-red-500/10 px-3 py-2 text-xs text-red-200">
           Earnings data is stale: {data.earningsMetadata.error ?? "last refresh failed"}
         </div>
       ) : null}
-      <DataTable rows={rows} empty="No earnings are available for this rolling window yet." />
+      <div className="mb-4 rounded-xl border border-borderStrong bg-surfaceSubtle/50 px-3 py-2">
+        <p className="text-xs uppercase tracking-[0.2em] text-textMuted">Selected Day</p>
+        <h3 className="mt-1 text-lg font-semibold text-textPrimary">
+          {selectedDayTitle(selectedDate)}
+        </h3>
+      </div>
+      <div className="space-y-5">
+        <EarningsGroup title="Before Open" events={grouped.premarket} />
+        <EarningsGroup title="After Close" events={grouped.postmarket} />
+        {grouped.other.length ? <EarningsGroup title="Other" events={grouped.other} /> : null}
+      </div>
+    </Panel>
+  );
+}
+
+function eventDateKey(event: EconomicEvent) {
+  const direct = /^\d{4}-\d{2}-\d{2}$/.test(event.time) ? event.time : null;
+  return direct ?? formatEtDateKey(event.time);
+}
+
+function EconomicCalendar({
+  events,
+  selectedDate
+}: {
+  events: EconomicEvent[];
+  selectedDate: string;
+}) {
+  const selectedEvents = useMemo(() => {
+    const todayKey = dateKey(new Date());
+    return events.filter((event) => {
+      const key = eventDateKey(event);
+      if (key) return key === selectedDate;
+      return selectedDate === todayKey;
+    });
+  }, [events, selectedDate]);
+
+  return (
+    <Panel>
+      <SectionHeader title="Economic Calendar" subtitle={selectedDayTitle(selectedDate)} />
+      <DataTable
+        rows={selectedEvents.map((e) => ({
+          Time: formatEtTime(e.time),
+          Event: e.event,
+          Actual: e.actual ?? "—",
+          Forecast: e.forecast ?? "—",
+          Previous: e.previous ?? "—",
+          Importance: importanceStars(e.importance)
+        }))}
+        empty="No economic events are available for the selected day."
+      />
     </Panel>
   );
 }
 
 export function NewsCalendarView({ data }: { data: NewsCalendarPayload }) {
   const latestNews = data.news.slice(0, 8);
+  const [selection, setSelection] = useState<DaySelection>(() => initialDaySelection());
 
   return (
     <>
@@ -147,21 +375,10 @@ export function NewsCalendarView({ data }: { data: NewsCalendarPayload }) {
         />
         <NewsList news={latestNews} />
       </Panel>
+      <WeekdaySelector selection={selection} onChange={setSelection} />
       <div className="mt-4 grid gap-4 xl:grid-cols-2">
-        <Panel>
-          <SectionHeader title="Economic Calendar" />
-          <DataTable
-            rows={data.economicCalendar.map((e) => ({
-              Time: formatEtTime(e.time),
-              Event: e.event,
-              Actual: e.actual ?? "—",
-              Forecast: e.forecast ?? "—",
-              Previous: e.previous ?? "—",
-              Importance: importanceStars(e.importance)
-            }))}
-          />
-        </Panel>
-        <EarningsSnapshot data={data} />
+        <EarningsCalendar data={data} selectedDate={selection.selectedDate} />
+        <EconomicCalendar events={data.economicCalendar} selectedDate={selection.selectedDate} />
       </div>
     </>
   );
@@ -207,124 +424,26 @@ export function AllNewsView({ data }: { data: NewsCalendarPayload }) {
 }
 
 export function AllEarningsView({ data }: { data: NewsCalendarPayload }) {
-  const [visibleCount, setVisibleCount] = useState(Math.min(20, data.unusualWhalesEarnings.length));
-  const [query, setQuery] = useState("");
-  const [sp500Only, setSp500Only] = useState(false);
-  const [hasOptionsOnly, setHasOptionsOnly] = useState(false);
-  const [sort, setSort] = useState("oi");
-
-  const filtered = useMemo(() => {
-    const q = query.trim().toUpperCase();
-    const rows = data.unusualWhalesEarnings.filter((event) => {
-      if (sp500Only && !event.isSp500) return false;
-      if (hasOptionsOnly && !event.hasOptions) return false;
-      if (!q) return true;
-      return event.symbol.includes(q) || (event.companyName ?? "").toUpperCase().includes(q);
-    });
-    const value = (event: UnusualWhalesEarningsEvent) => {
-      switch (sort) {
-        case "market_cap":
-          return event.marketCap ?? -1;
-        case "expected_move":
-          return event.expectedMove ?? -1;
-        case "report_date":
-          return new Date(event.reportDate).getTime();
-        case "call_volume":
-          return event.callVolume ?? -1;
-        case "put_volume":
-          return event.putVolume ?? -1;
-        default:
-          return event.openInterest ?? -1;
-      }
-    };
-    return [...rows].sort((a, b) => value(b) - value(a));
-  }, [data.unusualWhalesEarnings, hasOptionsOnly, query, sort, sp500Only]);
-
-  const visible = filtered.slice(0, visibleCount);
-  const canLoadMore = visibleCount < filtered.length;
+  const [selection, setSelection] = useState<DaySelection>(() => initialDaySelection());
 
   return (
     <>
       <PageTitle
         title="Earnings Calendar"
-        subtitle={`${dateRangeLabel(data.unusualWhalesEarnings)} • ${freshnessLabel(data.earningsMetadata?.fetchedAt)}`}
+        subtitle="Large-cap earnings grouped by report window."
       />
-      <Panel>
-        <div className="mb-4 flex flex-col gap-3 border-b border-borderStrong pb-4 lg:flex-row lg:items-center lg:justify-between">
-          <Link
-            href="/news-calendar"
-            className="w-fit border border-borderStrong px-3 py-1.5 text-xs text-textSecondary transition-colors hover:border-accentBlue/50 hover:text-textPrimary"
-          >
-            ← Back
-          </Link>
-          <div className="flex flex-wrap items-center gap-2">
-            <input
-              value={query}
-              onChange={(event) => {
-                setQuery(event.target.value);
-                setVisibleCount(20);
-              }}
-              placeholder="Search ticker/company"
-              className="border border-borderStrong bg-transparent px-3 py-1.5 text-xs text-textPrimary outline-none placeholder:text-textMuted focus:border-accentBlue/60"
-            />
-            <label className="flex items-center gap-2 border border-borderStrong px-3 py-1.5 text-xs text-textSecondary">
-              <input
-                type="checkbox"
-                checked={sp500Only}
-                onChange={(event) => {
-                  setSp500Only(event.target.checked);
-                  setVisibleCount(20);
-                }}
-              />{" "}
-              S&P 500
-            </label>
-            <label className="flex items-center gap-2 border border-borderStrong px-3 py-1.5 text-xs text-textSecondary">
-              <input
-                type="checkbox"
-                checked={hasOptionsOnly}
-                onChange={(event) => {
-                  setHasOptionsOnly(event.target.checked);
-                  setVisibleCount(20);
-                }}
-              />{" "}
-              Options
-            </label>
-            <select
-              value={sort}
-              onChange={(event) => {
-                setSort(event.target.value);
-                setVisibleCount(20);
-              }}
-              className="border border-borderStrong bg-surface px-3 py-1.5 text-xs text-textPrimary outline-none focus:border-accentBlue/60"
-            >
-              <option value="oi">Sort: OI</option>
-              <option value="market_cap">Sort: Market cap</option>
-              <option value="expected_move">Sort: Expected move</option>
-              <option value="report_date">Sort: Report date</option>
-              <option value="call_volume">Sort: Call volume</option>
-              <option value="put_volume">Sort: Put volume</option>
-            </select>
-          </div>
-        </div>
-        {data.earningsMetadata?.ok === false ? (
-          <div className="mb-3 rounded-md border border-red-500/30 bg-red-500/10 px-3 py-2 text-xs text-red-200">
-            Earnings data is stale: {data.earningsMetadata.error ?? "last refresh failed"}
-          </div>
-        ) : null}
-        <DataTable rows={detailedEarningsRows(visible)} empty="No earnings match these filters." />
-        <div className="mt-5 flex justify-center border-t border-borderStrong pt-4">
-          <button
-            type="button"
-            disabled={!canLoadMore}
-            onClick={() => setVisibleCount((count) => Math.min(count + 20, filtered.length))}
-            className="rounded-full border border-borderStrong bg-surfaceSubtle px-5 py-2 text-xs font-semibold text-textSecondary shadow-sm transition disabled:cursor-not-allowed disabled:opacity-40 enabled:hover:border-accentBlue/60 enabled:hover:text-textPrimary enabled:hover:shadow-accentBlue/10"
-          >
-            {canLoadMore
-              ? `More (${Math.min(visibleCount + 20, filtered.length)} of ${filtered.length})`
-              : `Showing all ${filtered.length}`}
-          </button>
-        </div>
-      </Panel>
+      <div className="mb-4">
+        <Link
+          href="/news-calendar"
+          className="inline-flex border border-borderStrong px-3 py-1.5 text-xs text-textSecondary transition-colors hover:border-accentBlue/50 hover:text-textPrimary"
+        >
+          ← Back
+        </Link>
+      </div>
+      <WeekdaySelector selection={selection} onChange={setSelection} />
+      <div className="mt-4">
+        <EarningsCalendar data={data} selectedDate={selection.selectedDate} />
+      </div>
     </>
   );
 }
