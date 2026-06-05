@@ -1,5 +1,5 @@
 {
-  "name": "market-intelligence-dashboard",
+  "name": "marketrecap",
   "version": "0.1.0",
   "private": true,
   "description": "A Netlify-ready market intelligence dashboard for compact market analytics, source freshness, and cross-asset monitoring.",
