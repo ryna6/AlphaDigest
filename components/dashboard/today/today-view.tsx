@@ -1,11 +1,18 @@
+import Link from "next/link";
 import type { Metric } from "@/lib/data/schemas/common";
-import type { EarningsEvent, EconomicEvent, TodayPayload } from "@/lib/data/schemas/dashboard";
+import type {
+  EarningsEvent,
+  EconomicEvent,
+  FeaturedArticle,
+  TodayPayload
+} from "@/lib/data/schemas/dashboard";
 import { PageTitle } from "@/components/dashboard/page-title";
 import { Panel } from "@/components/ui/panel";
 import { SectionHeader } from "@/components/ui/section-header";
 import { MetricRow } from "@/components/ui/metric-row";
 import { InfoTooltip } from "@/components/ui/info-tooltip";
 import { cn } from "@/lib/utils/cn";
+import { formatEtDateTime, formatEtTime, timestampTitle } from "@/lib/utils/time";
 
 function signedValueClass(value?: string) {
   if (!value) return "text-textSecondary";
@@ -35,16 +42,58 @@ function roroExplanation(metric: Metric) {
   return "neutral";
 }
 
-function economicEventTimeLabel(time: string) {
-  const match = time.match(/^(\d{1,2}):(\d{2})(?:\s*ET)?$/i);
-  if (!match) return time;
+function featuredArticleTime(article: FeaturedArticle) {
+  return article.publishedAt ?? article.createdAt ?? article.fetchedAt;
+}
 
-  const hour = Number(match[1]);
-  if (!Number.isFinite(hour)) return time;
+export function FeaturedArticleList({
+  articles,
+  from,
+  count
+}: {
+  articles: FeaturedArticle[];
+  from: "today" | "top-news";
+  count?: number;
+}) {
+  return (
+    <div className="divide-y divide-borderStrong/60">
+      {articles.map((article) => {
+        const href = `/overview/today/top-news/${encodeURIComponent(article.slug)}?from=${from}${count ? `&count=${count}` : ""}`;
+        const timestamp = featuredArticleTime(article);
 
-  const period = hour >= 12 ? "PM" : "AM";
-  const displayHour = hour % 12 || 12;
-  return `${displayHour.toString().padStart(2, "0")}:${match[2]} ${period}`;
+        return (
+          <article key={article.slug} className="py-3 first:pt-0 last:pb-0">
+            <div className="flex items-start justify-between gap-4">
+              <Link
+                href={href}
+                className="min-w-0 flex-1 text-base font-semibold leading-snug text-textPrimary hover:text-accentBlue"
+              >
+                {article.title}
+              </Link>
+              {article.tags.length ? (
+                <div className="flex max-w-[42%] shrink-0 flex-wrap justify-end gap-1.5 pt-0.5">
+                  {article.tags.slice(0, 3).map((tag) => (
+                    <span
+                      key={`${article.slug}-${tag}`}
+                      className="border border-borderStrong px-2 py-0.5 text-[10px] uppercase tracking-wide text-textSecondary"
+                    >
+                      {tag}
+                    </span>
+                  ))}
+                </div>
+              ) : null}
+            </div>
+            <p className="mt-1 text-xs text-textMuted" title={timestampTitle(timestamp)}>
+              {formatEtDateTime(timestamp)}
+            </p>
+            {article.excerpt ? (
+              <p className="mt-1 line-clamp-2 text-xs text-textSecondary">{article.excerpt}</p>
+            ) : null}
+          </article>
+        );
+      })}
+    </div>
+  );
 }
 
 function EarningsPanel({ earnings }: { earnings: EarningsEvent[] }) {
@@ -99,8 +148,11 @@ function EconomicEventsPanel({ events }: { events: EconomicEvent[] }) {
                 {importanceStars(event.importance)}
               </p>
             </div>
-            <p className="shrink-0 text-right text-sm font-semibold text-textSecondary">
-              {economicEventTimeLabel(event.time)}
+            <p
+              className="shrink-0 text-right text-sm font-semibold text-textSecondary"
+              title={timestampTitle(event.time)}
+            >
+              {formatEtTime(event.time)}
             </p>
           </div>
         ))}
@@ -159,16 +211,18 @@ export function TodayView({ data }: { data: TodayPayload }) {
       </Panel>
       <div className="mt-4 grid gap-4 xl:grid-cols-[minmax(0,1fr)_360px]">
         <Panel>
-          <SectionHeader title="Top News" />
-          {data.featuredNews.map((n) => (
-            <div key={n.headline} className="border-b border-borderStrong py-3 last:border-b-0">
-              <p className="text-sm font-medium">{n.headline}</p>
-              <p className="mt-1 text-xs text-textMuted">
-                {n.timestamp} • {n.tickers.join(", ")}
-              </p>
-              <p className="mt-1 text-xs text-textSecondary">{n.whyItMatters}</p>
-            </div>
-          ))}
+          <SectionHeader
+            title="Top News"
+            action={
+              <Link
+                href="/overview/today/top-news?count=20"
+                className="border border-borderStrong px-3 py-1 text-xs text-textSecondary hover:border-accentBlue/50 hover:text-textPrimary"
+              >
+                View All
+              </Link>
+            }
+          />
+          <FeaturedArticleList articles={data.featuredNews.slice(0, 8)} from="today" />
         </Panel>
         <aside className="space-y-4">
           <KeyStatsPanel stats={data.keyStats} />

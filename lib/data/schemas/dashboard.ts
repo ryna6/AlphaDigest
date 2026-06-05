@@ -7,8 +7,25 @@ export const newsItemSchema = z.object({
   tickers: z.array(z.string()),
   whyItMatters: z.string(),
   source: z.string().optional(),
+  sourceUrl: z.string().url().optional(),
+  publisher: z.string().optional(),
+  sentiment: z.string().optional(),
+  major: z.boolean().optional(),
   category: z.string().optional(),
   impact: z.enum(["Low", "Medium", "High"]).optional()
+});
+
+export const featuredArticleSchema = z.object({
+  slug: z.string(),
+  title: z.string(),
+  publishedAt: z.string().optional(),
+  createdAt: z.string().optional(),
+  fetchedAt: z.string(),
+  tags: z.array(z.string()),
+  imageUrl: z.string().url().optional(),
+  excerpt: z.string().optional(),
+  contentText: z.string().optional(),
+  sourceUrl: z.string().url().optional()
 });
 
 export const eventSchema = z.object({
@@ -36,7 +53,7 @@ export const todayPayloadSchema = z.object({
   summary: z.object({ title: z.string(), regime: z.string(), bullets: z.array(z.string()) }),
   marketSummary: z.array(metricSchema),
   keyStats: z.array(metricSchema),
-  featuredNews: z.array(newsItemSchema),
+  featuredNews: z.array(featuredArticleSchema),
   earnings: z.array(earningsSchema),
   economicCalendar: z.array(eventSchema),
   sectorSnapshot: z.array(metricSchema),
@@ -97,6 +114,7 @@ export const tickerPayloadSchema = z.object({
 });
 
 export type NewsItem = z.infer<typeof newsItemSchema>;
+export type FeaturedArticle = z.infer<typeof featuredArticleSchema>;
 export type DashboardEvent = z.infer<typeof eventSchema>;
 export type EarningsEvent = z.infer<typeof earningsSchema>;
 export type EconomicEvent = z.infer<typeof eventSchema>;

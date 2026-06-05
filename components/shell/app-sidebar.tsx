@@ -9,8 +9,7 @@ export function AppSidebar() {
   const pathname = usePathname();
   const renderItem = (item: (typeof mainNavigation)[number]) => {
     const Icon = item.icon;
-    const active =
-      pathname === item.href || (item.href !== "/overview/today" && pathname.startsWith(item.href));
+    const active = pathname === item.href || pathname.startsWith(`${item.href}/`);
     return (
       <Link
         key={item.href}

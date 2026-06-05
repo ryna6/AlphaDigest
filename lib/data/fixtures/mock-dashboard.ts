@@ -93,28 +93,40 @@ export const todayMock: TodayPayload = {
   ],
   featuredNews: [
     {
-      headline: "Mega-cap technology leads premarket tape as yields edge higher",
-      timestamp: "08:42 ET",
-      tickers: ["QQQ", "XLK"],
-      whyItMatters: "Leadership remains narrow, keeping breadth confirmation important.",
-      category: "Macro",
-      impact: "Medium"
+      slug: "mega-cap-technology-leads-premarket-tape",
+      title: "Mega-cap technology leads premarket tape as yields edge higher",
+      publishedAt: "2026-06-05T12:42:00.000Z",
+      createdAt: "2026-06-05T12:30:00.000Z",
+      fetchedAt: "2026-06-05T12:45:00.000Z",
+      tags: ["QQQ", "XLK", "Macro"],
+      excerpt: "Leadership remains narrow, keeping breadth confirmation important.",
+      contentText:
+        "Mega-cap technology shares are leading the premarket tape while yields edge higher. Traders are watching whether breadth can confirm the move after the opening bell.",
+      sourceUrl: "https://unusualwhales.com/news/mega-cap-technology-leads-premarket-tape"
     },
     {
-      headline: "Energy complex firms as traders watch crude supply headlines",
-      timestamp: "08:12 ET",
-      tickers: ["WTI", "XLE"],
-      whyItMatters: "Higher oil can pressure inflation expectations and transport margins.",
-      category: "Commodities",
-      impact: "Medium"
+      slug: "energy-complex-firms-on-crude-supply-headlines",
+      title: "Energy complex firms as traders watch crude supply headlines",
+      publishedAt: "2026-06-05T12:12:00.000Z",
+      createdAt: "2026-06-05T12:00:00.000Z",
+      fetchedAt: "2026-06-05T12:15:00.000Z",
+      tags: ["WTI", "XLE", "Commodities"],
+      excerpt: "Higher oil can pressure inflation expectations and transport margins.",
+      contentText:
+        "Oil and energy equities are firmer as traders monitor global crude supply headlines and possible impacts on inflation expectations.",
+      sourceUrl: "https://unusualwhales.com/news/energy-complex-firms-on-crude-supply-headlines"
     },
     {
-      headline: "Large-cap earnings calendar light ahead of next week's reports",
-      timestamp: "07:50 ET",
-      tickers: ["SPY"],
-      whyItMatters: "Index moves may be more macro-driven without a heavy earnings slate.",
-      category: "Earnings",
-      impact: "Low"
+      slug: "large-cap-earnings-calendar-light",
+      title: "Large-cap earnings calendar light ahead of next week's reports",
+      publishedAt: "2026-06-05T11:50:00.000Z",
+      createdAt: "2026-06-05T11:40:00.000Z",
+      fetchedAt: "2026-06-05T11:55:00.000Z",
+      tags: ["SPY", "Earnings"],
+      excerpt: "Index moves may be more macro-driven without a heavy earnings slate.",
+      contentText:
+        "The large-cap earnings calendar is light today, leaving index direction more exposed to macro data, rates, and sector rotation.",
+      sourceUrl: "https://unusualwhales.com/news/large-cap-earnings-calendar-light"
     }
   ],
   earnings: [
@@ -396,7 +408,16 @@ export const tickerMock = (symbol: string): TickerPayload => ({
     { label: "Market cap", value: "$3.2T", tone: "neutral" }
   ],
   story: `${symbol} is trading higher in this mock snapshot with constructive index tape, partial flow coverage, and no live source calls. Configure required Netlify variables and scheduled ingestion to enable live ticker intelligence.`,
-  timeline: todayMock.featuredNews,
+  timeline: todayMock.featuredNews.map((article) => ({
+    headline: article.title,
+    timestamp: article.publishedAt ?? article.createdAt ?? article.fetchedAt,
+    tickers: article.tags,
+    whyItMatters: article.excerpt ?? "Featured market article.",
+    source: "Unusual Whales",
+    sourceUrl: article.sourceUrl,
+    category: "Market",
+    impact: "Medium"
+  })),
   flow: flowMock.summary,
   ownership: [
     { label: "Latest 13F posture", value: "Accumulation", tone: "positive" },
