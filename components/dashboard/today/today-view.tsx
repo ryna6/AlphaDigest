@@ -29,8 +29,8 @@ function roroExplanation(metric: Metric) {
 
   const ratio = Number(metric.value);
   if (!Number.isFinite(ratio)) return metric.change;
-  if (ratio > 1) return "risk off";
-  if (ratio < 1) return "risk on";
+  if (ratio > 1) return "Risk Off";
+  if (ratio < 1) return "Risk On";
   return "neutral";
 }
 
@@ -49,7 +49,7 @@ function economicEventTimeLabel(time: string) {
 function EarningsPanel({ earnings }: { earnings: EarningsEvent[] }) {
   return (
     <Panel>
-      <SectionHeader title="Today’s Earnings" />
+      <SectionHeader title="Earnings" />
       <div className="divide-y divide-borderStrong/60">
         {earnings.map((event) => (
           <div key={`${event.ticker}-${event.time}`} className="flex items-center justify-between gap-4 py-3">
@@ -121,7 +121,7 @@ export function TodayView({ data }: { data: TodayPayload }) {
       </Panel>
       <div className="mt-4 grid gap-4 xl:grid-cols-[minmax(0,1fr)_360px]">
         <Panel>
-          <SectionHeader title="Today's Top News" />
+          <SectionHeader title="Top News" />
           {data.featuredNews.map((n) => (
             <div key={n.headline} className="border-b border-borderStrong py-3 last:border-b-0">
               <p className="text-sm font-medium">{n.headline}</p>
