@@ -140,12 +140,12 @@ export async function getMarketsPayload(): Promise<{ payload: MarketsPayload; mo
   const stripCandidates: Array<Metric | null> = await Promise.all([
     quoteMetric("global-markets", "SPY", "S&P 500"),
     quoteMetric("global-markets", "QQQ", "Nasdaq 100"),
+    quoteMetric("global-markets", "IJH", "Mid Cap"),
+    quoteMetric("global-markets", "IWM", "Small Cap"),
     quoteMetric("macro-heatmap", "USO", "WTI Oil"),
     quoteMetric("macro-heatmap", "GLD", "Gold"),
     quoteMetric("crypto-heatmap", "BINANCE:BTCUSDT", "Bitcoin"),
-    quoteMetric("macro-heatmap", "VIX", "VIX"),
-    quoteMetric("global-markets", "IJH", "Mid Cap"),
-    quoteMetric("global-markets", "IWM", "Small Cap")
+    quoteMetric("macro-heatmap", "VIX", "VIX")
   ]);
   const strip = stripCandidates.map((metric, index) => metric ?? fallback.strip[index]).filter((metric): metric is Metric => Boolean(metric));
 
@@ -172,6 +172,8 @@ export async function getTodayPayload(): Promise<{ payload: TodayPayload; mode: 
   const vix = await fetchFinnhubQuote("macro-heatmap", "VIX");
   const vix3m = await fetchFinnhubQuote("macro-heatmap", "VIX3M");
   const riskRatio = vix?.c && vix3m?.c ? (vix3m.c / vix.c).toFixed(2) : todayMock.marketSummary[1].value;
+  const riskRatioValue = Number(riskRatio);
+  const riskTone = Number.isFinite(riskRatioValue) ? (riskRatioValue > 1 ? "risk off" : riskRatioValue < 1 ? "risk on" : "neutral") : todayMock.marketSummary[1].change;
   const earnings = [...todayMock.earnings].slice(0, 3).map((event) => event.ticker).join(", ");
 
   return {
@@ -179,11 +181,11 @@ export async function getTodayPayload(): Promise<{ payload: TodayPayload; mode: 
       ...todayMock,
       marketSummary: [
         { label: "Leading sectors", value: leading.map((item) => sectorShortNames[item.symbol] ?? item.label).join(", "), change: leading.map((item) => formatPercent(item.changePercent)).join(" / "), tone: leading[0]?.changePercent >= 0 ? "positive" : "negative" },
-        { label: "Risk-on / risk-off", value: riskRatio, change: "VIX3M / VIX", tone: "neutral" },
+        { label: "Risk-on / risk-off", value: riskRatio, change: riskTone, tone: "neutral" },
         { label: "Today’s earnings", value: `${todayMock.earnings.length} earnings`, change: earnings, tone: "neutral" },
         { label: "Put/call ratio", value: todayMock.marketSummary[3].value, change: todayMock.marketSummary[3].change, tone: "neutral" }
       ],
-      keyStats: markets.strip.length ? markets.strip : todayMock.keyStats,
+      keyStats: (markets.strip.length ? markets.strip : todayMock.keyStats).filter((metric) => !["Mid Cap", "Small Cap"].includes(metric.label)),
       sectorSnapshot: leading.map((item) => ({ label: item.label, value: formatPercent(item.changePercent), tone: toneFromChange(item.changePercent) }))
     },
     mode,

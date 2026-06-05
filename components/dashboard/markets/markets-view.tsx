@@ -21,19 +21,21 @@ function signedValueClass(value?: string) {
 
 export function MarketsView({ data }: { data: MarketsPayload }) {
   const [mode, setMode] = useState<(typeof modes)[number]>("globalMarkets");
+
   return (
     <>
       <PageTitle title="Markets" subtitle="What is moving across markets." />
       <Panel>
-        <SectionHeader title="Top Market Strip" subtitle="Compact cross-asset market summary" />
+        <SectionHeader title="Indices" />
         <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
           {data.strip.map((metric) => (
             <div key={metric.label} className="min-h-32 rounded-xl border border-borderStrong bg-sidebar p-4">
               <p className="text-xs font-semibold uppercase tracking-[0.2em] text-textMuted">{metric.label}</p>
               <p className="mt-5 text-2xl font-semibold text-textPrimary">{metric.value}</p>
               {[metric.change, metric.changePercent].filter(Boolean).length ? (
-                <p className={cn("mt-2 text-sm", signedValueClass([metric.change, metric.changePercent].filter(Boolean).join(" ")))}>
-                  {[metric.change, metric.changePercent].filter(Boolean).join(" ")}
+                <p className={cn("mt-2 flex gap-4 text-sm", signedValueClass([metric.change, metric.changePercent].filter(Boolean).join(" ")))}>
+                  {metric.change ? <span>{metric.change}</span> : null}
+                  {metric.changePercent ? <span>{metric.changePercent}</span> : null}
                 </p>
               ) : null}
             </div>
