@@ -1,4 +1,5 @@
 import { AppSidebar } from "./app-sidebar";
+import { AppLogo } from "./app-logo";
 
 export function DashboardShell({ children }: { children: React.ReactNode }) {
   return (
@@ -6,6 +7,15 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
       <div className="flex min-h-screen">
         <AppSidebar />
         <main className="min-w-0 flex-1">
+          <div className="border-b border-borderStrong bg-sidebar px-4 py-3 lg:hidden">
+            <a
+              href="/overview/today"
+              className="inline-flex min-h-10 items-center"
+              aria-label="Market Recap home"
+            >
+              <AppLogo className="max-h-9 w-auto object-contain" />
+            </a>
+          </div>
           <div className="p-4 lg:p-6">{children}</div>
         </main>
       </div>

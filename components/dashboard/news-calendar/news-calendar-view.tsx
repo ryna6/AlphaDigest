@@ -14,8 +14,8 @@ import { SectionHeader } from "@/components/ui/section-header";
 import { DataTable } from "@/components/ui/data-table";
 import { formatEtDateKey, formatEtDateTime, formatEtTime, timestampTitle } from "@/lib/utils/time";
 import { cn } from "@/lib/utils/cn";
+import { getMajorEarningsForDate, groupEarningsBySession } from "@/lib/data/earnings-utils";
 
-const MIN_VISIBLE_MARKET_CAP = 5_000_000_000;
 type WeekOffset = -1 | 0 | 1;
 type EarningsGroupKey = "premarket" | "postmarket";
 
@@ -58,10 +58,6 @@ function NewsList({ news }: { news: NewsItem[] }) {
       ))}
     </div>
   );
-}
-
-function parseDateKey(dateKey: string) {
-  return new Date(`${dateKey}T12:00:00`);
 }
 
 function dateKey(date: Date) {
@@ -136,13 +132,13 @@ function WeekdaySelector({
   };
 
   return (
-    <div className="mt-4 rounded-2xl border border-borderStrong bg-panel/80 p-2 shadow-panel">
-      <div className="grid grid-cols-2 gap-2 md:grid-cols-7">
+    <div className="rounded-none border border-borderStrong bg-panel/80 p-1.5 shadow-panel">
+      <div className="grid grid-cols-2 gap-1.5 sm:grid-cols-7">
         <button
           type="button"
           disabled={selection.weekOffset === -1}
           onClick={() => moveWeek(-1)}
-          className="rounded-xl border border-borderStrong bg-surfaceSubtle px-3 py-2 text-xs font-semibold text-textSecondary transition disabled:cursor-not-allowed disabled:opacity-40 enabled:hover:border-accentBlue/60 enabled:hover:text-textPrimary"
+          className="rounded-none border border-borderStrong bg-surfaceSubtle px-1.5 py-2 text-[10px] font-semibold text-textSecondary transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accentBlue/60 disabled:cursor-not-allowed disabled:opacity-40 enabled:hover:border-accentBlue/60 enabled:hover:text-textPrimary"
         >
           Last Week
         </button>
@@ -160,7 +156,7 @@ function WeekdaySelector({
                 })
               }
               className={cn(
-                "rounded-xl border px-3 py-2 text-xs font-semibold transition",
+                "rounded-none border px-1.5 py-2 text-[10px] font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accentBlue/60",
                 active
                   ? "border-accentBlue/70 bg-accentBlue/15 text-textPrimary shadow-sm shadow-accentBlue/10"
                   : "border-borderStrong bg-surfaceSubtle text-textSecondary hover:border-accentBlue/60 hover:text-textPrimary"
@@ -174,7 +170,7 @@ function WeekdaySelector({
           type="button"
           disabled={selection.weekOffset === 1}
           onClick={() => moveWeek(1)}
-          className="rounded-xl border border-borderStrong bg-surfaceSubtle px-3 py-2 text-xs font-semibold text-textSecondary transition disabled:cursor-not-allowed disabled:opacity-40 enabled:hover:border-accentBlue/60 enabled:hover:text-textPrimary"
+          className="rounded-none border border-borderStrong bg-surfaceSubtle px-1.5 py-2 text-[10px] font-semibold text-textSecondary transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accentBlue/60 disabled:cursor-not-allowed disabled:opacity-40 enabled:hover:border-accentBlue/60 enabled:hover:text-textPrimary"
         >
           Next Week
         </button>
@@ -183,29 +179,10 @@ function WeekdaySelector({
   );
 }
 
-function groupKeyForReportTime(reportTime: string | null | undefined): EarningsGroupKey {
-  switch (reportTime?.toLowerCase()) {
-    case "premarket":
-      return "premarket";
-    case "postmarket":
-    default:
-      return "postmarket";
-  }
-}
-
 function formatMovePct(value: number | null | undefined) {
   return value === null || value === undefined || !Number.isFinite(value)
     ? "—"
     : `${value.toFixed(1)}%`;
-}
-
-function selectedDayTitle(selectedDate: string) {
-  const date = parseDateKey(selectedDate);
-  return new Intl.DateTimeFormat("en-US", {
-    weekday: "long",
-    month: "short",
-    day: "numeric"
-  }).format(date);
 }
 
 function companyInitials(symbol: string) {
@@ -282,21 +259,16 @@ function EarningsCalendar({
   selectedDate: string;
 }) {
   const grouped = useMemo(() => {
-    const groups: Record<EarningsGroupKey, UnusualWhalesEarningsEvent[]> = {
-      premarket: [],
-      postmarket: []
-    };
-
-    data.unusualWhalesEarnings
-      .filter((event) => event.reportDate === selectedDate)
-      .filter((event) => (event.marketCap ?? 0) > MIN_VISIBLE_MARKET_CAP)
-      .forEach((event) => groups[groupKeyForReportTime(event.reportTime)].push(event));
-
-    const sortBySymbol = (a: UnusualWhalesEarningsEvent, b: UnusualWhalesEarningsEvent) =>
-      a.symbol.localeCompare(b.symbol);
-    groups.premarket.sort(sortBySymbol);
-    groups.postmarket.sort(sortBySymbol);
-    return groups;
+    const topEarnings = getMajorEarningsForDate(data.unusualWhalesEarnings, selectedDate, 10);
+    const groupsBySession = groupEarningsBySession(topEarnings);
+    return {
+      premarket: groupsBySession.premarket,
+      postmarket: [
+        ...groupsBySession.postmarket,
+        ...groupsBySession.regular,
+        ...groupsBySession.unknown
+      ]
+    } satisfies Record<EarningsGroupKey, UnusualWhalesEarningsEvent[]>;
   }, [data.unusualWhalesEarnings, selectedDate]);
 
   return (
@@ -307,9 +279,6 @@ function EarningsCalendar({
           Earnings data is stale: {data.earningsMetadata.error ?? "last refresh failed"}
         </div>
       ) : null}
-      <div className="mb-4 rounded-xl border border-borderStrong bg-surfaceSubtle/50 px-3 py-2">
-        <h3 className="text-lg font-semibold text-textPrimary">{selectedDayTitle(selectedDate)}</h3>
-      </div>
       <div className="space-y-5">
         <EarningsGroup title="Before Open" events={grouped.premarket} />
         <EarningsGroup title="After Close" events={grouped.postmarket} />
@@ -367,24 +336,26 @@ export function NewsCalendarView({ data }: { data: NewsCalendarPayload }) {
         title="News & Calendar"
         subtitle="What events and headlines are driving markets."
       />
-      <Panel>
-        <SectionHeader
-          title="Latest Market News"
-          action={
-            <Link
-              href="/news-calendar/news"
-              className="border border-borderStrong px-3 py-1 text-xs text-textSecondary hover:border-accentBlue/50 hover:text-textPrimary"
-            >
-              View All
-            </Link>
-          }
-        />
-        <NewsList news={latestNews} />
-      </Panel>
-      <WeekdaySelector selection={selection} onChange={setSelection} />
-      <div className="mt-4 grid gap-4 xl:grid-cols-2">
-        <EarningsCalendar data={data} selectedDate={selection.selectedDate} />
-        <EconomicCalendar events={data.economicCalendar} selectedDate={selection.selectedDate} />
+      <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_390px]">
+        <Panel>
+          <SectionHeader
+            title="Latest Market News"
+            action={
+              <Link
+                href="/news-calendar/news"
+                className="border border-borderStrong px-3 py-1 text-xs text-textSecondary hover:border-accentBlue/50 hover:text-textPrimary"
+              >
+                View All
+              </Link>
+            }
+          />
+          <NewsList news={latestNews} />
+        </Panel>
+        <aside className="space-y-4">
+          <WeekdaySelector selection={selection} onChange={setSelection} />
+          <EconomicCalendar events={data.economicCalendar} selectedDate={selection.selectedDate} />
+          <EarningsCalendar data={data} selectedDate={selection.selectedDate} />
+        </aside>
       </div>
     </>
   );

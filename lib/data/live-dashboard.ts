@@ -1,6 +1,7 @@
 import type { FinnhubFeatureArea } from "./adapters/finnhub-key-router";
 import { getFinnhubKey } from "./adapters/finnhub-key-router";
 import { marketsMock, todayMock } from "./fixtures/mock-dashboard";
+import { formatEtDateKey } from "../utils/time";
 import { getHeatmapIconPath, getMetricIconPath } from "../constants/asset-icons";
 import {
   fetchUnusualWhalesFeaturedNews,
@@ -9,6 +10,11 @@ import {
 } from "./adapters/unusual-whales-news";
 import type { UnusualWhalesEarningsEvent } from "./adapters/unusual-whales-earnings";
 import { getCachedUnusualWhalesEarnings } from "./adapters/unusual-whales-earnings";
+import {
+  getMajorEarningsForDate,
+  groupEarningsBySession,
+  sortByMarketCapDesc
+} from "./earnings-utils";
 import type { HeatmapTile, Metric, SourceMeta } from "./schemas/common";
 import type {
   EarningsEvent,
@@ -125,17 +131,21 @@ async function fetchFinnhubQuote(
   const route = getFinnhubKey(featureArea);
   if (!route.ok) return null;
 
-  const response = await fetch(
-    `https://finnhub.io/api/v1/quote?symbol=${encodeURIComponent(symbol)}&token=${route.key}`,
-    {
-      cache: "no-store"
-    }
-  );
+  try {
+    const response = await fetch(
+      `https://finnhub.io/api/v1/quote?symbol=${encodeURIComponent(symbol)}&token=${route.key}`,
+      {
+        cache: "no-store"
+      }
+    );
 
-  if (!response.ok) return null;
-  const quote = (await response.json()) as FinnhubQuote;
-  if (!quote.c || quote.c <= 0) return null;
-  return quote;
+    if (!response.ok) return null;
+    const quote = (await response.json()) as FinnhubQuote;
+    if (!quote.c || quote.c <= 0) return null;
+    return quote;
+  } catch {
+    return null;
+  }
 }
 
 async function quoteMetric(
@@ -211,17 +221,50 @@ function compactMoneyOrDash(value: number | null) {
 }
 
 function earningsSnapshotFromUnusualWhales(events: UnusualWhalesEarningsEvent[]): EarningsEvent[] {
-  return events.slice(0, 20).map((event) => ({
-    ticker: event.symbol,
-    company: event.companyName ?? event.symbol,
-    time: earningsTimingFromReportTime(event.reportTime),
-    expectedEps: currencyOrDash(event.epsMeanEstimate ?? event.streetMeanEstimate),
-    expectedRevenue: undefined,
-    actualEps: "—",
-    actualRevenue: "—",
-    marketCap: compactMoneyOrDash(event.marketCap),
-    ...(event.logo ? { logoUrl: event.logo } : {})
+  return sortByMarketCapDesc(events)
+    .slice(0, 20)
+    .map((event) => ({
+      ticker: event.symbol,
+      company: event.companyName ?? event.symbol,
+      time: earningsTimingFromReportTime(event.reportTime),
+      expectedEps: currencyOrDash(event.epsMeanEstimate ?? event.streetMeanEstimate),
+      expectedRevenue: undefined,
+      actualEps: "—",
+      actualRevenue: "—",
+      marketCap: compactMoneyOrDash(event.marketCap),
+      ...(event.logo ? { logoUrl: event.logo } : {})
+    }));
+}
+
+function todayDateKey(date = new Date()) {
+  return formatEtDateKey(date) ?? date.toISOString().slice(0, 10);
+}
+
+function todayEarningsSummary(events: UnusualWhalesEarningsEvent[]) {
+  return {
+    count: events.length,
+    value: `${events.length} ${events.length === 1 ? "earning" : "earnings"}`
+  };
+}
+
+async function todayMarketOverviewMetrics() {
+  const fallbackMetrics = todayMock.keyStats.slice(0, 6).map((metric) => ({
+    ...metric,
+    iconPath: getMetricIconPath(metric.label)
   }));
+
+  const liveMetrics = await Promise.all([
+    quoteMetric("global-markets", "SPY", "S&P 500"),
+    quoteMetric("global-markets", "QQQ", "Nasdaq 100"),
+    quoteMetric("macro-heatmap", "USO", "WTI Oil"),
+    quoteMetric("macro-heatmap", "GLD", "Gold"),
+    quoteMetric("crypto-heatmap", "BINANCE:BTCUSDT", "Bitcoin"),
+    quoteMetric("macro-heatmap", "^VIX", "VIX")
+  ]);
+
+  return liveMetrics
+    .map((metric, index) => metric ?? fallbackMetrics[index])
+    .filter((metric): metric is Metric => Boolean(metric));
 }
 
 async function earningsWithLogos() {
@@ -285,10 +328,7 @@ export async function getMarketsPayload(): Promise<{
     quoteMetric("global-markets", "QQQ", "Nasdaq 100"),
     quoteMetric("global-markets", "IJH", "Mid Cap"),
     quoteMetric("global-markets", "IWM", "Small Cap"),
-    quoteMetric("macro-heatmap", "USO", "WTI Oil"),
-    quoteMetric("macro-heatmap", "GLD", "Gold"),
-    quoteMetric("crypto-heatmap", "BINANCE:BTCUSDT", "Bitcoin"),
-    quoteMetric("macro-heatmap", "VIX", "VIX")
+    quoteMetric("global-markets", "ES1!", "S&P 500 Futures")
   ]);
   const strip = stripCandidates
     .map((metric, index) => metric ?? fallback.strip[index])
@@ -320,7 +360,7 @@ export async function getTodayPayload(): Promise<{
   const leading = [...markets.heatmaps.sectors]
     .sort((a, b) => b.changePercent - a.changePercent)
     .slice(0, 3);
-  const vix = await fetchFinnhubQuote("macro-heatmap", "VIX");
+  const vix = await fetchFinnhubQuote("macro-heatmap", "^VIX");
   const vix3m = await fetchFinnhubQuote("macro-heatmap", "VIX3M");
   const riskRatio =
     vix?.c && vix3m?.c ? (vix3m.c / vix.c).toFixed(2) : todayMock.marketSummary[1].value;
@@ -332,14 +372,17 @@ export async function getTodayPayload(): Promise<{
         ? "risk on"
         : "neutral"
     : todayMock.marketSummary[1].change;
-  const [earningsData, featuredNewsResult] = await Promise.all([
-    earningsWithLogos(),
-    fetchUnusualWhalesFeaturedNews(50)
+  const [featuredNewsResult, unusualWhalesEarningsResult, todayKeyStats] = await Promise.all([
+    fetchUnusualWhalesFeaturedNews(50),
+    getCachedUnusualWhalesEarnings({ limit: 250, order: "oi" }),
+    todayMarketOverviewMetrics()
   ]);
-  const earnings = earningsData
-    .slice(0, 3)
-    .map((event) => event.ticker)
-    .join(", ");
+  const todayEarnings = getMajorEarningsForDate(unusualWhalesEarningsResult.events, todayDateKey());
+  const topTodayEarnings = todayEarnings.slice(0, 5);
+  const earningsData = topTodayEarnings.length
+    ? earningsSnapshotFromUnusualWhales(topTodayEarnings)
+    : [];
+  const earningsSummary = todayEarningsSummary(todayEarnings);
 
   return {
     payload: {
@@ -354,8 +397,7 @@ export async function getTodayPayload(): Promise<{
         { label: "Risk-on / risk-off", value: riskRatio, change: riskTone, tone: "neutral" },
         {
           label: "Today’s earnings",
-          value: `${todayMock.earnings.length} earnings`,
-          change: earnings,
+          value: earningsSummary.value,
           tone: "neutral"
         },
         {
@@ -369,13 +411,8 @@ export async function getTodayPayload(): Promise<{
         ? featuredNewsResult.items
         : todayMock.featuredNews,
       earnings: earningsData,
-      keyStats: (markets.strip.length
-        ? markets.strip
-        : todayMock.keyStats.map((metric) => ({
-            ...metric,
-            iconPath: getMetricIconPath(metric.label)
-          }))
-      ).filter((metric) => !["Mid Cap", "Small Cap"].includes(metric.label)),
+      unusualWhalesEarnings: todayEarnings,
+      keyStats: todayKeyStats,
       sectorSnapshot: leading.map((item) => ({
         label: item.label,
         value: formatPercent(item.changePercent),
