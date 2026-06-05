@@ -286,7 +286,7 @@ export async function getTodayPayload(): Promise<{
     : todayMock.marketSummary[1].change;
   const [earningsData, featuredNewsResult] = await Promise.all([
     earningsWithLogos(),
-    fetchUnusualWhalesFeaturedNews(5)
+    fetchUnusualWhalesFeaturedNews(50)
   ]);
   const earnings = earningsData
     .slice(0, 3)
@@ -361,7 +361,17 @@ export async function getNewsCalendarPayload(): Promise<{
     earningsWithLogos()
   ]);
 
-  const news = newsResult.items.length ? newsResult.items : todayMock.featuredNews;
+  const fallbackNews = todayMock.featuredNews.map((article) => ({
+    headline: article.title,
+    timestamp: article.publishedAt ?? article.createdAt ?? article.fetchedAt,
+    tickers: article.tags,
+    whyItMatters: article.excerpt ?? "Featured market article.",
+    source: "Unusual Whales",
+    sourceUrl: article.sourceUrl,
+    category: "Market",
+    impact: "Medium" as const
+  }));
+  const news = newsResult.items.length ? newsResult.items : fallbackNews;
 
   return {
     payload: {
