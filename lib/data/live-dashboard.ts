@@ -2,8 +2,13 @@ import type { FinnhubFeatureArea } from "./adapters/finnhub-key-router";
 import { getFinnhubKey } from "./adapters/finnhub-key-router";
 import { marketsMock, todayMock } from "./fixtures/mock-dashboard";
 import { getHeatmapIconPath, getMetricIconPath } from "../constants/asset-icons";
-import type { HeatmapTile, Metric } from "./schemas/common";
-import type { MarketsPayload, TodayPayload } from "./schemas/dashboard";
+import {
+  fetchUnusualWhalesFeaturedNews,
+  fetchUnusualWhalesNewsFeed,
+  unusualWhalesSources
+} from "./adapters/unusual-whales-news";
+import type { HeatmapTile, Metric, SourceMeta } from "./schemas/common";
+import type { MarketsPayload, NewsCalendarPayload, TodayPayload } from "./schemas/dashboard";
 
 const sectorShortNames: Record<string, string> = {
   XLK: "Tech",
@@ -74,6 +79,21 @@ type FinnhubQuote = { c?: number; d?: number; dp?: number; pc?: number };
 type FinnhubCompanyProfile = { logo?: string };
 
 const companyLogoCache = new Map<string, Promise<string | undefined>>();
+
+function liveMeta(
+  source: string,
+  sourceUrl: string,
+  mode: SourceMeta["mode"],
+  message?: string
+): SourceMeta {
+  return {
+    source,
+    sourceUrl,
+    lastUpdated: new Date().toISOString(),
+    mode,
+    ...(message ? { message } : {})
+  };
+}
 
 function formatNumber(value: number, options?: Intl.NumberFormatOptions) {
   return new Intl.NumberFormat("en-US", options).format(value);
@@ -264,7 +284,10 @@ export async function getTodayPayload(): Promise<{
         ? "risk on"
         : "neutral"
     : todayMock.marketSummary[1].change;
-  const earningsData = await earningsWithLogos();
+  const [earningsData, featuredNewsResult] = await Promise.all([
+    earningsWithLogos(),
+    fetchUnusualWhalesFeaturedNews(5)
+  ]);
   const earnings = earningsData
     .slice(0, 3)
     .map((event) => event.ticker)
@@ -294,6 +317,9 @@ export async function getTodayPayload(): Promise<{
           tone: "neutral"
         }
       ],
+      featuredNews: featuredNewsResult.items.length
+        ? featuredNewsResult.items
+        : todayMock.featuredNews,
       earnings: earningsData,
       keyStats: (markets.strip.length
         ? markets.strip
@@ -306,12 +332,52 @@ export async function getTodayPayload(): Promise<{
         label: item.label,
         value: formatPercent(item.changePercent),
         tone: toneFromChange(item.changePercent)
-      }))
+      })),
+      sourceMeta: [
+        liveMeta(
+          "Unusual Whales Featured News",
+          unusualWhalesSources.featured,
+          featuredNewsResult.mode,
+          featuredNewsResult.message
+        ),
+        ...todayMock.sourceMeta.filter((meta) => meta.source !== "Unusual Whales Featured News")
+      ]
     },
     mode,
     notices:
       mode === "live"
         ? []
         : ["Mock Today cards enabled because live quote responses were unavailable."]
+  };
+}
+
+export async function getNewsCalendarPayload(): Promise<{
+  payload: NewsCalendarPayload;
+  mode: "mock" | "live";
+  notices: string[];
+}> {
+  const [newsResult, earningsData] = await Promise.all([
+    fetchUnusualWhalesNewsFeed(100),
+    earningsWithLogos()
+  ]);
+
+  const news = newsResult.items.length ? newsResult.items : todayMock.featuredNews;
+
+  return {
+    payload: {
+      news,
+      economicCalendar: todayMock.economicCalendar,
+      earnings: earningsData,
+      sourceMeta: [
+        liveMeta(
+          "Unusual Whales News Feed",
+          unusualWhalesSources.feed,
+          newsResult.mode,
+          newsResult.message
+        )
+      ]
+    },
+    mode: newsResult.items.length ? "live" : "mock",
+    notices: newsResult.message ? [newsResult.message] : []
   };
 }

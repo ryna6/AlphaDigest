@@ -26,6 +26,8 @@ export const earningsSchema = z.object({
   time: z.enum(["BMO", "AMC", "TBD"]),
   expectedEps: z.string(),
   expectedRevenue: z.string().optional(),
+  actualEps: z.string().optional(),
+  actualRevenue: z.string().optional(),
   marketCap: z.string().optional(),
   logoUrl: z.string().url().optional()
 });
@@ -76,6 +78,13 @@ export const economyPayloadSchema = z.object({
   sourceMeta: z.array(sourceMetaSchema)
 });
 
+export const newsCalendarPayloadSchema = z.object({
+  news: z.array(newsItemSchema),
+  economicCalendar: z.array(eventSchema),
+  earnings: z.array(earningsSchema),
+  sourceMeta: z.array(sourceMetaSchema)
+});
+
 export const tickerPayloadSchema = z.object({
   symbol: z.string(),
   header: z.array(metricSchema),
@@ -91,6 +100,7 @@ export type NewsItem = z.infer<typeof newsItemSchema>;
 export type DashboardEvent = z.infer<typeof eventSchema>;
 export type EarningsEvent = z.infer<typeof earningsSchema>;
 export type EconomicEvent = z.infer<typeof eventSchema>;
+export type NewsCalendarPayload = z.infer<typeof newsCalendarPayloadSchema>;
 export type TodayPayload = z.infer<typeof todayPayloadSchema>;
 export type MarketsPayload = z.infer<typeof marketsPayloadSchema>;
 export type FlowPayload = z.infer<typeof flowPayloadSchema>;
