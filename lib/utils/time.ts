@@ -11,6 +11,13 @@ const ET_DATE_FORMATTER = new Intl.DateTimeFormat("en-US", {
   timeZone: "America/New_York"
 });
 
+const ET_DATE_KEY_FORMATTER = new Intl.DateTimeFormat("en-CA", {
+  year: "numeric",
+  month: "2-digit",
+  day: "2-digit",
+  timeZone: "America/New_York"
+});
+
 function normalizeTimeParts(value: string) {
   const match = value.trim().match(/^(\d{1,2})(?::(\d{2}))?\s*(AM|PM)?\s*(?:ET|EST|EDT)?$/i);
   if (!match) return null;
@@ -37,6 +44,13 @@ export function formatEtTime(timestamp?: string | number | Date | null): string 
   if (!Number.isFinite(date.getTime())) return String(timestamp);
 
   return `${ET_TIME_FORMATTER.format(date).replace("a.m.", "AM").replace("p.m.", "PM")} ET`;
+}
+
+export function formatEtDateKey(timestamp?: string | number | Date | null): string | null {
+  if (timestamp === null || timestamp === undefined || timestamp === "") return null;
+  const date = timestamp instanceof Date ? timestamp : new Date(timestamp);
+  if (!Number.isFinite(date.getTime())) return null;
+  return ET_DATE_KEY_FORMATTER.format(date);
 }
 
 export function formatEtDateTime(timestamp?: string | number | Date | null): string {
