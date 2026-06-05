@@ -200,7 +200,8 @@ export function TodayView({ data }: { data: TodayPayload }) {
                     {metric.label}
                   </p>
                   {metric.label === "Risk-on / risk-off" ? (
-                    <InfoTooltip text="Risk-on / risk-off compares VIX3M to VIX. A ratio above 1 means the 3-month volatility future is above spot VIX, which often signals a more cautious or risk-off tape; below 1 suggests near-term fear is elevated versus 3-month volatility and can indicate a risk-on setup as stress fades." />
+                    <InfoTooltip text="This metric compares the 3-month expected volatility (VIX3M) to the current VIX. 
+                      When the ratio > 1, it means traders expect higher volatility in the future, which can reflects a more risk-off market. When the ratio < 1, near-term fear is higher, which can suggest conditions is shifting towards a more risk-on market." />
                   ) : null}
                 </div>
                 <p className="mt-5 text-2xl font-semibold text-textPrimary">{metric.value}</p>
