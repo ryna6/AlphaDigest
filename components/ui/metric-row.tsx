@@ -25,13 +25,13 @@ export function MetricRow({ metric }: { metric: Metric }) {
     <div className="flex items-center justify-between gap-3 border-b border-borderStrong/60 py-2 last:border-b-0">
       <div className="flex min-w-0 items-center gap-2">
         {metric.iconPath ? (
-          <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-borderStrong bg-panelHover p-1">
+          <span className="flex h-7 w-7 shrink-0 items-center justify-center overflow-hidden rounded-full bg-transparent">
             <Image
               src={metric.iconPath}
               alt={`${metric.label} icon`}
-              width={18}
-              height={18}
-              className="h-full w-full rounded-full object-contain"
+              width={28}
+              height={28}
+              className="h-full w-full rounded-full object-cover"
             />
           </span>
         ) : null}

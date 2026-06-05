@@ -37,17 +37,17 @@ export function MarketsView({ data }: { data: MarketsPayload }) {
           {data.strip.map((metric) => (
             <div
               key={metric.label}
-              className="min-h-32 rounded-xl border border-borderStrong bg-sidebar p-4"
+              className="min-h-32 rounded-none border border-borderStrong bg-sidebar p-4"
             >
               <div className="flex items-center gap-2">
                 {metric.iconPath ? (
-                  <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-borderStrong bg-panelHover p-1">
+                  <span className="flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden rounded-full bg-transparent">
                     <Image
                       src={metric.iconPath}
                       alt={`${metric.label} icon`}
-                      width={18}
-                      height={18}
-                      className="h-full w-full rounded-full object-contain"
+                      width={32}
+                      height={32}
+                      className="h-full w-full rounded-full object-cover"
                     />
                   </span>
                 ) : null}
@@ -55,20 +55,26 @@ export function MarketsView({ data }: { data: MarketsPayload }) {
                   {metric.label}
                 </p>
               </div>
-              <p className="mt-5 text-2xl font-semibold text-textPrimary">{metric.value}</p>
-              {[metric.change, metric.changePercent].filter(Boolean).length ? (
-                <p
-                  className={cn(
-                    "mt-2 flex gap-4 text-sm",
-                    signedValueClass(
-                      [metric.change, metric.changePercent].filter(Boolean).join(" ")
-                    )
-                  )}
-                >
-                  {metric.change ? <span>{metric.change}</span> : null}
-                  {metric.changePercent ? <span>{metric.changePercent}</span> : null}
-                </p>
-              ) : null}
+              <div className="mt-5">
+                <div className="flex items-baseline justify-between gap-3">
+                  <p className="min-w-0 text-2xl font-semibold text-textPrimary">{metric.value}</p>
+                  {metric.changePercent ? (
+                    <p
+                      className={cn(
+                        "shrink-0 text-right text-sm font-semibold",
+                        signedValueClass(metric.changePercent)
+                      )}
+                    >
+                      {metric.changePercent}
+                    </p>
+                  ) : null}
+                </div>
+                {metric.change ? (
+                  <p className={cn("mt-2 text-sm", signedValueClass(metric.change))}>
+                    {metric.change}
+                  </p>
+                ) : null}
+              </div>
             </div>
           ))}
         </div>
@@ -82,13 +88,13 @@ export function MarketsView({ data }: { data: MarketsPayload }) {
             ))}
           </div>
         ) : null}
-        <div className="mb-4 inline-flex flex-wrap gap-1 rounded-2xl border border-borderStrong bg-sidebar/80 p-1 shadow-inner">
+        <div className="mb-4 inline-flex flex-wrap gap-1 rounded-none border border-borderStrong bg-sidebar/80 p-1 shadow-inner">
           {modes.map((m) => (
             <button
               key={m}
               onClick={() => setMode(m)}
               className={cn(
-                "rounded-xl px-4 py-2 text-xs font-semibold transition",
+                "rounded-none px-4 py-2 text-xs font-semibold transition",
                 mode === m
                   ? "bg-accentBlue text-white shadow-[0_0_18px_rgba(79,140,255,0.35)]"
                   : "text-textSecondary hover:bg-panelHover hover:text-textPrimary"
