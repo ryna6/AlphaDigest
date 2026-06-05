@@ -36,7 +36,7 @@ export const todayMock: TodayPayload = {
       tone: "positive"
     },
     { label: "Risk-on / risk-off", value: "1.22", change: "risk off", tone: "neutral" },
-    { label: "Today’s earnings", value: "2 earnings", change: "ABM, DOCU", tone: "neutral" },
+    { label: "Today’s earnings", value: "1 earning", change: "1 after close", tone: "neutral" },
     { label: "Put/call ratio", value: "0.91", change: "Neutral", tone: "neutral" }
   ],
   keyStats: [
@@ -89,6 +89,13 @@ export const todayMock: TodayPayload = {
       change: "-0.54",
       changePercent: "-0.27%",
       tone: "negative"
+    },
+    {
+      label: "S&P 500 Futures",
+      value: "5,361.25",
+      change: "+12.50",
+      changePercent: "+0.23%",
+      tone: "positive"
     }
   ],
   featuredNews: [
@@ -129,6 +136,7 @@ export const todayMock: TodayPayload = {
       sourceUrl: "https://unusualwhales.com/news/large-cap-earnings-calendar-light"
     }
   ],
+  unusualWhalesEarnings: [],
   earnings: [
     {
       ticker: "ABM",
@@ -201,10 +209,7 @@ const marketStrip = () =>
     todayMock.keyStats[1],
     todayMock.keyStats[6],
     todayMock.keyStats[7],
-    todayMock.keyStats[2],
-    todayMock.keyStats[3],
-    todayMock.keyStats[4],
-    todayMock.keyStats[5]
+    todayMock.keyStats[8]
   ].map(withMetricIcon);
 
 export const marketsMock = (): MarketsPayload => ({

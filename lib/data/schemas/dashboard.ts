@@ -103,6 +103,7 @@ export const todayPayloadSchema = z.object({
   keyStats: z.array(metricSchema),
   featuredNews: z.array(featuredArticleSchema),
   earnings: z.array(earningsSchema),
+  unusualWhalesEarnings: z.array(unusualWhalesEarningsEventSchema).default([]),
   economicCalendar: z.array(eventSchema),
   sectorSnapshot: z.array(metricSchema),
   sourceMeta: z.array(sourceMetaSchema)
