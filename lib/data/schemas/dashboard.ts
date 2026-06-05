@@ -49,6 +49,53 @@ export const earningsSchema = z.object({
   logoUrl: z.string().url().optional()
 });
 
+export const unusualWhalesEarningsEventSchema = z.object({
+  source: z.literal("unusual_whales_earnings"),
+  id: z.string(),
+  symbol: z.string(),
+  companyName: z.string().nullable(),
+  logo: z.string().url().nullable(),
+  reportDate: z.string(),
+  reportTime: z.string().nullable(),
+  marketTime: z.string().nullable(),
+  sector: z.string().nullable(),
+  countryCode: z.string().nullable(),
+  countryName: z.string().nullable(),
+  isSp500: z.boolean(),
+  hasOptions: z.boolean(),
+  marketCapSize: z.string().nullable(),
+  marketCap: z.number().nullable(),
+  currentPrice: z.number().nullable(),
+  previousPrice: z.number().nullable(),
+  openInterest: z.number().nullable(),
+  callVolume: z.number().nullable(),
+  putVolume: z.number().nullable(),
+  stockVolume: z.number().nullable(),
+  expectedMove: z.number().nullable(),
+  impliedMove: z.number().nullable(),
+  streetMeanEstimate: z.number().nullable(),
+  epsMeanEstimate: z.number().nullable(),
+  lastEarningsDate: z.string().nullable(),
+  priceLastEarnings: z.number().nullable(),
+  lastOneDayReactions: z.array(z.number()),
+  raw: z.record(z.string(), z.unknown()),
+  contentHash: z.string(),
+  fetchedAt: z.string()
+});
+
+export const earningsMetadataSchema = z
+  .object({
+    source: z.string(),
+    ok: z.boolean(),
+    fetchedAt: z.string(),
+    changed: z.boolean().nullable(),
+    rowCount: z.number().nullable(),
+    contentHash: z.string().nullable(),
+    error: z.string().nullable(),
+    meta: z.record(z.string(), z.unknown()).nullable()
+  })
+  .nullable();
+
 export const todayPayloadSchema = z.object({
   summary: z.object({ title: z.string(), regime: z.string(), bullets: z.array(z.string()) }),
   marketSummary: z.array(metricSchema),
@@ -99,6 +146,8 @@ export const newsCalendarPayloadSchema = z.object({
   news: z.array(newsItemSchema),
   economicCalendar: z.array(eventSchema),
   earnings: z.array(earningsSchema),
+  unusualWhalesEarnings: z.array(unusualWhalesEarningsEventSchema).default([]),
+  earningsMetadata: earningsMetadataSchema.default(null),
   sourceMeta: z.array(sourceMetaSchema)
 });
 
@@ -117,6 +166,8 @@ export type NewsItem = z.infer<typeof newsItemSchema>;
 export type FeaturedArticle = z.infer<typeof featuredArticleSchema>;
 export type DashboardEvent = z.infer<typeof eventSchema>;
 export type EarningsEvent = z.infer<typeof earningsSchema>;
+export type UnusualWhalesEarningsEvent = z.infer<typeof unusualWhalesEarningsEventSchema>;
+export type EarningsMetadata = z.infer<typeof earningsMetadataSchema>;
 export type EconomicEvent = z.infer<typeof eventSchema>;
 export type NewsCalendarPayload = z.infer<typeof newsCalendarPayloadSchema>;
 export type TodayPayload = z.infer<typeof todayPayloadSchema>;

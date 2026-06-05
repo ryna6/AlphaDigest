@@ -7,6 +7,7 @@ import {
   fetchUnusualWhalesNewsFeed,
   unusualWhalesSources
 } from "./adapters/unusual-whales-news";
+import { getCachedUnusualWhalesEarnings } from "./adapters/unusual-whales-earnings";
 import type { HeatmapTile, Metric, SourceMeta } from "./schemas/common";
 import type { MarketsPayload, NewsCalendarPayload, TodayPayload } from "./schemas/dashboard";
 
@@ -356,9 +357,10 @@ export async function getNewsCalendarPayload(): Promise<{
   mode: "mock" | "live";
   notices: string[];
 }> {
-  const [newsResult, earningsData] = await Promise.all([
+  const [newsResult, earningsData, unusualWhalesEarningsResult] = await Promise.all([
     fetchUnusualWhalesNewsFeed(100),
-    earningsWithLogos()
+    earningsWithLogos(),
+    getCachedUnusualWhalesEarnings({ limit: 250, order: "oi" })
   ]);
 
   const fallbackNews = todayMock.featuredNews.map((article) => ({
@@ -378,12 +380,20 @@ export async function getNewsCalendarPayload(): Promise<{
       news,
       economicCalendar: todayMock.economicCalendar,
       earnings: earningsData,
+      unusualWhalesEarnings: unusualWhalesEarningsResult.events,
+      earningsMetadata: unusualWhalesEarningsResult.metadata,
       sourceMeta: [
         liveMeta(
           "Unusual Whales News Feed",
           unusualWhalesSources.feed,
           newsResult.mode,
           newsResult.message
+        ),
+        liveMeta(
+          "Unusual Whales Earnings Cache",
+          "https://phx.unusualwhales.com/api/companies_earnings/upcoming_earnings_v2",
+          unusualWhalesEarningsResult.mode === "supabase" ? "live" : "unavailable",
+          unusualWhalesEarningsResult.message
         )
       ]
     },
