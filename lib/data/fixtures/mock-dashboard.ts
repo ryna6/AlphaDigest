@@ -21,19 +21,20 @@ export const todayMock: TodayPayload = {
     ]
   },
   marketSummary: [
-    { label: "Leading sectors", value: "XLK, XLC, XLE", change: "+0.82% / +0.61% / +0.44%", tone: "positive" },
+    { label: "Leading sectors", value: "Tech, Comm Services, Energy", change: "+0.82% / +0.61% / +0.44%", tone: "positive" },
     { label: "Risk-on / risk-off", value: "1.22", change: "VIX3M / VIX", tone: "neutral" },
     { label: "Today’s earnings", value: "2 earnings", change: "ABM, DOCU", tone: "neutral" },
     { label: "Put/call ratio", value: "0.91", change: "Neutral", tone: "neutral" }
   ],
   keyStats: [
     { label: "S&P 500", value: "5,352.96", change: "+18.12", changePercent: "+0.34%", tone: "positive" },
-    { label: "Nasdaq", value: "17,098.45", change: "+91.43", changePercent: "+0.54%", tone: "positive" },
-    { label: "VIX", value: "13.42", change: "-0.38", changePercent: "-2.75%", tone: "positive" },
-    { label: "WTI crude oil", value: "$78.28", change: "+$0.42", changePercent: "+0.54%", tone: "warning" },
+    { label: "Nasdaq 100", value: "17,098.45", change: "+91.43", changePercent: "+0.54%", tone: "positive" },
+    { label: "WTI Oil", value: "$78.28", change: "+$0.42", changePercent: "+0.54%", tone: "warning" },
     { label: "Gold", value: "$2,336.20", change: "+$5.10", changePercent: "+0.22%", tone: "neutral" },
     { label: "Bitcoin", value: "$68,420", change: "+$710", changePercent: "+1.05%", tone: "positive" },
-    { label: "U.S. 10-year yield", value: "4.29%", change: "+2 bps", changePercent: "", tone: "warning" }
+    { label: "VIX", value: "13.42", change: "-0.38", changePercent: "-2.75%", tone: "positive" },
+    { label: "Mid Cap", value: "60.42", change: "+0.18", changePercent: "+0.30%", tone: "positive" },
+    { label: "Small Cap", value: "202.16", change: "-0.54", changePercent: "-0.27%", tone: "negative" }
   ],
   featuredNews: [
     { headline: "Mega-cap technology leads premarket tape as yields edge higher", timestamp: "08:42 ET", tickers: ["QQQ", "XLK"], whyItMatters: "Leadership remains narrow, keeping breadth confirmation important.", category: "Macro", impact: "Medium" },
@@ -67,19 +68,19 @@ const tiles = (items: Array<[string, string, number, number]>) =>
   }));
 
 export const marketsMock = (): MarketsPayload => ({
-  strip: todayMock.keyStats.slice(0, 7),
+  strip: todayMock.keyStats.slice(0, 8),
   heatmaps: {
     globalMarkets: tiles([
-      ["SPX", "S&P 500", 0.34, 20], ["NDX", "Nasdaq", 0.54, 18], ["DAX", "DAX", -0.18, 10], ["NIKKEI", "Nikkei", 0.22, 10], ["BTC", "Bitcoin", 1.05, 14], ["WTI", "WTI crude oil", 0.54, 8]
+      ["SPY", "U.S. Market", 0.34, 20], ["EWC", "Canadian Market", 0.18, 10], ["IEUR", "European Market", -0.18, 14], ["EWJ", "Japan Market", 0.22, 12], ["EWT", "Taiwan Market", 0.41, 10], ["EWH", "Hong Kong Market", -0.24, 8], ["EWY", "Korean Market", 0.09, 8], ["INDA", "Indian Market", 0.28, 10]
     ]),
     sectors: tiles([
-      ["XLK", "Technology", 0.82, 18], ["XLF", "Financials", 0.12, 13], ["XLE", "Energy", 0.44, 10], ["XLV", "Healthcare", -0.21, 12], ["XLY", "Consumer Discretionary", 0.31, 11], ["XLU", "Utilities", -0.31, 8]
+      ["XLK", "Technology", 0.82, 18], ["XLF", "Financials", 0.12, 13], ["XLC", "Communication Services", 0.61, 10], ["XLY", "Consumer Discretionary", 0.31, 11], ["XLI", "Industrials", 0.08, 10], ["XLV", "Healthcare", -0.21, 12], ["XLP", "Consumer Staples", -0.12, 8], ["XLU", "Utilities", -0.31, 8], ["XLB", "Materials", 0.17, 8], ["XLE", "Energy", 0.44, 10], ["XLRE", "Real Estate", -0.26, 7], ["SMH", "Semiconductors", 1.18, 12]
     ]),
     crypto: tiles([
-      ["BTC", "Bitcoin", 1.05, 28], ["ETH", "Ethereum", 0.72, 22], ["SOL", "Solana", 2.1, 12], ["XRP", "XRP", -0.4, 8], ["DOGE", "Dogecoin", -1.2, 6]
+      ["BTCUSD", "Bitcoin", 1.05, 28], ["ETHUSD", "Ethereum", 0.72, 22], ["SOLUSD", "Solana", 2.1, 12], ["XRPUSD", "XRP", -0.4, 8], ["BNBUSD", "BNB", 0.34, 8], ["TRXUSD", "TRON", 0.22, 6], ["ADAUSD", "Cardano", -0.16, 6], ["DOGEUSD", "Dogecoin", -1.2, 6]
     ]),
     macro: tiles([
-      ["GOLD", "Gold", 0.22, 12], ["SILVER", "Silver", -0.36, 8], ["WTI", "WTI crude oil", 0.54, 10], ["BRENT", "Brent crude oil", 0.49, 10], ["10Y", "10Y Treasury", 0.02, 12], ["HY", "High-yield spread", -0.03, 10], ["VIX", "VIX", -2.75, 10]
+      ["GLD", "Gold", 0.22, 12], ["SLV", "Silver", -0.36, 8], ["USO", "Crude Oil", 0.54, 10], ["UNG", "Natural Gas", -0.64, 8], ["SHY", "Short-Term Bonds", 0.03, 10], ["TLT", "Long-Term Bonds", -0.18, 12], ["HYG", "High-Risk Corporate Bonds", -0.03, 10], ["UUP", "Dollar Index", 0.14, 10]
     ])
   },
   heatmapKeyMessages: getFinnhubKeyStatus().filter((result) => !result.ok).map((result) => result.message),

@@ -4,36 +4,65 @@ import { marketsMock, todayMock } from "./fixtures/mock-dashboard";
 import type { HeatmapTile, Metric } from "./schemas/common";
 import type { MarketsPayload, TodayPayload } from "./schemas/dashboard";
 
-const quoteSymbols: Record<FinnhubFeatureArea, Array<{ symbol: string; label: string; weight: number }>> = {
+const sectorShortNames: Record<string, string> = {
+  XLK: "Tech",
+  XLF: "Financials",
+  XLC: "Comm Services",
+  XLY: "Consumer Discretionary",
+  XLI: "Industrials",
+  XLV: "Healthcare",
+  XLP: "Consumer Staples",
+  XLU: "Utilities",
+  XLB: "Materials",
+  XLE: "Energy",
+  XLRE: "Real Estate",
+  SMH: "Semis"
+};
+
+const quoteSymbols: Record<FinnhubFeatureArea, Array<{ symbol: string; label: string; weight: number; fetchSymbol?: string }>> = {
   "global-markets": [
-    { symbol: "SPY", label: "S&P 500", weight: 20 },
-    { symbol: "QQQ", label: "Nasdaq 100", weight: 18 },
-    { symbol: "DIA", label: "Dow Jones", weight: 12 },
-    { symbol: "IWM", label: "Russell 2000", weight: 12 },
-    { symbol: "EFA", label: "Developed ex-US", weight: 10 },
-    { symbol: "EEM", label: "Emerging markets", weight: 10 }
+    { symbol: "SPY", label: "U.S. Market", weight: 20 },
+    { symbol: "EWC", label: "Canadian Market", weight: 10 },
+    { symbol: "IEUR", label: "European Market", weight: 14 },
+    { symbol: "EWJ", label: "Japan Market", weight: 12 },
+    { symbol: "EWT", label: "Taiwan Market", weight: 10 },
+    { symbol: "EWH", label: "Hong Kong Market", weight: 8 },
+    { symbol: "EWY", label: "Korean Market", weight: 8 },
+    { symbol: "INDA", label: "Indian Market", weight: 10 }
   ],
   "sectors-heatmap": [
     { symbol: "XLK", label: "Technology", weight: 18 },
     { symbol: "XLF", label: "Financials", weight: 13 },
-    { symbol: "XLE", label: "Energy", weight: 10 },
-    { symbol: "XLV", label: "Healthcare", weight: 12 },
-    { symbol: "XLY", label: "Consumer Discretionary", weight: 11 },
     { symbol: "XLC", label: "Communication Services", weight: 10 },
+    { symbol: "XLY", label: "Consumer Discretionary", weight: 11 },
     { symbol: "XLI", label: "Industrials", weight: 10 },
-    { symbol: "XLU", label: "Utilities", weight: 8 }
+    { symbol: "XLV", label: "Healthcare", weight: 12 },
+    { symbol: "XLP", label: "Consumer Staples", weight: 8 },
+    { symbol: "XLU", label: "Utilities", weight: 8 },
+    { symbol: "XLB", label: "Materials", weight: 8 },
+    { symbol: "XLE", label: "Energy", weight: 10 },
+    { symbol: "XLRE", label: "Real Estate", weight: 7 },
+    { symbol: "SMH", label: "Semiconductors", weight: 12 }
   ],
   "crypto-heatmap": [
-    { symbol: "COIN", label: "Crypto equity proxy", weight: 14 },
-    { symbol: "MSTR", label: "Bitcoin equity proxy", weight: 12 }
+    { symbol: "BTCUSD", fetchSymbol: "BINANCE:BTCUSDT", label: "Bitcoin", weight: 28 },
+    { symbol: "ETHUSD", fetchSymbol: "BINANCE:ETHUSDT", label: "Ethereum", weight: 22 },
+    { symbol: "SOLUSD", fetchSymbol: "BINANCE:SOLUSDT", label: "Solana", weight: 12 },
+    { symbol: "XRPUSD", fetchSymbol: "BINANCE:XRPUSDT", label: "XRP", weight: 8 },
+    { symbol: "BNBUSD", fetchSymbol: "BINANCE:BNBUSDT", label: "BNB", weight: 8 },
+    { symbol: "TRXUSD", fetchSymbol: "BINANCE:TRXUSDT", label: "TRON", weight: 6 },
+    { symbol: "ADAUSD", fetchSymbol: "BINANCE:ADAUSDT", label: "Cardano", weight: 6 },
+    { symbol: "DOGEUSD", fetchSymbol: "BINANCE:DOGEUSDT", label: "Dogecoin", weight: 6 }
   ],
   "macro-heatmap": [
     { symbol: "GLD", label: "Gold", weight: 12 },
     { symbol: "SLV", label: "Silver", weight: 8 },
-    { symbol: "USO", label: "WTI crude oil", weight: 10 },
-    { symbol: "BNO", label: "Brent crude oil", weight: 10 },
-    { symbol: "TLT", label: "Long Treasuries", weight: 12 },
-    { symbol: "HYG", label: "High yield credit", weight: 10 }
+    { symbol: "USO", label: "Crude Oil", weight: 10 },
+    { symbol: "UNG", label: "Natural Gas", weight: 8 },
+    { symbol: "SHY", label: "Short-Term Bonds", weight: 10 },
+    { symbol: "TLT", label: "Long-Term Bonds", weight: 12 },
+    { symbol: "HYG", label: "High-Risk Corporate Bonds", weight: 10 },
+    { symbol: "UUP", label: "Dollar Index", weight: 10 }
   ]
 };
 
@@ -85,7 +114,7 @@ async function quoteMetric(featureArea: FinnhubFeatureArea, symbol: string, labe
 
 async function heatmap(featureArea: FinnhubFeatureArea): Promise<HeatmapTile[] | null> {
   const rows = await Promise.all(quoteSymbols[featureArea].map(async (item) => {
-    const quote = await fetchFinnhubQuote(featureArea, item.symbol);
+    const quote = await fetchFinnhubQuote(featureArea, item.fetchSymbol ?? item.symbol);
     if (!quote?.c) return null;
     const changePercent = quote.dp ?? 0;
     return { symbol: item.symbol, label: item.label, value: quote.c, changePercent, weight: item.weight };
@@ -111,12 +140,14 @@ export async function getMarketsPayload(): Promise<{ payload: MarketsPayload; mo
   const stripCandidates: Array<Metric | null> = await Promise.all([
     quoteMetric("global-markets", "SPY", "S&P 500"),
     quoteMetric("global-markets", "QQQ", "Nasdaq 100"),
-    quoteMetric("global-markets", "DIA", "Dow Jones"),
-    quoteMetric("macro-heatmap", "USO", "WTI crude oil"),
+    quoteMetric("macro-heatmap", "USO", "WTI Oil"),
     quoteMetric("macro-heatmap", "GLD", "Gold"),
-    quoteMetric("macro-heatmap", "TLT", "Long Treasuries")
+    quoteMetric("crypto-heatmap", "BINANCE:BTCUSDT", "Bitcoin"),
+    quoteMetric("macro-heatmap", "VIX", "VIX"),
+    quoteMetric("global-markets", "IJH", "Mid Cap"),
+    quoteMetric("global-markets", "IWM", "Small Cap")
   ]);
-  const strip = stripCandidates.filter((metric): metric is Metric => Boolean(metric));
+  const strip = stripCandidates.map((metric, index) => metric ?? fallback.strip[index]).filter((metric): metric is Metric => Boolean(metric));
 
   return {
     payload: {
@@ -147,7 +178,7 @@ export async function getTodayPayload(): Promise<{ payload: TodayPayload; mode: 
     payload: {
       ...todayMock,
       marketSummary: [
-        { label: "Leading sectors", value: leading.map((item) => item.symbol).join(", "), change: leading.map((item) => formatPercent(item.changePercent)).join(" / "), tone: leading[0]?.changePercent >= 0 ? "positive" : "negative" },
+        { label: "Leading sectors", value: leading.map((item) => sectorShortNames[item.symbol] ?? item.label).join(", "), change: leading.map((item) => formatPercent(item.changePercent)).join(" / "), tone: leading[0]?.changePercent >= 0 ? "positive" : "negative" },
         { label: "Risk-on / risk-off", value: riskRatio, change: "VIX3M / VIX", tone: "neutral" },
         { label: "Today’s earnings", value: `${todayMock.earnings.length} earnings`, change: earnings, tone: "neutral" },
         { label: "Put/call ratio", value: todayMock.marketSummary[3].value, change: todayMock.marketSummary[3].change, tone: "neutral" }

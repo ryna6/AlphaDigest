@@ -89,6 +89,7 @@ export const tickerPayloadSchema = z.object({
 export type NewsItem = z.infer<typeof newsItemSchema>;
 export type DashboardEvent = z.infer<typeof eventSchema>;
 export type EarningsEvent = z.infer<typeof earningsSchema>;
+export type EconomicEvent = z.infer<typeof eventSchema>;
 export type TodayPayload = z.infer<typeof todayPayloadSchema>;
 export type MarketsPayload = z.infer<typeof marketsPayloadSchema>;
 export type FlowPayload = z.infer<typeof flowPayloadSchema>;
