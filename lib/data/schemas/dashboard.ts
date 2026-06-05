@@ -26,7 +26,8 @@ export const earningsSchema = z.object({
   time: z.enum(["BMO", "AMC", "TBD"]),
   expectedEps: z.string(),
   expectedRevenue: z.string().optional(),
-  marketCap: z.string().optional()
+  marketCap: z.string().optional(),
+  logoUrl: z.string().url().optional()
 });
 
 export const todayPayloadSchema = z.object({
