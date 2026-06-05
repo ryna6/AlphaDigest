@@ -3,8 +3,8 @@ import "./globals.css";
 import { DashboardShell } from "@/components/shell/dashboard-shell";
 
 export const metadata: Metadata = {
-  title: "Market Intelligence Dashboard",
-  description: "Professional market analytics dashboard for daily market intelligence.",
+  title: "MarketRecap",
+  description: "Professional market recap dashboard for daily market intelligence.",
   metadataBase: new URL("https://example.netlify.app")
 };
 

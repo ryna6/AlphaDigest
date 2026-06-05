@@ -10,11 +10,11 @@ const secretEnvVars = [
   "FINNHUB_CRYPTO_HEATMAP_API_KEY",
   "FINNHUB_MACRO_HEATMAP_API_KEY",
   "TWELVE_DATA_API_KEY",
-  "COINGECKO_API_KEY",
   "FRED_API_KEY",
-  "SEC_API_KEY",
-  "UNUSUAL_WHALES_API_KEY"
+  "SEC_API_KEY"
 ];
+
+const publicConfigVars = ["NEXT_PUBLIC_APP_NAME", "HORMUZ_TRACKER_ENABLED"];
 
 export function GET() {
   return NextResponse.json({
@@ -27,6 +27,19 @@ export function GET() {
       configured: status.ok,
       message: status.ok ? "Configured" : status.message
     })),
-    environment: secretEnvVars.map((envVar) => ({ envVar, configured: Boolean(process.env[envVar]) }))
+    environment: secretEnvVars.map((envVar) => ({ envVar, configured: Boolean(process.env[envVar]) })),
+    publicConfig: publicConfigVars.map((envVar) => ({ envVar, configured: Boolean(process.env[envVar]) })),
+    scraperSources: [
+      {
+        source: "Unusual Whales",
+        configured: true,
+        message: "Configured for website scraping; no Unusual Whales API key or scraper flag is required."
+      },
+      {
+        source: "CoinGecko",
+        configured: true,
+        message: "Configured as a no-key crypto source; no app-level key is required."
+      }
+    ]
   });
 }

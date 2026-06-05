@@ -8,7 +8,7 @@ const mockMeta = (source: string, sourceUrl?: string) => ({
   lastUpdated: now,
   status: "degraded" as const,
   mode: "mock" as const,
-  message: "Mock data enabled. Add API keys in Netlify to enable live data."
+  message: "Mock data enabled. Configure required Netlify environment variables and ingestion jobs to enable live data."
 });
 
 export const todayMock: TodayPayload = {
@@ -27,7 +27,7 @@ export const todayMock: TodayPayload = {
     { label: "VIX", value: "13.42", change: "-0.38", changePercent: "-2.75%", tone: "positive", source: "Finnhub / Twelve Data" },
     { label: "WTI crude oil", value: "$78.28", change: "+$0.42", changePercent: "+0.54%", tone: "warning", source: "Finnhub / Twelve Data / FRED context" },
     { label: "Gold", value: "$2,336.20", change: "+$5.10", changePercent: "+0.22%", tone: "neutral", source: "Finnhub / Twelve Data" },
-    { label: "Bitcoin", value: "$68,420", change: "+$710", changePercent: "+1.05%", tone: "positive", source: "CoinGecko" },
+    { label: "Bitcoin", value: "$68,420", change: "+$710", changePercent: "+1.05%", tone: "positive", source: "CoinGecko no-key" },
     { label: "U.S. 10-year yield", value: "4.29%", change: "+2 bps", changePercent: "", tone: "warning", source: "FRED / market quote provider" }
   ],
   featuredNews: [
@@ -68,13 +68,13 @@ export const marketsMock = (): MarketsPayload => ({
   strip: todayMock.keyStats.slice(0, 7),
   heatmaps: {
     globalMarkets: tiles([
-      ["SPX", "S&P 500", 0.34, 20, "Finnhub Global Markets"], ["NDX", "Nasdaq", 0.54, 18, "Finnhub Global Markets"], ["DAX", "DAX", -0.18, 10, "Finnhub Global Markets"], ["NIKKEI", "Nikkei", 0.22, 10, "Finnhub Global Markets"], ["BTC", "Bitcoin", 1.05, 14, "CoinGecko"], ["WTI", "WTI crude oil", 0.54, 8, "Finnhub / Twelve Data"]
+      ["SPX", "S&P 500", 0.34, 20, "Finnhub Global Markets"], ["NDX", "Nasdaq", 0.54, 18, "Finnhub Global Markets"], ["DAX", "DAX", -0.18, 10, "Finnhub Global Markets"], ["NIKKEI", "Nikkei", 0.22, 10, "Finnhub Global Markets"], ["BTC", "Bitcoin", 1.05, 14, "CoinGecko no-key"], ["WTI", "WTI crude oil", 0.54, 8, "Finnhub / Twelve Data"]
     ]),
     sectors: tiles([
       ["XLK", "Technology", 0.82, 18, "Finnhub Sectors"], ["XLF", "Financials", 0.12, 13, "Finnhub Sectors"], ["XLE", "Energy", 0.44, 10, "Finnhub Sectors"], ["XLV", "Healthcare", -0.21, 12, "Finnhub Sectors"], ["XLY", "Consumer Discretionary", 0.31, 11, "Finnhub Sectors"], ["XLU", "Utilities", -0.31, 8, "Finnhub Sectors"]
     ]),
     crypto: tiles([
-      ["BTC", "Bitcoin", 1.05, 28, "CoinGecko"], ["ETH", "Ethereum", 0.72, 22, "CoinGecko"], ["SOL", "Solana", 2.1, 12, "CoinGecko"], ["XRP", "XRP", -0.4, 8, "CoinGecko"], ["DOGE", "Dogecoin", -1.2, 6, "CoinGecko"]
+      ["BTC", "Bitcoin", 1.05, 28, "CoinGecko no-key"], ["ETH", "Ethereum", 0.72, 22, "CoinGecko no-key"], ["SOL", "Solana", 2.1, 12, "CoinGecko no-key"], ["XRP", "XRP", -0.4, 8, "CoinGecko no-key"], ["DOGE", "Dogecoin", -1.2, 6, "CoinGecko no-key"]
     ]),
     macro: tiles([
       ["GOLD", "Gold", 0.22, 12, "Finnhub / Twelve Data"], ["SILVER", "Silver", -0.36, 8, "Finnhub / Twelve Data"], ["WTI", "WTI crude oil", 0.54, 10, "Finnhub / Twelve Data / FRED"], ["BRENT", "Brent crude oil", 0.49, 10, "Finnhub / Twelve Data / FRED"], ["10Y", "10Y Treasury", 0.02, 12, "FRED"], ["HY", "High-yield spread", -0.03, 10, "FRED"], ["VIX", "VIX", -2.75, 10, "Finnhub / Twelve Data"]
@@ -92,7 +92,7 @@ export const marketsMock = (): MarketsPayload => ({
     { label: "Laggard", value: "XLU -0.3%", tone: "negative" },
     { label: "Cross-asset watch", value: "WTI +0.5%", tone: "warning" }
   ],
-  sourceMeta: [mockMeta("Finnhub heatmap routes", "https://finnhub.io/docs/api"), mockMeta("CoinGecko", "https://docs.coingecko.com/")]
+  sourceMeta: [mockMeta("Finnhub heatmap routes", "https://finnhub.io/docs/api"), mockMeta("CoinGecko no-key crypto source", "https://docs.coingecko.com/")]
 });
 
 export const flowMock: FlowPayload = {
@@ -126,7 +126,7 @@ export const economyMock: EconomyPayload = {
 export const tickerMock = (symbol: string): TickerPayload => ({
   symbol,
   header: [{ label: symbol, value: "$212.44", change: "+$2.18", changePercent: "+1.04%", tone: "positive" }, { label: "Sector", value: "Technology", tone: "neutral" }, { label: "Market cap", value: "$3.2T", tone: "neutral" }],
-  story: `${symbol} is trading higher in this mock snapshot with constructive index tape, partial flow coverage, and no live source calls. Add API keys and scheduled ingestion to enable live ticker intelligence.`,
+  story: `${symbol} is trading higher in this mock snapshot with constructive index tape, partial flow coverage, and no live source calls. Configure required Netlify variables and scheduled ingestion to enable live ticker intelligence.`,
   timeline: todayMock.featuredNews,
   flow: flowMock.summary,
   ownership: [{ label: "Latest 13F posture", value: "Accumulation", tone: "positive" }, { label: "Insider activity", value: "No recent buys", tone: "neutral" }],

@@ -1,6 +1,6 @@
-# Market Intelligence Dashboard
+# MarketRecap
 
-A professional, Netlify-ready market analytics dashboard that answers: **what is happening in markets today, why it matters, where money is moving, and what to look at next.**
+A professional, Netlify-ready market recap dashboard that answers: **what is happening in markets today, why it matters, where money is moving, and what to look at next.**
 
 The initial repository prioritizes a polished scaffold, typed server API routes, Netlify deployment readiness, source freshness modeling, Supabase schema design, and clearly labeled mock data. It does **not** present mock financial data as live market data.
 
@@ -46,12 +46,12 @@ This is the correct Netlify shape for a Next.js App Router project because the N
 11. Check source freshness indicators on dashboard panels.
 12. Review Netlify Function logs when future refresh jobs are enabled.
 
-## Required environment variables
+## Required Netlify environment variables
 
-Copy `.env.example` and configure these values in Netlify under **Site configuration → Environment variables**:
+A committed environment example file is not required for this project because production configuration lives in Netlify **Site configuration → Environment variables** and local `.env*` files stay untracked. Configure these values directly in Netlify:
 
 ```text
-NEXT_PUBLIC_APP_NAME=Market Intelligence Dashboard
+NEXT_PUBLIC_APP_NAME=MarketRecap
 
 SUPABASE_URL=
 SUPABASE_ANON_KEY=
@@ -63,16 +63,15 @@ FINNHUB_CRYPTO_HEATMAP_API_KEY=
 FINNHUB_MACRO_HEATMAP_API_KEY=
 
 TWELVE_DATA_API_KEY=
-COINGECKO_API_KEY=
 FRED_API_KEY=
 SEC_API_KEY=
 
-UNUSUAL_WHALES_API_KEY=
-SCRAPER_ENABLED=false
 HORMUZ_TRACKER_ENABLED=false
 ```
 
-Never expose these server-side keys to the browser: `SUPABASE_SERVICE_ROLE_KEY`, all Finnhub keys, `TWELVE_DATA_API_KEY`, `COINGECKO_API_KEY`, `FRED_API_KEY`, `SEC_API_KEY`, and `UNUSUAL_WHALES_API_KEY`.
+Never expose these server-side keys to the browser: `SUPABASE_SERVICE_ROLE_KEY`, all Finnhub keys, `TWELVE_DATA_API_KEY`, `FRED_API_KEY`, and `SEC_API_KEY`.
+
+Unusual Whales is intentionally modeled as a website-scraping source with no key or feature flag. CoinGecko is modeled as a no-key crypto source in this scaffold.
 
 ## Finnhub key strategy
 
@@ -140,6 +139,8 @@ External source
 The MVP uses mock fixtures for all financial values, headlines, flow, macro, and ticker pages. Mock mode is intentionally labeled in the UI and API notices. The current live behavior is limited to reading environment-variable presence and routing key status server-side.
 
 ## Local development
+
+Local `.env` files are optional and ignored by git. If you need local credentials, create `.env.local` manually with the same Netlify variable names above.
 
 ```bash
 npm install
