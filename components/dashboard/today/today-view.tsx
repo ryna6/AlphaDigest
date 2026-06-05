@@ -1,9 +1,11 @@
+import Image from "next/image";
 import type { Metric } from "@/lib/data/schemas/common";
 import type { EarningsEvent, EconomicEvent, TodayPayload } from "@/lib/data/schemas/dashboard";
 import { PageTitle } from "@/components/dashboard/page-title";
 import { Panel } from "@/components/ui/panel";
 import { SectionHeader } from "@/components/ui/section-header";
 import { MetricRow } from "@/components/ui/metric-row";
+import { InfoTooltip } from "@/components/ui/info-tooltip";
 import { cn } from "@/lib/utils/cn";
 
 function signedValueClass(value?: string) {
@@ -16,6 +18,10 @@ function signedValueClass(value?: string) {
 function importanceStars(importance: EconomicEvent["importance"]) {
   const count = { Low: 1, Medium: 2, High: 3 }[importance];
   return "☆".repeat(count);
+}
+
+function earningsLogoUrl(ticker: string) {
+  return `https://financialmodelingprep.com/image-stock/${encodeURIComponent(ticker.toUpperCase())}.png`;
 }
 
 function earningsTimeLabel(time: EarningsEvent["time"]) {
@@ -52,12 +58,28 @@ function EarningsPanel({ earnings }: { earnings: EarningsEvent[] }) {
       <SectionHeader title="Earnings" />
       <div className="divide-y divide-borderStrong/60">
         {earnings.map((event) => (
-          <div key={`${event.ticker}-${event.time}`} className="flex items-center justify-between gap-4 py-3">
-            <div className="min-w-0">
-              <p className="truncate text-sm font-semibold text-textPrimary">{event.ticker}</p>
-              <p className="mt-1 truncate text-xs text-textMuted">{event.company}</p>
+          <div
+            key={`${event.ticker}-${event.time}`}
+            className="flex items-center justify-between gap-4 py-3"
+          >
+            <div className="flex min-w-0 items-center gap-3">
+              <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-borderStrong bg-white p-1.5">
+                <Image
+                  src={earningsLogoUrl(event.ticker)}
+                  alt={`${event.company} logo`}
+                  width={24}
+                  height={24}
+                  className="h-full w-full rounded-full object-contain"
+                />
+              </span>
+              <div className="min-w-0">
+                <p className="truncate text-sm font-semibold text-textPrimary">{event.ticker}</p>
+                <p className="mt-1 truncate text-xs text-textMuted">{event.company}</p>
+              </div>
             </div>
-            <p className="shrink-0 text-right text-sm font-semibold text-textSecondary">{earningsTimeLabel(event.time)}</p>
+            <p className="shrink-0 text-right text-sm font-semibold text-textSecondary">
+              {earningsTimeLabel(event.time)}
+            </p>
           </div>
         ))}
       </div>
@@ -71,14 +93,22 @@ function EconomicEventsPanel({ events }: { events: EconomicEvent[] }) {
       <SectionHeader title="Economic Events" />
       <div className="divide-y divide-borderStrong/60">
         {events.map((event) => (
-          <div key={`${event.event}-${event.time}`} className="flex items-center justify-between gap-4 py-3">
+          <div
+            key={`${event.event}-${event.time}`}
+            className="flex items-center justify-between gap-4 py-3"
+          >
             <div className="min-w-0">
               <p className="truncate text-sm font-semibold text-textPrimary">{event.event}</p>
-              <p className="mt-1 text-lg leading-none text-textSecondary" aria-label={`${event.importance} importance`}>
+              <p
+                className="mt-1 text-xs leading-none tracking-[0.18em] text-textSecondary"
+                aria-label={`${event.importance} importance`}
+              >
                 {importanceStars(event.importance)}
               </p>
             </div>
-            <p className="shrink-0 text-right text-sm font-semibold text-textSecondary">{economicEventTimeLabel(event.time)}</p>
+            <p className="shrink-0 text-right text-sm font-semibold text-textSecondary">
+              {economicEventTimeLabel(event.time)}
+            </p>
           </div>
         ))}
       </div>
@@ -102,7 +132,10 @@ function KeyStatsPanel({ stats }: { stats: Metric[] }) {
 export function TodayView({ data }: { data: TodayPayload }) {
   return (
     <>
-      <PageTitle title="Today" subtitle="What matters today across backdrop, tape, catalysts, and risk." />
+      <PageTitle
+        title="Today"
+        subtitle="What matters today across backdrop, tape, catalysts, and risk."
+      />
       <Panel>
         <SectionHeader title="Market Summary" />
         <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
@@ -110,10 +143,22 @@ export function TodayView({ data }: { data: TodayPayload }) {
             const explanation = roroExplanation(metric);
 
             return (
-              <div key={metric.label} className="min-h-32 rounded-xl border border-borderStrong bg-sidebar p-4">
-                <p className="text-xs font-semibold uppercase tracking-[0.2em] text-textMuted">{metric.label}</p>
+              <div
+                key={metric.label}
+                className="min-h-32 rounded-xl border border-borderStrong bg-sidebar p-4"
+              >
+                <div className="flex items-center gap-2">
+                  <p className="text-xs font-semibold uppercase tracking-[0.2em] text-textMuted">
+                    {metric.label}
+                  </p>
+                  {metric.label === "Risk-on / risk-off" ? (
+                    <InfoTooltip text="Risk-on / risk-off compares VIX3M to VIX. A ratio above 1 means the 3-month volatility future is above spot VIX, which often signals a more cautious or risk-off tape; below 1 suggests near-term fear is elevated versus 3-month volatility and can indicate a risk-on setup as stress fades." />
+                  ) : null}
+                </div>
                 <p className="mt-5 text-2xl font-semibold text-textPrimary">{metric.value}</p>
-                {explanation ? <p className={cn("mt-2 text-sm", signedValueClass(explanation))}>{explanation}</p> : null}
+                {explanation ? (
+                  <p className={cn("mt-2 text-sm", signedValueClass(explanation))}>{explanation}</p>
+                ) : null}
               </div>
             );
           })}
@@ -125,7 +170,9 @@ export function TodayView({ data }: { data: TodayPayload }) {
           {data.featuredNews.map((n) => (
             <div key={n.headline} className="border-b border-borderStrong py-3 last:border-b-0">
               <p className="text-sm font-medium">{n.headline}</p>
-              <p className="mt-1 text-xs text-textMuted">{n.timestamp} • {n.tickers.join(", ")}</p>
+              <p className="mt-1 text-xs text-textMuted">
+                {n.timestamp} • {n.tickers.join(", ")}
+              </p>
               <p className="mt-1 text-xs text-textSecondary">{n.whyItMatters}</p>
             </div>
           ))}

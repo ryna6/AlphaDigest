@@ -10,7 +10,12 @@ import { ErrorState } from "@/components/ui/error-state";
 import { cn } from "@/lib/utils/cn";
 
 const modes = ["globalMarkets", "sectors", "crypto", "macro"] as const;
-const labels = { globalMarkets: "Global Markets", sectors: "Sectors", crypto: "Crypto", macro: "Macro" };
+const labels = {
+  globalMarkets: "Global Markets",
+  sectors: "Sectors",
+  crypto: "Crypto",
+  macro: "Macro"
+};
 
 function signedValueClass(value?: string) {
   if (!value) return "text-textSecondary";
@@ -29,25 +34,63 @@ export function MarketsView({ data }: { data: MarketsPayload }) {
         <SectionHeader title="Indices" />
         <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
           {data.strip.map((metric) => (
-            <div key={metric.label} className="min-h-32 rounded-xl border border-borderStrong bg-sidebar p-4">
-              <p className="text-xs font-semibold uppercase tracking-[0.2em] text-textMuted">{metric.label}</p>
+            <div
+              key={metric.label}
+              className="min-h-32 rounded-xl border border-borderStrong bg-sidebar p-4"
+            >
+              <p className="text-xs font-semibold uppercase tracking-[0.2em] text-textMuted">
+                {metric.label}
+              </p>
               <p className="mt-5 text-2xl font-semibold text-textPrimary">{metric.value}</p>
               {[metric.change, metric.changePercent].filter(Boolean).length ? (
-                <p className={cn("mt-2 flex gap-4 text-sm", signedValueClass([metric.change, metric.changePercent].filter(Boolean).join(" ")))}>
-                  {metric.change ? <span>{metric.change}</span> : null}
-                  {metric.changePercent ? <span>{metric.changePercent}</span> : null}
-                </p>
+                <div className="mt-3 flex items-center gap-2">
+                  {metric.change ? (
+                    <span
+                      className={cn(
+                        "rounded-full border border-current/20 bg-panelHover px-2.5 py-1 text-sm font-semibold",
+                        signedValueClass(metric.change)
+                      )}
+                    >
+                      {metric.change}
+                    </span>
+                  ) : null}
+                  {metric.changePercent ? (
+                    <span
+                      className={cn(
+                        "rounded-full border border-current/20 bg-panelHover px-2.5 py-1 text-sm font-semibold",
+                        signedValueClass(metric.changePercent)
+                      )}
+                    >
+                      {metric.changePercent}
+                    </span>
+                  ) : null}
+                </div>
               ) : null}
             </div>
           ))}
         </div>
       </Panel>
       <Panel className="mt-4">
-        <SectionHeader title="Heatmap" subtitle="Tiles sized by logical asset weight; color shows percentage change." />
-        {data.heatmapKeyMessages.length ? <div className="mb-3 grid gap-2">{data.heatmapKeyMessages.map((m) => <ErrorState key={m} message={m} />)}</div> : null}
-        <div className="mb-4 flex flex-wrap gap-2">
+        <SectionHeader title="Heatmap" />
+        {data.heatmapKeyMessages.length ? (
+          <div className="mb-3 grid gap-2">
+            {data.heatmapKeyMessages.map((m) => (
+              <ErrorState key={m} message={m} />
+            ))}
+          </div>
+        ) : null}
+        <div className="mb-4 inline-flex flex-wrap gap-1 rounded-2xl border border-borderStrong bg-sidebar/80 p-1 shadow-inner">
           {modes.map((m) => (
-            <button key={m} onClick={() => setMode(m)} className={`rounded-full border px-3 py-1 text-xs ${mode === m ? "border-accentBlue bg-accentBlue/10 text-accentBlue" : "border-borderStrong text-textMuted"}`}>
+            <button
+              key={m}
+              onClick={() => setMode(m)}
+              className={cn(
+                "rounded-xl px-4 py-2 text-xs font-semibold transition",
+                mode === m
+                  ? "bg-accentBlue text-white shadow-[0_0_18px_rgba(79,140,255,0.35)]"
+                  : "text-textSecondary hover:bg-panelHover hover:text-textPrimary"
+              )}
+            >
               {labels[m]}
             </button>
           ))}

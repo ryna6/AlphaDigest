@@ -1,7 +1,16 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   poweredByHeader: false,
-  reactStrictMode: true
+  reactStrictMode: true,
+  images: {
+    remotePatterns: [
+      {
+        protocol: "https",
+        hostname: "financialmodelingprep.com",
+        pathname: "/image-stock/**"
+      }
+    ]
+  }
 };
 
 export default nextConfig;

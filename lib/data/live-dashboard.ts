@@ -1,6 +1,7 @@
 import type { FinnhubFeatureArea } from "./adapters/finnhub-key-router";
 import { getFinnhubKey } from "./adapters/finnhub-key-router";
 import { marketsMock, todayMock } from "./fixtures/mock-dashboard";
+import { getHeatmapIconPath } from "../constants/asset-icons";
 import type { HeatmapTile, Metric } from "./schemas/common";
 import type { MarketsPayload, TodayPayload } from "./schemas/dashboard";
 
@@ -19,7 +20,10 @@ const sectorShortNames: Record<string, string> = {
   SMH: "Semis"
 };
 
-const quoteSymbols: Record<FinnhubFeatureArea, Array<{ symbol: string; label: string; weight: number; fetchSymbol?: string }>> = {
+const quoteSymbols: Record<
+  FinnhubFeatureArea,
+  Array<{ symbol: string; label: string; weight: number; fetchSymbol?: string }>
+> = {
   "global-markets": [
     { symbol: "SPY", label: "U.S. Market", weight: 20 },
     { symbol: "EWC", label: "Canadian Market", weight: 10 },
@@ -84,13 +88,19 @@ function toneFromChange(value: number): Metric["tone"] {
   return value > 0 ? "positive" : value < 0 ? "negative" : "neutral";
 }
 
-async function fetchFinnhubQuote(featureArea: FinnhubFeatureArea, symbol: string): Promise<FinnhubQuote | null> {
+async function fetchFinnhubQuote(
+  featureArea: FinnhubFeatureArea,
+  symbol: string
+): Promise<FinnhubQuote | null> {
   const route = getFinnhubKey(featureArea);
   if (!route.ok) return null;
 
-  const response = await fetch(`https://finnhub.io/api/v1/quote?symbol=${encodeURIComponent(symbol)}&token=${route.key}`, {
-    cache: "no-store"
-  });
+  const response = await fetch(
+    `https://finnhub.io/api/v1/quote?symbol=${encodeURIComponent(symbol)}&token=${route.key}`,
+    {
+      cache: "no-store"
+    }
+  );
 
   if (!response.ok) return null;
   const quote = (await response.json()) as FinnhubQuote;
@@ -98,7 +108,11 @@ async function fetchFinnhubQuote(featureArea: FinnhubFeatureArea, symbol: string
   return quote;
 }
 
-async function quoteMetric(featureArea: FinnhubFeatureArea, symbol: string, label: string): Promise<Metric | null> {
+async function quoteMetric(
+  featureArea: FinnhubFeatureArea,
+  symbol: string,
+  label: string
+): Promise<Metric | null> {
   const quote = await fetchFinnhubQuote(featureArea, symbol);
   if (!quote?.c) return null;
   const change = quote.d ?? (quote.pc ? quote.c - quote.pc : 0);
@@ -113,18 +127,32 @@ async function quoteMetric(featureArea: FinnhubFeatureArea, symbol: string, labe
 }
 
 async function heatmap(featureArea: FinnhubFeatureArea): Promise<HeatmapTile[] | null> {
-  const rows = await Promise.all(quoteSymbols[featureArea].map(async (item) => {
-    const quote = await fetchFinnhubQuote(featureArea, item.fetchSymbol ?? item.symbol);
-    if (!quote?.c) return null;
-    const changePercent = quote.dp ?? 0;
-    return { symbol: item.symbol, label: item.label, value: quote.c, changePercent, weight: item.weight };
-  }));
+  const rows = await Promise.all(
+    quoteSymbols[featureArea].map(async (item) => {
+      const quote = await fetchFinnhubQuote(featureArea, item.fetchSymbol ?? item.symbol);
+      if (!quote?.c) return null;
+      const changePercent = quote.dp ?? 0;
+      const iconPath = getHeatmapIconPath(item.symbol);
+      return {
+        symbol: item.symbol,
+        label: item.label,
+        value: quote.c,
+        changePercent,
+        weight: item.weight,
+        ...(iconPath ? { iconPath } : {})
+      };
+    })
+  );
 
   const valid = rows.filter((row): row is HeatmapTile => Boolean(row));
   return valid.length ? valid : null;
 }
 
-export async function getMarketsPayload(): Promise<{ payload: MarketsPayload; mode: "mock" | "live"; notices: string[] }> {
+export async function getMarketsPayload(): Promise<{
+  payload: MarketsPayload;
+  mode: "mock" | "live";
+  notices: string[];
+}> {
   const fallback = marketsMock();
   const [globalMarkets, sectors, crypto, macro] = await Promise.all([
     heatmap("global-markets"),
@@ -135,7 +163,15 @@ export async function getMarketsPayload(): Promise<{ payload: MarketsPayload; mo
 
   const liveHeatmaps = { globalMarkets, sectors, crypto, macro };
   const hasLive = Object.values(liveHeatmaps).some(Boolean);
-  if (!hasLive) return { payload: fallback, mode: "mock", notices: ["Mock market data enabled because no live quote responses were available.", ...fallback.heatmapKeyMessages] };
+  if (!hasLive)
+    return {
+      payload: fallback,
+      mode: "mock",
+      notices: [
+        "Mock market data enabled because no live quote responses were available.",
+        ...fallback.heatmapKeyMessages
+      ]
+    };
 
   const stripCandidates: Array<Metric | null> = await Promise.all([
     quoteMetric("global-markets", "SPY", "S&P 500"),
@@ -147,7 +183,9 @@ export async function getMarketsPayload(): Promise<{ payload: MarketsPayload; mo
     quoteMetric("crypto-heatmap", "BINANCE:BTCUSDT", "Bitcoin"),
     quoteMetric("macro-heatmap", "VIX", "VIX")
   ]);
-  const strip = stripCandidates.map((metric, index) => metric ?? fallback.strip[index]).filter((metric): metric is Metric => Boolean(metric));
+  const strip = stripCandidates
+    .map((metric, index) => metric ?? fallback.strip[index])
+    .filter((metric): metric is Metric => Boolean(metric));
 
   return {
     payload: {
@@ -166,29 +204,69 @@ export async function getMarketsPayload(): Promise<{ payload: MarketsPayload; mo
   };
 }
 
-export async function getTodayPayload(): Promise<{ payload: TodayPayload; mode: "mock" | "live"; notices: string[] }> {
+export async function getTodayPayload(): Promise<{
+  payload: TodayPayload;
+  mode: "mock" | "live";
+  notices: string[];
+}> {
   const { payload: markets, mode } = await getMarketsPayload();
-  const leading = [...markets.heatmaps.sectors].sort((a, b) => b.changePercent - a.changePercent).slice(0, 3);
+  const leading = [...markets.heatmaps.sectors]
+    .sort((a, b) => b.changePercent - a.changePercent)
+    .slice(0, 3);
   const vix = await fetchFinnhubQuote("macro-heatmap", "VIX");
   const vix3m = await fetchFinnhubQuote("macro-heatmap", "VIX3M");
-  const riskRatio = vix?.c && vix3m?.c ? (vix3m.c / vix.c).toFixed(2) : todayMock.marketSummary[1].value;
+  const riskRatio =
+    vix?.c && vix3m?.c ? (vix3m.c / vix.c).toFixed(2) : todayMock.marketSummary[1].value;
   const riskRatioValue = Number(riskRatio);
-  const riskTone = Number.isFinite(riskRatioValue) ? (riskRatioValue > 1 ? "risk off" : riskRatioValue < 1 ? "risk on" : "neutral") : todayMock.marketSummary[1].change;
-  const earnings = [...todayMock.earnings].slice(0, 3).map((event) => event.ticker).join(", ");
+  const riskTone = Number.isFinite(riskRatioValue)
+    ? riskRatioValue > 1
+      ? "risk off"
+      : riskRatioValue < 1
+        ? "risk on"
+        : "neutral"
+    : todayMock.marketSummary[1].change;
+  const earnings = [...todayMock.earnings]
+    .slice(0, 3)
+    .map((event) => event.ticker)
+    .join(", ");
 
   return {
     payload: {
       ...todayMock,
       marketSummary: [
-        { label: "Leading sectors", value: leading.map((item) => sectorShortNames[item.symbol] ?? item.label).join(", "), change: leading.map((item) => formatPercent(item.changePercent)).join(" / "), tone: leading[0]?.changePercent >= 0 ? "positive" : "negative" },
+        {
+          label: "Leading sectors",
+          value: leading.map((item) => sectorShortNames[item.symbol] ?? item.label).join(", "),
+          change: leading.map((item) => formatPercent(item.changePercent)).join(" / "),
+          tone: leading[0]?.changePercent >= 0 ? "positive" : "negative"
+        },
         { label: "Risk-on / risk-off", value: riskRatio, change: riskTone, tone: "neutral" },
-        { label: "Today’s earnings", value: `${todayMock.earnings.length} earnings`, change: earnings, tone: "neutral" },
-        { label: "Put/call ratio", value: todayMock.marketSummary[3].value, change: todayMock.marketSummary[3].change, tone: "neutral" }
+        {
+          label: "Today’s earnings",
+          value: `${todayMock.earnings.length} earnings`,
+          change: earnings,
+          tone: "neutral"
+        },
+        {
+          label: "Put/call ratio",
+          value: todayMock.marketSummary[3].value,
+          change: todayMock.marketSummary[3].change,
+          tone: "neutral"
+        }
       ],
-      keyStats: (markets.strip.length ? markets.strip : todayMock.keyStats).filter((metric) => !["Mid Cap", "Small Cap"].includes(metric.label)),
-      sectorSnapshot: leading.map((item) => ({ label: item.label, value: formatPercent(item.changePercent), tone: toneFromChange(item.changePercent) }))
+      keyStats: (markets.strip.length ? markets.strip : todayMock.keyStats).filter(
+        (metric) => !["Mid Cap", "Small Cap"].includes(metric.label)
+      ),
+      sectorSnapshot: leading.map((item) => ({
+        label: item.label,
+        value: formatPercent(item.changePercent),
+        tone: toneFromChange(item.changePercent)
+      }))
     },
     mode,
-    notices: mode === "live" ? [] : ["Mock Today cards enabled because live quote responses were unavailable."]
+    notices:
+      mode === "live"
+        ? []
+        : ["Mock Today cards enabled because live quote responses were unavailable."]
   };
 }
