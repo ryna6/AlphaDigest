@@ -75,10 +75,15 @@ function stripHtmlChrome(value: string) {
     .replace(/<style\b[^>]*>[\s\S]*?<\/style>/gi, " ");
 }
 
+export function stripUnusualWhalesAdSection(html: string) {
+  const markerRegex = /<hr\s*\/?\s*>\s*<p(?:\s+[^>]*)?>\s*<strong>/i;
+  const match = html.match(markerRegex);
+  if (!match || match.index == null) return html;
+  return html.slice(0, match.index);
+}
+
 function truncateBeforeFeaturedAd(value: string) {
-  const adMarker = /<\/p>\s*<hr\s*\/?\s*>\s*<p>\s*<strong>/i;
-  const match = value.match(adMarker);
-  return match?.index === undefined ? value : value.slice(0, match.index + 4);
+  return stripUnusualWhalesAdSection(value);
 }
 
 function textFromHtml(value: string) {
@@ -90,7 +95,7 @@ function textFromHtml(value: string) {
   );
 }
 
-function articleTextFromHtml(value: string) {
+export function articleTextFromHtml(value: string) {
   return decodeEntities(
     stripHtmlChrome(truncateBeforeFeaturedAd(value))
       .replace(/<\/(p|div|section|article|h[1-6]|li|blockquote)>/gi, "\n\n")
@@ -220,7 +225,12 @@ function normalizeFeaturedRecord(record: UnknownRecord, fetchedAt: string): Feat
     tags: asStringArray(record.tags ?? record.categories ?? record.tickers),
     ...(imageUrl ? { imageUrl } : {}),
     ...(excerpt ? { excerpt: textFromHtml(excerpt) } : {}),
-    ...(rawContent ? { contentText: articleTextFromHtml(rawContent) } : {}),
+    ...(rawContent
+      ? {
+          contentText: articleTextFromHtml(rawContent),
+          contentHtml: stripUnusualWhalesAdSection(rawContent)
+        }
+      : {}),
     sourceUrl: originalArticleUrl(slug)
   };
 }
@@ -235,6 +245,7 @@ function extractFeaturedArticles(payload: unknown, fetchedAt: string) {
       ...existing,
       ...article,
       contentText: article.contentText ?? existing?.contentText,
+      contentHtml: article.contentHtml ?? existing?.contentHtml,
       excerpt: article.excerpt ?? existing?.excerpt,
       tags: article.tags.length ? article.tags : (existing?.tags ?? [])
     });
@@ -262,6 +273,7 @@ async function fetchFeaturedArticleDetail(
         sourceUrl: fallback.sourceUrl,
         tags: detail.tags.length ? detail.tags : fallback.tags,
         contentText: detail.contentText ?? fallback.contentText,
+        contentHtml: detail.contentHtml ?? fallback.contentHtml,
         excerpt: detail.excerpt ?? fallback.excerpt
       }
     : fallback;

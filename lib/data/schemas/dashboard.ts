@@ -25,16 +25,28 @@ export const featuredArticleSchema = z.object({
   imageUrl: z.string().url().optional(),
   excerpt: z.string().optional(),
   contentText: z.string().optional(),
+  contentHtml: z.string().optional(),
   sourceUrl: z.string().url().optional()
 });
 
 export const eventSchema = z.object({
+  source: z.string().optional(),
+  id: z.string().optional(),
+  eventId: z.union([z.number(), z.string()]).nullable().optional(),
+  eventKey: z.string().nullable().optional(),
   time: z.string(),
+  timestamp: z.string().nullable().optional(),
   event: z.string(),
-  actual: z.string().optional(),
-  forecast: z.string().optional(),
-  previous: z.string().optional(),
-  importance: z.enum(["Low", "Medium", "High"])
+  actual: z.string().nullable().optional(),
+  forecast: z.string().nullable().optional(),
+  previous: z.string().nullable().optional(),
+  importance: z.enum(["Low", "Medium", "High"]),
+  stars: z
+    .union([z.literal(1), z.literal(2), z.literal(3)])
+    .nullable()
+    .optional(),
+  country: z.string().nullable().optional(),
+  fetchedAt: z.string().optional()
 });
 
 export const earningsSchema = z.object({

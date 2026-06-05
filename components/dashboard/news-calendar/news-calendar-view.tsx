@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import type {
   EconomicEvent,
@@ -11,7 +11,6 @@ import type {
 import { PageTitle } from "@/components/dashboard/page-title";
 import { Panel } from "@/components/ui/panel";
 import { SectionHeader } from "@/components/ui/section-header";
-import { DataTable } from "@/components/ui/data-table";
 import { formatEtDateKey, formatEtDateTime, formatEtTime, timestampTitle } from "@/lib/utils/time";
 import { cn } from "@/lib/utils/cn";
 import { getMajorEarningsForDate, groupEarningsBySession } from "@/lib/data/earnings-utils";
@@ -26,9 +25,9 @@ type DaySelection = {
   days: Array<{ date: string; label: string; weekday: number }>;
 };
 
-function importanceStars(importance: EconomicEvent["importance"]) {
-  const count = { Low: 1, Medium: 2, High: 3 }[importance];
-  return "☆".repeat(count);
+function importanceStars(importance: EconomicEvent["importance"], stars?: EconomicEvent["stars"]) {
+  const count = stars ?? { Low: 1, Medium: 2, High: 3 }[importance];
+  return "★".repeat(count);
 }
 
 function NewsList({ news }: { news: NewsItem[] }) {
@@ -293,34 +292,107 @@ function eventDateKey(event: EconomicEvent) {
 }
 
 function EconomicCalendar({
-  events,
+  initialEvents,
   selectedDate
 }: {
-  events: EconomicEvent[];
+  initialEvents: EconomicEvent[];
   selectedDate: string;
 }) {
-  const selectedEvents = useMemo(() => {
-    const todayKey = dateKey(new Date());
-    return events.filter((event) => {
-      const key = eventDateKey(event);
-      if (key) return key === selectedDate;
-      return selectedDate === todayKey;
-    });
-  }, [events, selectedDate]);
+  const [eventsByDate, setEventsByDate] = useState<Record<string, EconomicEvent[]>>(() => ({
+    [selectedDate]: initialEvents.filter((event) => eventDateKey(event) === selectedDate)
+  }));
+  const [loadingDate, setLoadingDate] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (eventsByDate[selectedDate]) return;
+    let cancelled = false;
+    setLoadingDate(selectedDate);
+    fetch(`/api/news-calendar/economic?date=${encodeURIComponent(selectedDate)}`)
+      .then((response) => (response.ok ? response.json() : null))
+      .then((payload) => {
+        if (cancelled) return;
+        const events = Array.isArray(payload?.payload?.events) ? payload.payload.events : [];
+        setEventsByDate((current) => ({ ...current, [selectedDate]: events }));
+      })
+      .catch(() => {
+        if (!cancelled) setEventsByDate((current) => ({ ...current, [selectedDate]: [] }));
+      })
+      .finally(() => {
+        if (!cancelled) setLoadingDate(null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [eventsByDate, selectedDate]);
+
+  const selectedEvents = eventsByDate[selectedDate] ?? [];
 
   return (
     <Panel>
       <SectionHeader title="Economic Calendar" />
-      <DataTable
-        rows={selectedEvents.map((e) => ({
-          Time: formatEtTime(e.time),
-          Event: e.event,
-          Actual: e.actual ?? "—",
-          Forecast: e.forecast ?? "—",
-          Importance: importanceStars(e.importance)
-        }))}
-        empty="No economic events are available for the selected day."
-      />
+      {loadingDate === selectedDate ? (
+        <p className="mb-3 text-xs text-textMuted">Refreshing selected-day events…</p>
+      ) : null}
+      {selectedEvents.length ? (
+        <div className="overflow-hidden rounded-none border border-borderStrong">
+          <table className="w-full table-fixed border-collapse text-left text-xs sm:text-[13px]">
+            <colgroup>
+              <col className="w-[82px] sm:w-[98px]" />
+              <col />
+              <col className="w-[72px] sm:w-[82px]" />
+              <col className="w-[72px] sm:w-[82px]" />
+              <col className="w-[72px] sm:w-[82px]" />
+            </colgroup>
+            <thead className="bg-sidebar text-[10px] uppercase tracking-[0.14em] text-textMuted">
+              <tr>
+                {(["Time", "Event", "Actual", "Forecast", "Previous"] as const).map((column) => (
+                  <th
+                    key={column}
+                    className="border-b border-borderStrong px-2.5 py-2 font-semibold"
+                  >
+                    {column}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {selectedEvents.map((event) => (
+                <tr
+                  key={event.id ?? `${event.event}-${event.time}`}
+                  className="hover:bg-panelHover/60"
+                >
+                  <td className="border-b border-borderStrong/50 px-2.5 py-3 align-top tabular text-textSecondary last:border-b-0">
+                    {formatEtTime(event.timestamp ?? event.time)}
+                  </td>
+                  <td className="min-w-0 border-b border-borderStrong/50 px-2.5 py-3 align-top last:border-b-0">
+                    <p className="whitespace-normal break-words font-semibold leading-snug text-textPrimary">
+                      {event.event}
+                    </p>
+                    <p
+                      className="mt-1 text-[11px] leading-none tracking-[0.16em] text-textSecondary"
+                      aria-label={`${event.importance} importance`}
+                    >
+                      {importanceStars(event.importance, event.stars)}
+                    </p>
+                  </td>
+                  {[event.actual, event.forecast, event.previous].map((value, index) => (
+                    <td
+                      key={`${event.id ?? event.event}-value-${index}`}
+                      className="border-b border-borderStrong/50 px-2.5 py-3 align-top tabular text-textSecondary last:border-b-0"
+                    >
+                      {value ?? "—"}
+                    </td>
+                  ))}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      ) : (
+        <p className="rounded-none border border-borderStrong bg-sidebar p-3 text-sm text-textMuted">
+          No economic events are available for the selected day.
+        </p>
+      )}
     </Panel>
   );
 }
@@ -332,7 +404,7 @@ export function NewsCalendarView({ data }: { data: NewsCalendarPayload }) {
   return (
     <>
       <PageTitle title="News & Calendar" />
-      <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_390px]">
+      <div className="grid gap-4 xl:grid-cols-[minmax(280px,0.8fr)_minmax(620px,1.2fr)]">
         <Panel>
           <SectionHeader
             title="Latest Market News"
@@ -347,9 +419,12 @@ export function NewsCalendarView({ data }: { data: NewsCalendarPayload }) {
           />
           <NewsList news={latestNews} />
         </Panel>
-        <aside className="space-y-4">
+        <aside className="min-w-0 space-y-4">
           <WeekdaySelector selection={selection} onChange={setSelection} />
-          <EconomicCalendar events={data.economicCalendar} selectedDate={selection.selectedDate} />
+          <EconomicCalendar
+            initialEvents={data.economicCalendar}
+            selectedDate={selection.selectedDate}
+          />
           <EarningsCalendar data={data} selectedDate={selection.selectedDate} />
         </aside>
       </div>

@@ -220,9 +220,9 @@ assert(
   "news/calendar layout should render latest news with economic and earnings calendars in the right rail"
 );
 assert(
-  markup.includes("xl:grid-cols-[minmax(0,1fr)_390px]") &&
-    markup.includes('<aside class="space-y-4"'),
-  "calendars should render in the compact right rail"
+  markup.includes("xl:grid-cols-[minmax(280px,0.8fr)_minmax(620px,1.2fr)]") &&
+    markup.includes('<aside class="min-w-0 space-y-4"'),
+  "news/calendar layout should give the economic calendar wider responsive space"
 );
 assert(
   /Last Week<\/button>/.test(markup) &&
@@ -280,6 +280,14 @@ assert(
   "economic calendar is not limited to the selected day"
 );
 assert(markup.includes("9:30 AM ET"), "economic calendar time is not formatted in ET");
+assert(
+  markup.includes("Actual") && markup.includes("Forecast") && markup.includes("Previous"),
+  "economic calendar value columns are missing"
+);
+assert(
+  !markup.includes("Importance</th>"),
+  "economic calendar should not render textual importance column"
+);
 assert(!markup.includes("/news-calendar/earnings"), "earnings View All link is still rendered");
 for (const hiddenText of [
   "Expected EPS",

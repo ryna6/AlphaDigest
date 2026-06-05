@@ -17,8 +17,8 @@ const sources = [
     "News & Calendar"
   ],
   [
-    "Unusual Whales Economic Calendar",
-    "https://unusualwhales.com/economic-calendar",
+    "Investing.com Economic Calendar",
+    "https://www.investing.com/economic-calendar/",
     "Economic events",
     "Today, News & Calendar"
   ],
