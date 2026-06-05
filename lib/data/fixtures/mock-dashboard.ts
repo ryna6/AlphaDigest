@@ -121,9 +121,10 @@ export const todayMock: TodayPayload = {
     {
       ticker: "ABM",
       company: "ABM Industries",
+      date: "2026-06-05",
       time: "BMO",
-      expectedEps: "$0.86",
-      expectedRevenue: "$2.08B",
+      epsForecast: "$0.86",
+      revenueForecast: "$2.08B",
       actualEps: "—",
       actualRevenue: "—",
       marketCap: "$3.1B"
@@ -131,9 +132,10 @@ export const todayMock: TodayPayload = {
     {
       ticker: "DOCU",
       company: "DocuSign",
+      date: "2026-06-05",
       time: "AMC",
-      expectedEps: "$0.79",
-      expectedRevenue: "$707M",
+      epsForecast: "$0.79",
+      revenueForecast: "$707M",
       actualEps: "—",
       actualRevenue: "—",
       marketCap: "$11.5B"
@@ -141,6 +143,7 @@ export const todayMock: TodayPayload = {
   ],
   economicCalendar: [
     {
+      date: "2026-06-05",
       time: "08:30 AM",
       event: "Nonfarm Payrolls",
       actual: "TBD",
@@ -149,6 +152,7 @@ export const todayMock: TodayPayload = {
       importance: "High"
     },
     {
+      date: "2026-06-05",
       time: "10:00 AM",
       event: "Wholesale Inventories",
       forecast: "0.1%",

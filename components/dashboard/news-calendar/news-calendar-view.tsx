@@ -1,10 +1,54 @@
-import type { NewsCalendarPayload } from "@/lib/data/schemas/dashboard";
+import Link from "next/link";
+import type { CalendarRange, CalendarRangeKey } from "@/lib/data/calendar-range";
+import { calendarRangeKeys, getCalendarRange } from "@/lib/data/calendar-range";
+import type { EconomicEvent, NewsCalendarPayload } from "@/lib/data/schemas/dashboard";
 import { PageTitle } from "@/components/dashboard/page-title";
 import { Panel } from "@/components/ui/panel";
 import { SectionHeader } from "@/components/ui/section-header";
 import { DataTable } from "@/components/ui/data-table";
+import { cn } from "@/lib/utils/cn";
 
-export function NewsCalendarView({ data }: { data: NewsCalendarPayload }) {
+function importanceStars(importance: EconomicEvent["importance"]) {
+  const count = { Low: 1, Medium: 2, High: 3 }[importance];
+  return "☆".repeat(count);
+}
+
+function rangeHref(range: CalendarRangeKey) {
+  return range === "this-week" ? "/news-calendar" : `/news-calendar?range=${range}`;
+}
+
+function RangeSelector({ selectedRange }: { selectedRange: CalendarRange }) {
+  return (
+    <div className="flex flex-wrap gap-2">
+      {calendarRangeKeys.map((range) => {
+        const option = getCalendarRange(range);
+        const selected = range === selectedRange.key;
+
+        return (
+          <Link
+            key={range}
+            href={rangeHref(range)}
+            className={cn(
+              "border border-borderStrong px-3 py-1 text-xs text-textSecondary transition hover:text-textPrimary",
+              selected && "border-accentBlue text-accentBlue"
+            )}
+            aria-current={selected ? "page" : undefined}
+          >
+            {option.label}
+          </Link>
+        );
+      })}
+    </div>
+  );
+}
+
+export function NewsCalendarView({
+  data,
+  selectedRange
+}: {
+  data: NewsCalendarPayload;
+  selectedRange: CalendarRange;
+}) {
   const latestNews = data.news.slice(0, 10);
 
   return (
@@ -40,17 +84,24 @@ export function NewsCalendarView({ data }: { data: NewsCalendarPayload }) {
           </div>
         ))}
       </Panel>
+      <div className="mt-4 flex items-center justify-between gap-3">
+        <p className="text-xs uppercase tracking-[0.2em] text-textMuted">
+          Calendar range: {selectedRange.label} ({selectedRange.minDate} to {selectedRange.maxDate})
+        </p>
+        <RangeSelector selectedRange={selectedRange} />
+      </div>
       <div className="mt-4 grid gap-4 xl:grid-cols-2">
         <Panel>
           <SectionHeader title="Economic Calendar" />
           <DataTable
             rows={data.economicCalendar.map((e) => ({
+              Date: e.date ?? "—",
               Time: e.time,
               Event: e.event,
               Actual: e.actual ?? "—",
               Forecast: e.forecast ?? "—",
               Previous: e.previous ?? "—",
-              Importance: e.importance
+              Importance: importanceStars(e.importance)
             }))}
           />
         </Panel>
@@ -58,13 +109,15 @@ export function NewsCalendarView({ data }: { data: NewsCalendarPayload }) {
           <SectionHeader title="Earnings Calendar" />
           <DataTable
             rows={data.earnings.map((e) => ({
+              Date: e.date ?? "—",
               Ticker: e.ticker,
               Company: e.company,
               Time: e.time,
-              "Expected EPS": e.expectedEps,
+              "EPS Forecast": e.epsForecast,
               "Actual EPS": e.actualEps ?? "—",
-              "Expected Rev": e.expectedRevenue ?? "—",
-              "Actual Rev": e.actualRevenue ?? "—"
+              "Revenue Forecast": e.revenueForecast ?? "—",
+              "Actual Rev": e.actualRevenue ?? "—",
+              "Market Cap": e.marketCap ?? "—"
             }))}
           />
         </Panel>

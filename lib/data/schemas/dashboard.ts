@@ -12,6 +12,7 @@ export const newsItemSchema = z.object({
 });
 
 export const eventSchema = z.object({
+  date: z.string().optional(),
   time: z.string(),
   event: z.string(),
   actual: z.string().optional(),
@@ -23,9 +24,10 @@ export const eventSchema = z.object({
 export const earningsSchema = z.object({
   ticker: z.string(),
   company: z.string(),
+  date: z.string().optional(),
   time: z.enum(["BMO", "AMC", "TBD"]),
-  expectedEps: z.string(),
-  expectedRevenue: z.string().optional(),
+  epsForecast: z.string(),
+  revenueForecast: z.string().optional(),
   actualEps: z.string().optional(),
   actualRevenue: z.string().optional(),
   marketCap: z.string().optional(),

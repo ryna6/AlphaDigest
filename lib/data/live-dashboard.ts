@@ -1,14 +1,21 @@
 import type { FinnhubFeatureArea } from "./adapters/finnhub-key-router";
 import { getFinnhubKey } from "./adapters/finnhub-key-router";
+import { getCalendarRange, isDateInCalendarRange, type CalendarRangeKey } from "./calendar-range";
 import { marketsMock, todayMock } from "./fixtures/mock-dashboard";
 import { getHeatmapIconPath, getMetricIconPath } from "../constants/asset-icons";
+import { fetchUnusualWhalesEarnings } from "./adapters/unusual-whales-earnings";
 import {
   fetchUnusualWhalesFeaturedNews,
   fetchUnusualWhalesNewsFeed,
   unusualWhalesSources
 } from "./adapters/unusual-whales-news";
 import type { HeatmapTile, Metric, SourceMeta } from "./schemas/common";
-import type { MarketsPayload, NewsCalendarPayload, TodayPayload } from "./schemas/dashboard";
+import type {
+  EarningsEvent,
+  MarketsPayload,
+  NewsCalendarPayload,
+  TodayPayload
+} from "./schemas/dashboard";
 
 const sectorShortNames: Record<string, string> = {
   XLK: "Tech",
@@ -176,13 +183,40 @@ async function fetchFinnhubCompanyLogo(symbol: string): Promise<string | undefin
   return request;
 }
 
-async function earningsWithLogos() {
+async function addEarningsLogos(events: EarningsEvent[]) {
   return Promise.all(
-    todayMock.earnings.map(async (event) => {
+    events.map(async (event) => {
       const logoUrl = await fetchFinnhubCompanyLogo(event.ticker);
       return logoUrl ? { ...event, logoUrl } : event;
     })
   );
+}
+
+function mockEarningsForRange(rangeKey: CalendarRangeKey) {
+  const range = getCalendarRange(rangeKey);
+  const events = todayMock.earnings.filter((event) => isDateInCalendarRange(event.date, range));
+  return events.length || rangeKey !== "this-week" ? events : todayMock.earnings;
+}
+
+function mockEconomicCalendarForRange(rangeKey: CalendarRangeKey) {
+  const range = getCalendarRange(rangeKey);
+  const events = todayMock.economicCalendar.filter((event) =>
+    isDateInCalendarRange(event.date, range)
+  );
+  return events.length || rangeKey !== "this-week" ? events : todayMock.economicCalendar;
+}
+
+async function earningsWithLogos(rangeKey: CalendarRangeKey = "this-week") {
+  const range = getCalendarRange(rangeKey);
+  const earningsResult = await fetchUnusualWhalesEarnings(range.minDate, range.maxDate);
+  const earnings = earningsResult.items.length
+    ? earningsResult.items
+    : mockEarningsForRange(rangeKey);
+
+  return {
+    earnings: await addEarningsLogos(earnings),
+    result: earningsResult
+  };
 }
 
 async function heatmap(featureArea: FinnhubFeatureArea): Promise<HeatmapTile[] | null> {
@@ -288,7 +322,7 @@ export async function getTodayPayload(): Promise<{
     earningsWithLogos(),
     fetchUnusualWhalesFeaturedNews(5)
   ]);
-  const earnings = earningsData
+  const earnings = earningsData.earnings
     .slice(0, 3)
     .map((event) => event.ticker)
     .join(", ");
@@ -306,7 +340,7 @@ export async function getTodayPayload(): Promise<{
         { label: "Risk-on / risk-off", value: riskRatio, change: riskTone, tone: "neutral" },
         {
           label: "Today’s earnings",
-          value: `${todayMock.earnings.length} earnings`,
+          value: `${earningsData.earnings.length} earnings`,
           change: earnings,
           tone: "neutral"
         },
@@ -320,7 +354,7 @@ export async function getTodayPayload(): Promise<{
       featuredNews: featuredNewsResult.items.length
         ? featuredNewsResult.items
         : todayMock.featuredNews,
-      earnings: earningsData,
+      earnings: earningsData.earnings,
       keyStats: (markets.strip.length
         ? markets.strip
         : todayMock.keyStats.map((metric) => ({
@@ -351,14 +385,14 @@ export async function getTodayPayload(): Promise<{
   };
 }
 
-export async function getNewsCalendarPayload(): Promise<{
+export async function getNewsCalendarPayload(rangeKey: CalendarRangeKey = "this-week"): Promise<{
   payload: NewsCalendarPayload;
   mode: "mock" | "live";
   notices: string[];
 }> {
   const [newsResult, earningsData] = await Promise.all([
     fetchUnusualWhalesNewsFeed(100),
-    earningsWithLogos()
+    earningsWithLogos(rangeKey)
   ]);
 
   const news = newsResult.items.length ? newsResult.items : todayMock.featuredNews;
@@ -366,18 +400,24 @@ export async function getNewsCalendarPayload(): Promise<{
   return {
     payload: {
       news,
-      economicCalendar: todayMock.economicCalendar,
-      earnings: earningsData,
+      economicCalendar: mockEconomicCalendarForRange(rangeKey),
+      earnings: earningsData.earnings,
       sourceMeta: [
         liveMeta(
           "Unusual Whales News Feed",
           unusualWhalesSources.feed,
           newsResult.mode,
           newsResult.message
+        ),
+        liveMeta(
+          "Unusual Whales Earnings",
+          earningsData.result.sourceUrl,
+          earningsData.result.mode,
+          earningsData.result.message
         )
       ]
     },
-    mode: newsResult.items.length ? "live" : "mock",
-    notices: newsResult.message ? [newsResult.message] : []
+    mode: newsResult.items.length || earningsData.result.items.length ? "live" : "mock",
+    notices: [newsResult.message, earningsData.result.message].filter(Boolean) as string[]
   };
 }
