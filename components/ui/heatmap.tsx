@@ -28,35 +28,33 @@ export function Heatmap({ tiles }: { tiles: HeatmapTile[] }) {
       {tiles.map((tile) => (
         <div
           key={`${tile.symbol}-${tile.label}`}
-          className={`min-h-28 rounded-xl border p-3 transition duration-200 hover:-translate-y-0.5 hover:brightness-110 ${tileColor(tile.changePercent)}`}
+          className={`min-h-28 border p-3 transition duration-200 hover:-translate-y-0.5 hover:brightness-110 ${tileColor(tile.changePercent)}`}
           title={`${tile.label}: ${tile.changePercent.toFixed(2)}%`}
         >
-          <div className="flex h-full flex-col justify-between gap-4">
-            <div className="flex items-start justify-between gap-3">
-              <div className="flex min-w-0 items-center gap-2">
-                {tile.iconPath ? (
-                  <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-white/12 ring-1 ring-white/15">
-                    <Image
-                      src={tile.iconPath}
-                      alt={`${tile.label} icon`}
-                      width={20}
-                      height={20}
-                      className="h-5 w-5 rounded-full object-contain"
-                      onError={(event) => {
-                        event.currentTarget.style.display = "none";
-                      }}
-                    />
-                  </span>
-                ) : null}
-                <div className="min-w-0">
-                  <p className="truncate text-sm font-semibold text-textPrimary">{tile.label}</p>
-                  <p className="text-[11px] uppercase tracking-wide text-white/65">{tile.symbol}</p>
-                </div>
+          <div className="flex h-full items-center justify-between gap-3">
+            <div className="flex min-w-0 items-center gap-2">
+              {tile.iconPath ? (
+                <span className="flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden rounded-full bg-white">
+                  <Image
+                    src={tile.iconPath}
+                    alt={`${tile.label} icon`}
+                    width={32}
+                    height={32}
+                    className="h-full w-full rounded-full object-cover"
+                    onError={(event) => {
+                      event.currentTarget.style.display = "none";
+                    }}
+                  />
+                </span>
+              ) : null}
+              <div className="min-w-0">
+                <p className="truncate text-sm font-semibold text-textPrimary">{tile.label}</p>
+                <p className="text-[11px] uppercase tracking-wide text-white/65">{tile.symbol}</p>
               </div>
             </div>
             <p
               className={cn(
-                "tabular text-xl font-bold leading-none",
+                "shrink-0 text-right tabular text-xl font-bold leading-none",
                 changeTextColor(tile.changePercent)
               )}
             >

@@ -59,7 +59,7 @@ function EarningsPanel({ earnings }: { earnings: EarningsEvent[] }) {
           >
             <div className="flex min-w-0 items-center gap-3">
               <span
-                className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-borderStrong bg-white bg-contain bg-center bg-no-repeat text-[10px] font-bold text-sidebar"
+                className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-white bg-cover bg-center bg-no-repeat text-[10px] font-bold text-sidebar"
                 style={event.logoUrl ? { backgroundImage: `url(${event.logoUrl})` } : undefined}
                 aria-label={event.logoUrl ? `${event.company} logo` : undefined}
               >
@@ -138,7 +138,7 @@ export function TodayView({ data }: { data: TodayPayload }) {
             return (
               <div
                 key={metric.label}
-                className="min-h-32 rounded-xl border border-borderStrong bg-sidebar p-4"
+                className="min-h-32 rounded-none border border-borderStrong bg-sidebar p-4"
               >
                 <div className="flex items-center gap-2">
                   <p className="text-xs font-semibold uppercase tracking-[0.2em] text-textMuted">

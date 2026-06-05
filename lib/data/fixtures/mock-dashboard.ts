@@ -124,6 +124,8 @@ export const todayMock: TodayPayload = {
       time: "BMO",
       expectedEps: "$0.86",
       expectedRevenue: "$2.08B",
+      actualEps: "—",
+      actualRevenue: "—",
       marketCap: "$3.1B"
     },
     {
@@ -132,6 +134,8 @@ export const todayMock: TodayPayload = {
       time: "AMC",
       expectedEps: "$0.79",
       expectedRevenue: "$707M",
+      actualEps: "—",
+      actualRevenue: "—",
       marketCap: "$11.5B"
     }
   ],
