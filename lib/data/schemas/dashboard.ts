@@ -6,7 +6,7 @@ export const newsItemSchema = z.object({
   timestamp: z.string(),
   tickers: z.array(z.string()),
   whyItMatters: z.string(),
-  source: z.string(),
+  source: z.string().optional(),
   category: z.string().optional(),
   impact: z.enum(["Low", "Medium", "High"]).optional()
 });
@@ -31,6 +31,7 @@ export const earningsSchema = z.object({
 
 export const todayPayloadSchema = z.object({
   summary: z.object({ title: z.string(), regime: z.string(), bullets: z.array(z.string()) }),
+  marketSummary: z.array(metricSchema),
   keyStats: z.array(metricSchema),
   featuredNews: z.array(newsItemSchema),
   earnings: z.array(earningsSchema),

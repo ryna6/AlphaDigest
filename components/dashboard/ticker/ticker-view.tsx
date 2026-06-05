@@ -4,7 +4,6 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { MetricRow } from "@/components/ui/metric-row";
 import { Panel } from "@/components/ui/panel";
 import { SectionHeader } from "@/components/ui/section-header";
-import { SourceFooter } from "@/components/ui/source-footer";
 import { tickerMock } from "@/lib/data/fixtures/mock-dashboard";
 
 export function TickerExplorerView() {
@@ -29,7 +28,6 @@ export function TickerDetailView({ symbol }: { symbol: string }) {
         <Panel>
           <SectionHeader title="Ticker Story" subtitle="Clearly labeled mock narrative; no live source calls." />
           <p className="text-sm leading-6 text-textSecondary">{data.story}</p>
-          <SourceFooter meta={data.sourceMeta} />
         </Panel>
         <Panel>
           <SectionHeader title="Header Metrics" />
@@ -39,7 +37,7 @@ export function TickerDetailView({ symbol }: { symbol: string }) {
       <div className="mt-4 grid gap-4 xl:grid-cols-2">
         <Panel>
           <SectionHeader title="Catalyst Timeline" />
-          <DataTable rows={data.timeline.map((item) => ({ Time: item.timestamp, Headline: item.headline, Source: item.source, Impact: item.impact ?? "—" }))} />
+          <DataTable rows={data.timeline.map((item) => ({ Time: item.timestamp, Headline: item.headline, Impact: item.impact ?? "—" }))} />
         </Panel>
         <Panel>
           <SectionHeader title="Flow & Ownership Context" />

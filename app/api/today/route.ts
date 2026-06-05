@@ -1,9 +1,10 @@
 import { dashboardJson } from "@/lib/api/response";
-import { todayMock } from "@/lib/data/fixtures/mock-dashboard";
+import { getTodayPayload } from "@/lib/data/live-dashboard";
 import { todayPayloadSchema } from "@/lib/data/schemas/dashboard";
 
 export const dynamic = "force-dynamic";
 
-export function GET() {
-  return dashboardJson({ schema: todayPayloadSchema, payload: todayMock });
+export async function GET() {
+  const { payload, mode, notices } = await getTodayPayload();
+  return dashboardJson({ schema: todayPayloadSchema, payload, mode, notices });
 }

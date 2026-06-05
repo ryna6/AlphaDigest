@@ -16,7 +16,7 @@ export function describeCommodityProviderStrategy(symbol: CommoditySymbol): stri
   const common = "Finnhub, Twelve Data, FRED where appropriate, or another available market data provider";
   if (symbol === "WTI") return `WTI crude oil: ${common}. Oil historical charts prefer Twelve Data if available; oil macro context can use FRED.`;
   if (symbol === "BRENT") return `Brent crude oil: ${common}. Oil historical charts prefer Twelve Data if available; oil macro context can use FRED.`;
-  return `${symbol}: Finnhub / Twelve Data / available market data provider.`;
+  return `${symbol}: use the configured server-side commodity provider chain.`;
 }
 
 export function getMockCommodityQuote(symbol: CommoditySymbol): CommodityQuote {
@@ -37,7 +37,6 @@ export function getMockCommodityQuote(symbol: CommoditySymbol): CommodityQuote {
     sourceMeta: {
       source: "Mock commodity adapter",
       lastUpdated: new Date().toISOString(),
-      status: "degraded",
       mode: "mock",
       message: describeCommodityProviderStrategy(symbol)
     }

@@ -2,7 +2,7 @@
 
 ## Suggested first GitHub issues
 
-1. Integrate CoinGecko no-key crypto prices for Bitcoin and crypto heatmap.
+1. Integrate CoinGecko crypto prices for Bitcoin and crypto heatmap.
 2. Integrate FRED macro observations for rates, spreads, labor, inflation, and liquidity.
 3. Integrate Finnhub quotes with feature-specific key routing.
 4. Integrate Twelve Data OHLC and commodity charts.
