@@ -317,7 +317,6 @@ function EconomicCalendar({
           Event: e.event,
           Actual: e.actual ?? "—",
           Forecast: e.forecast ?? "—",
-          Previous: e.previous ?? "—",
           Importance: importanceStars(e.importance)
         }))}
         empty="No economic events are available for the selected day."
@@ -332,10 +331,7 @@ export function NewsCalendarView({ data }: { data: NewsCalendarPayload }) {
 
   return (
     <>
-      <PageTitle
-        title="News & Calendar"
-        subtitle="What events and headlines are driving markets."
-      />
+      <PageTitle title="News & Calendar" />
       <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_390px]">
         <Panel>
           <SectionHeader
@@ -368,10 +364,7 @@ export function AllNewsView({ data }: { data: NewsCalendarPayload }) {
 
   return (
     <>
-      <PageTitle
-        title="Latest Market News"
-        subtitle="The most recent headline-feed items available to MarketRecap."
-      />
+      <PageTitle title="Latest Market News" />
       <Panel>
         <SectionHeader
           title={`Most Recent ${news.length} Headlines`}
@@ -405,10 +398,7 @@ export function AllEarningsView({ data }: { data: NewsCalendarPayload }) {
 
   return (
     <>
-      <PageTitle
-        title="Earnings Calendar"
-        subtitle="Large-cap earnings grouped by report window."
-      />
+      <PageTitle title="Earnings Calendar" />
       <div className="mb-4">
         <Link
           href="/news-calendar"

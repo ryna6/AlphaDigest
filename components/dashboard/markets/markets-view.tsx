@@ -1,5 +1,4 @@
 "use client";
-import Image from "next/image";
 import { useState } from "react";
 import type { MarketsPayload } from "@/lib/data/schemas/dashboard";
 import { PageTitle } from "@/components/dashboard/page-title";
@@ -18,6 +17,23 @@ const labels = {
   macro: "Macro"
 };
 
+function MarketMetricIcon({ src, label }: { src: string; label: string }) {
+  const [hidden, setHidden] = useState(false);
+  if (hidden) return null;
+
+  return (
+    <span className="flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden rounded-full bg-transparent">
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img
+        src={src}
+        alt={`${label} icon`}
+        className="h-full w-full rounded-full object-cover"
+        onError={() => setHidden(true)}
+      />
+    </span>
+  );
+}
+
 function signedValueClass(value?: string) {
   if (!value) return "text-textSecondary";
   if (/^-|\s-/.test(value)) return "text-negative";
@@ -30,7 +46,7 @@ export function MarketsView({ data }: { data: MarketsPayload }) {
 
   return (
     <>
-      <PageTitle title="Markets" subtitle="What is moving across markets." />
+      <PageTitle title="Markets" />
       <Panel>
         <SectionHeader title="Indices" />
         <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
@@ -41,15 +57,7 @@ export function MarketsView({ data }: { data: MarketsPayload }) {
             >
               <div className="flex items-center gap-2">
                 {metric.iconPath ? (
-                  <span className="flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden rounded-full bg-transparent">
-                    <Image
-                      src={metric.iconPath}
-                      alt={`${metric.label} icon`}
-                      width={32}
-                      height={32}
-                      className="h-full w-full rounded-full object-cover"
-                    />
-                  </span>
+                  <MarketMetricIcon src={metric.iconPath} label={metric.label} />
                 ) : null}
                 <p className="text-xs font-semibold uppercase tracking-[0.2em] text-textMuted">
                   {metric.label}

@@ -11,9 +11,12 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
             <a
               href="/overview/today"
               className="inline-flex min-h-10 items-center"
-              aria-label="Market Recap home"
+              aria-label="MarketRecap home"
             >
-              <AppLogo className="max-h-9 w-auto object-contain" />
+              <AppLogo className="max-h-8 w-auto shrink-0 object-contain" />
+              <span className="ml-2 text-sm font-semibold tracking-tight text-textPrimary">
+                MarketRecap
+              </span>
             </a>
           </div>
           <div className="p-4 lg:p-6">{children}</div>

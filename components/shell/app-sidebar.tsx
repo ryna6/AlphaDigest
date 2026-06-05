@@ -28,13 +28,14 @@ export function AppSidebar() {
     );
   };
   return (
-    <aside className="hidden w-64 shrink-0 border-r border-borderStrong bg-sidebar p-4 lg:flex lg:flex-col">
+    <aside className="hidden w-56 shrink-0 border-r border-borderStrong bg-sidebar p-3 lg:flex lg:flex-col">
       <Link
         href="/overview/today"
-        className="mb-6 flex min-h-14 items-center rounded-none border border-borderStrong bg-panel px-3 py-2"
-        aria-label="Market Recap home"
+        className="mb-5 flex min-h-12 items-center gap-2 rounded-none border border-borderStrong bg-panel px-2.5 py-2"
+        aria-label="MarketRecap home"
       >
-        <AppLogo className="max-h-10 w-auto object-contain" />
+        <AppLogo className="max-h-8 w-auto shrink-0 object-contain" />
+        <span className="text-sm font-semibold tracking-tight text-textPrimary">MarketRecap</span>
       </Link>
       <nav className="space-y-1">{mainNavigation.map(renderItem)}</nav>
       <div className="mt-auto border-t border-borderStrong pt-4">

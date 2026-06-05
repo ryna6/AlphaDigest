@@ -30,7 +30,7 @@ export default async function TopNewsArticlePage({
 
   return (
     <>
-      <PageTitle title="Featured Article" subtitle="Internal MarketRecap article view." />
+      <PageTitle title="Featured Article" />
       <Panel>
         <SectionHeader
           title="Top News Detail"

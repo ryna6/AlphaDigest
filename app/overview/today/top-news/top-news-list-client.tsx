@@ -21,10 +21,7 @@ export function TopNewsListClient({
 
   return (
     <>
-      <PageTitle
-        title="Top News"
-        subtitle="The most recent featured Unusual Whales articles saved for MarketRecap."
-      />
+      <PageTitle title="Top News" />
       <Panel>
         <SectionHeader
           title={`Most Recent ${shownArticles.length} Featured Articles`}

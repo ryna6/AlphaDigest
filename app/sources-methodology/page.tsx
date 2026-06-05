@@ -147,10 +147,7 @@ const definitions = [
 export default function SourcesMethodologyPage() {
   return (
     <>
-      <PageTitle
-        title="Sources & Methodology"
-        subtitle="Sources, definitions, refresh schedule, and deployment data pipeline."
-      />
+      <PageTitle title="Sources & Methodology" />
       <Panel>
         <SectionHeader title="Data Sources" />
         <DataTable

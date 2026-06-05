@@ -1,5 +1,7 @@
 import type { FinnhubFeatureArea } from "./adapters/finnhub-key-router";
 import { getFinnhubKey } from "./adapters/finnhub-key-router";
+import type { YahooMarketQuote } from "./adapters/yahoo-finance";
+import { fetchYahooMarketQuote } from "./adapters/yahoo-finance";
 import { marketsMock, todayMock } from "./fixtures/mock-dashboard";
 import { formatEtDateKey } from "../utils/time";
 import { getHeatmapIconPath, getMetricIconPath } from "../constants/asset-icons";
@@ -240,10 +242,41 @@ function todayDateKey(date = new Date()) {
   return formatEtDateKey(date) ?? date.toISOString().slice(0, 10);
 }
 
+function formatEarningsCount(count: number) {
+  return `${count} ${count === 1 ? "Earning" : "Earnings"}`;
+}
+
 function todayEarningsSummary(events: UnusualWhalesEarningsEvent[]) {
   return {
     count: events.length,
-    value: `${events.length} ${events.length === 1 ? "earning" : "earnings"}`
+    value: formatEarningsCount(events.length)
+  };
+}
+
+function yahooQuoteMetric(quote: YahooMarketQuote | null, label: string): Metric | null {
+  if (!quote?.price) return null;
+  const change = quote.change ?? 0;
+  const changePercent = quote.changePercent ?? 0;
+  const iconPath = getMetricIconPath(label);
+  return {
+    label,
+    value: formatNumber(quote.price, { maximumFractionDigits: 2 }),
+    change: formatChange(change),
+    changePercent: formatPercent(changePercent),
+    ...(iconPath ? { iconPath } : {}),
+    tone: toneFromChange(changePercent)
+  };
+}
+
+function unavailableMetric(label: string): Metric {
+  const iconPath = getMetricIconPath(label);
+  return {
+    label,
+    value: "—",
+    change: "—",
+    changePercent: "—",
+    ...(iconPath ? { iconPath } : {}),
+    tone: "neutral"
   };
 }
 
@@ -259,11 +292,13 @@ async function todayMarketOverviewMetrics() {
     quoteMetric("macro-heatmap", "USO", "WTI Oil"),
     quoteMetric("macro-heatmap", "GLD", "Gold"),
     quoteMetric("crypto-heatmap", "BINANCE:BTCUSDT", "Bitcoin"),
-    quoteMetric("macro-heatmap", "^VIX", "VIX")
+    fetchYahooMarketQuote("^VIX").then((quote) => yahooQuoteMetric(quote, "VIX"))
   ]);
 
   return liveMetrics
-    .map((metric, index) => metric ?? fallbackMetrics[index])
+    .map(
+      (metric, index) => metric ?? (index === 5 ? unavailableMetric("VIX") : fallbackMetrics[index])
+    )
     .filter((metric): metric is Metric => Boolean(metric));
 }
 
@@ -311,28 +346,34 @@ export async function getMarketsPayload(): Promise<{
     heatmap("macro-heatmap")
   ]);
 
+  const stripCandidates: Array<Metric | null> = await Promise.all([
+    quoteMetric("global-markets", "SPY", "S&P 500"),
+    quoteMetric("global-markets", "QQQ", "Nasdaq 100"),
+    quoteMetric("global-markets", "IJH", "Mid Cap"),
+    quoteMetric("global-markets", "IWM", "Small Cap"),
+    fetchYahooMarketQuote("ES=F").then((quote) => yahooQuoteMetric(quote, "S&P 500 Futures"))
+  ]);
+  const strip = stripCandidates
+    .map(
+      (metric, index) =>
+        metric ?? (index === 4 ? unavailableMetric("S&P 500 Futures") : fallback.strip[index])
+    )
+    .filter((metric): metric is Metric => Boolean(metric));
+
   const liveHeatmaps = { globalMarkets, sectors, crypto, macro };
-  const hasLive = Object.values(liveHeatmaps).some(Boolean);
+  const hasLive = Object.values(liveHeatmaps).some(Boolean) || stripCandidates.some(Boolean);
   if (!hasLive)
     return {
-      payload: fallback,
+      payload: {
+        ...fallback,
+        strip: strip.length ? strip : fallback.strip
+      },
       mode: "mock",
       notices: [
         "Mock market data enabled because no live quote responses were available.",
         ...fallback.heatmapKeyMessages
       ]
     };
-
-  const stripCandidates: Array<Metric | null> = await Promise.all([
-    quoteMetric("global-markets", "SPY", "S&P 500"),
-    quoteMetric("global-markets", "QQQ", "Nasdaq 100"),
-    quoteMetric("global-markets", "IJH", "Mid Cap"),
-    quoteMetric("global-markets", "IWM", "Small Cap"),
-    quoteMetric("global-markets", "ES1!", "S&P 500 Futures")
-  ]);
-  const strip = stripCandidates
-    .map((metric, index) => metric ?? fallback.strip[index])
-    .filter((metric): metric is Metric => Boolean(metric));
 
   return {
     payload: {
