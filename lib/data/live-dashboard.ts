@@ -10,6 +10,11 @@ import {
   fetchUnusualWhalesNewsFeed,
   unusualWhalesSources
 } from "./adapters/unusual-whales-news";
+import {
+  fetchInvestingEconomicCalendar,
+  investingEconomicSources,
+  type InvestingEconomicEvent
+} from "./adapters/investing-economic-calendar";
 import type { UnusualWhalesEarningsEvent } from "./adapters/unusual-whales-earnings";
 import { getCachedUnusualWhalesEarnings } from "./adapters/unusual-whales-earnings";
 import {
@@ -19,6 +24,7 @@ import {
 } from "./earnings-utils";
 import type { HeatmapTile, Metric, SourceMeta } from "./schemas/common";
 import type {
+  EconomicEvent,
   EarningsEvent,
   MarketsPayload,
   NewsCalendarPayload,
@@ -253,6 +259,44 @@ function todayEarningsSummary(events: UnusualWhalesEarningsEvent[]) {
   };
 }
 
+function economicImportanceFromStars(
+  stars: InvestingEconomicEvent["stars"]
+): EconomicEvent["importance"] {
+  if (stars === 3) return "High";
+  if (stars === 2) return "Medium";
+  return "Low";
+}
+
+function dashboardEventFromInvestingEvent(event: InvestingEconomicEvent): EconomicEvent {
+  return {
+    source: event.source,
+    id: event.id,
+    eventId: event.eventId,
+    eventKey: event.eventKey,
+    time: event.timestamp ?? event.time ?? "",
+    timestamp: event.timestamp,
+    event: event.eventName,
+    actual: event.actual,
+    forecast: event.forecast,
+    previous: event.previous,
+    importance: economicImportanceFromStars(event.stars),
+    stars: event.stars,
+    isHighlighted: event.isHighlighted,
+    highlightReason: event.highlightReason,
+    country: event.country,
+    fetchedAt: event.fetchedAt
+  };
+}
+
+export async function getEconomicCalendarEvents(dateKey = todayDateKey()) {
+  const result = await fetchInvestingEconomicCalendar(dateKey);
+  return {
+    events: result.events.map(dashboardEventFromInvestingEvent),
+    mode: result.mode,
+    message: result.message
+  };
+}
+
 function yahooQuoteMetric(quote: YahooMarketQuote | null, label: string): Metric | null {
   if (!quote?.price) return null;
   const change = quote.change ?? 0;
@@ -413,11 +457,13 @@ export async function getTodayPayload(): Promise<{
         ? "risk on"
         : "neutral"
     : todayMock.marketSummary[1].change;
-  const [featuredNewsResult, unusualWhalesEarningsResult, todayKeyStats] = await Promise.all([
-    fetchUnusualWhalesFeaturedNews(50),
-    getCachedUnusualWhalesEarnings({ limit: 250, order: "oi" }),
-    todayMarketOverviewMetrics()
-  ]);
+  const [featuredNewsResult, unusualWhalesEarningsResult, todayKeyStats, economicCalendarResult] =
+    await Promise.all([
+      fetchUnusualWhalesFeaturedNews(50),
+      getCachedUnusualWhalesEarnings({ limit: 250, order: "oi" }),
+      todayMarketOverviewMetrics(),
+      getEconomicCalendarEvents(todayDateKey())
+    ]);
   const todayEarnings = getMajorEarningsForDate(unusualWhalesEarningsResult.events, todayDateKey());
   const topTodayEarnings = todayEarnings.slice(0, 5);
   const earningsData = topTodayEarnings.length
@@ -453,6 +499,10 @@ export async function getTodayPayload(): Promise<{
         : todayMock.featuredNews,
       earnings: earningsData,
       unusualWhalesEarnings: todayEarnings,
+      economicCalendar:
+        economicCalendarResult.mode === "live"
+          ? economicCalendarResult.events
+          : todayMock.economicCalendar,
       keyStats: todayKeyStats,
       sectorSnapshot: leading.map((item) => ({
         label: item.label,
@@ -466,7 +516,17 @@ export async function getTodayPayload(): Promise<{
           featuredNewsResult.mode,
           featuredNewsResult.message
         ),
-        ...todayMock.sourceMeta.filter((meta) => meta.source !== "Unusual Whales Featured News")
+        liveMeta(
+          "Investing.com Economic Calendar",
+          investingEconomicSources().calendar,
+          economicCalendarResult.mode === "live" ? "live" : "unavailable",
+          economicCalendarResult.message
+        ),
+        ...todayMock.sourceMeta.filter(
+          (meta) =>
+            meta.source !== "Unusual Whales Featured News" &&
+            meta.source !== "Unusual Whales Economic Calendar"
+        )
       ]
     },
     mode,
@@ -482,11 +542,13 @@ export async function getNewsCalendarPayload(): Promise<{
   mode: "mock" | "live";
   notices: string[];
 }> {
-  const [newsResult, earningsData, unusualWhalesEarningsResult] = await Promise.all([
-    fetchUnusualWhalesNewsFeed(100),
-    earningsWithLogos(),
-    getCachedUnusualWhalesEarnings({ limit: 250, order: "oi" })
-  ]);
+  const [newsResult, earningsData, unusualWhalesEarningsResult, economicCalendarResult] =
+    await Promise.all([
+      fetchUnusualWhalesNewsFeed(100),
+      earningsWithLogos(),
+      getCachedUnusualWhalesEarnings({ limit: 250, order: "oi" }),
+      getEconomicCalendarEvents(todayDateKey())
+    ]);
 
   const fallbackNews = todayMock.featuredNews.map((article) => ({
     headline: article.title,
@@ -503,7 +565,10 @@ export async function getNewsCalendarPayload(): Promise<{
   return {
     payload: {
       news,
-      economicCalendar: todayMock.economicCalendar,
+      economicCalendar:
+        economicCalendarResult.mode === "live"
+          ? economicCalendarResult.events
+          : todayMock.economicCalendar,
       earnings: unusualWhalesEarningsResult.events.length
         ? earningsSnapshotFromUnusualWhales(unusualWhalesEarningsResult.events)
         : earningsData,
@@ -524,6 +589,12 @@ export async function getNewsCalendarPayload(): Promise<{
             ? "live"
             : "unavailable",
           unusualWhalesEarningsResult.message
+        ),
+        liveMeta(
+          "Investing.com Economic Calendar",
+          investingEconomicSources().calendar,
+          economicCalendarResult.mode === "live" ? "live" : "unavailable",
+          economicCalendarResult.message
         )
       ]
     },
