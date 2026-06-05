@@ -14,6 +14,7 @@ export const metricSchema = z.object({
   value: z.string(),
   change: z.string().optional(),
   changePercent: z.string().optional(),
+  iconPath: z.string().optional(),
   tone: z.enum(["positive", "negative", "neutral", "warning"]).default("neutral")
 });
 export type Metric = z.infer<typeof metricSchema>;
@@ -23,7 +24,8 @@ export const heatmapTileSchema = z.object({
   label: z.string(),
   value: z.number(),
   changePercent: z.number(),
-  weight: z.number()
+  weight: z.number(),
+  iconPath: z.string().optional()
 });
 export type HeatmapTile = z.infer<typeof heatmapTileSchema>;
 

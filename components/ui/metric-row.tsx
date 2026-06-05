@@ -1,7 +1,13 @@
+import Image from "next/image";
 import type { Metric } from "@/lib/data/schemas/common";
 import { cn } from "@/lib/utils/cn";
 
-const tone = { positive: "text-positive", negative: "text-negative", neutral: "text-textSecondary", warning: "text-warning" };
+const tone = {
+  positive: "text-positive",
+  negative: "text-negative",
+  neutral: "text-textSecondary",
+  warning: "text-warning"
+};
 
 function signedValueClass(value?: string) {
   if (!value) return undefined;
@@ -17,11 +23,31 @@ export function MetricRow({ metric }: { metric: Metric }) {
 
   return (
     <div className="flex items-center justify-between gap-3 border-b border-borderStrong/60 py-2 last:border-b-0">
-      <div className="min-w-0">
-        <p className="truncate text-xs text-textMuted">{metric.label}</p>
+      <div className="flex min-w-0 items-center gap-2">
+        {metric.iconPath ? (
+          <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-borderStrong bg-panelHover p-1">
+            <Image
+              src={metric.iconPath}
+              alt={`${metric.label} icon`}
+              width={18}
+              height={18}
+              className="h-full w-full rounded-full object-contain"
+            />
+          </span>
+        ) : null}
+        <div className="min-w-0">
+          <p className="truncate text-xs text-textMuted">{metric.label}</p>
+        </div>
       </div>
       <div className="text-right tabular">
-        <p className={cn("text-sm font-semibold", signedValueClass(metric.value) ?? "text-textPrimary")}>{metric.value}</p>
+        <p
+          className={cn(
+            "text-sm font-semibold",
+            signedValueClass(metric.value) ?? "text-textPrimary"
+          )}
+        >
+          {metric.value}
+        </p>
         {changeText ? <p className={cn("text-xs", changeClass)}>{changeText}</p> : null}
       </div>
     </div>
