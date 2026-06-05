@@ -5,9 +5,62 @@ import { getTodayPayload } from "@/lib/data/live-dashboard";
 import { PageTitle } from "@/components/dashboard/page-title";
 import { Panel } from "@/components/ui/panel";
 import { SectionHeader } from "@/components/ui/section-header";
+import {
+  articleTextFromHtml,
+  stripUnusualWhalesAdSection
+} from "@/lib/data/adapters/unusual-whales-news";
 import { formatEtDateTime, timestampTitle } from "@/lib/utils/time";
 
 export const dynamic = "force-dynamic";
+
+type ArticleBlock = { type: "h2" | "p"; text: string };
+
+const ENTITY_MAP: Record<string, string> = {
+  amp: "&",
+  lt: "<",
+  gt: ">",
+  quot: '"',
+  apos: "'",
+  nbsp: " "
+};
+
+function decodeEntities(value: string) {
+  return value
+    .replace(/&#(\d+);/g, (_, code) => String.fromCharCode(Number(code)))
+    .replace(/&#x([\da-f]+);/gi, (_, code) => String.fromCharCode(parseInt(code, 16)))
+    .replace(/&([a-z]+);/gi, (entity, name) => ENTITY_MAP[name.toLowerCase()] ?? entity);
+}
+
+function sanitizeInlineText(html: string) {
+  return decodeEntities(
+    html
+      .replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi, " ")
+      .replace(/<style\b[^>]*>[\s\S]*?<\/style>/gi, " ")
+      .replace(/<br\s*\/?>/gi, "\n")
+      .replace(/<[^>]+>/g, " ")
+      .replace(/[ \t]+/g, " ")
+      .replace(/\n\s+/g, "\n")
+      .trim()
+  );
+}
+
+function safeArticleBlocks(html: string): ArticleBlock[] {
+  const cleaned = stripUnusualWhalesAdSection(html);
+  const blocks: ArticleBlock[] = [];
+  const blockRegex = /<(p|h2)(?:\s+[^>]*)?>([\s\S]*?)<\/\1>/gi;
+  let match: RegExpExecArray | null;
+  while ((match = blockRegex.exec(cleaned))) {
+    const text = sanitizeInlineText(match[2]);
+    if (text) blocks.push({ type: match[1].toLowerCase() === "h2" ? "h2" : "p", text });
+  }
+  return blocks.length
+    ? blocks
+    : articleTextFromHtml(cleaned)
+        .split(/\n{2,}/)
+        .map((paragraph) => paragraph.trim())
+        .filter(Boolean)
+        .map((text) => ({ type: "p", text }));
+}
 
 export default async function TopNewsArticlePage({
   params,
@@ -27,6 +80,7 @@ export default async function TopNewsArticlePage({
     ? `?count=${encodeURIComponent(searchParams.count)}`
     : "?count=20";
   const backHref = fromTopNews ? `/overview/today/top-news${count}` : "/overview/today";
+  const articleBlocks = article.contentHtml ? safeArticleBlocks(article.contentHtml) : [];
 
   return (
     <>
@@ -82,15 +136,29 @@ export default async function TopNewsArticlePage({
               {article.excerpt}
             </p>
           ) : null}
-          {article.contentText ? (
-            <div className="mt-6 space-y-5 border-t border-borderStrong pt-6 text-base leading-8 text-textPrimary">
-              {article.contentText
-                .split(/\n{2,}/)
-                .map((paragraph) => paragraph.trim())
-                .filter(Boolean)
-                .map((paragraph, index) => (
-                  <p key={`${article.slug}-paragraph-${index}`}>{paragraph}</p>
-                ))}
+          {articleBlocks.length || article.contentText ? (
+            <div className="mt-6 max-w-[72ch] border-t border-borderStrong pt-6 text-base leading-[1.65] text-textPrimary">
+              {(articleBlocks.length
+                ? articleBlocks
+                : (article.contentText
+                    ?.split(/\n{2,}/)
+                    .map((paragraph) => paragraph.trim())
+                    .filter(Boolean)
+                    .map((text) => ({ type: "p" as const, text })) ?? [])
+              ).map((block, index) =>
+                block.type === "h2" ? (
+                  <h2
+                    key={`${article.slug}-heading-${index}`}
+                    className="mb-3 mt-7 text-lg font-bold leading-snug text-textPrimary first:mt-0"
+                  >
+                    {block.text}
+                  </h2>
+                ) : (
+                  <p key={`${article.slug}-paragraph-${index}`} className="mb-4 last:mb-0">
+                    {block.text}
+                  </p>
+                )
+              )}
             </div>
           ) : (
             <p className="mt-5 text-sm text-textMuted">
