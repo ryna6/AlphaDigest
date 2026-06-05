@@ -22,7 +22,7 @@ export const todayMock: TodayPayload = {
   },
   marketSummary: [
     { label: "Leading sectors", value: "Tech, Comm Services, Energy", change: "+0.82% / +0.61% / +0.44%", tone: "positive" },
-    { label: "Risk-on / risk-off", value: "1.22", change: "VIX3M / VIX", tone: "neutral" },
+    { label: "Risk-on / risk-off", value: "1.22", change: "RoRo ratio > 1 = risk off; < 1 = risk on", tone: "neutral" },
     { label: "Today’s earnings", value: "2 earnings", change: "ABM, DOCU", tone: "neutral" },
     { label: "Put/call ratio", value: "0.91", change: "Neutral", tone: "neutral" }
   ],
@@ -67,8 +67,19 @@ const tiles = (items: Array<[string, string, number, number]>) =>
     weight
   }));
 
+const marketStrip = () => [
+  todayMock.keyStats[0],
+  todayMock.keyStats[1],
+  todayMock.keyStats[6],
+  todayMock.keyStats[7],
+  todayMock.keyStats[2],
+  todayMock.keyStats[3],
+  todayMock.keyStats[4],
+  todayMock.keyStats[5]
+];
+
 export const marketsMock = (): MarketsPayload => ({
-  strip: todayMock.keyStats.slice(0, 8),
+  strip: marketStrip(),
   heatmaps: {
     globalMarkets: tiles([
       ["SPY", "U.S. Market", 0.34, 20], ["EWC", "Canadian Market", 0.18, 10], ["IEUR", "European Market", -0.18, 14], ["EWJ", "Japan Market", 0.22, 12], ["EWT", "Taiwan Market", 0.41, 10], ["EWH", "Hong Kong Market", -0.24, 8], ["EWY", "Korean Market", 0.09, 8], ["INDA", "Indian Market", 0.28, 10]
