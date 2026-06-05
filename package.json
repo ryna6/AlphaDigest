@@ -1,0 +1,43 @@
+{
+  "name": "market-intelligence-dashboard",
+  "version": "0.1.0",
+  "private": true,
+  "description": "A Netlify-ready market intelligence dashboard for compact market analytics, source freshness, and cross-asset monitoring.",
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "next lint",
+    "typecheck": "tsc --noEmit",
+    "format": "prettier --check .",
+    "format:write": "prettier --write ."
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "latest",
+    "@tanstack/react-table": "latest",
+    "clsx": "latest",
+    "date-fns": "latest",
+    "lucide-react": "latest",
+    "next": "14.2.23",
+    "react": "18.3.1",
+    "react-dom": "18.3.1",
+    "recharts": "latest",
+    "tailwind-merge": "latest",
+    "zod": "latest"
+  },
+  "devDependencies": {
+    "@types/node": "latest",
+    "@types/react": "latest",
+    "@types/react-dom": "latest",
+    "autoprefixer": "^10.4.20",
+    "eslint": "^8.57.1",
+    "eslint-config-next": "14.2.23",
+    "postcss": "^8.4.49",
+    "prettier": "latest",
+    "tailwindcss": "^3.4.17",
+    "typescript": "latest"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  }
+}
