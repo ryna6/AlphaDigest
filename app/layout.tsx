@@ -5,7 +5,12 @@ import { DashboardShell } from "@/components/shell/dashboard-shell";
 export const metadata: Metadata = {
   title: "MarketRecap",
   description: "Professional market recap dashboard for daily market intelligence.",
-  metadataBase: new URL("https://example.netlify.app")
+  metadataBase: new URL("https://example.netlify.app"),
+  icons: {
+    icon: "/logo.png",
+    shortcut: "/logo.png",
+    apple: "/logo.png"
+  }
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

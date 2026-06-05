@@ -27,8 +27,8 @@ function importanceStars(importance: EconomicEvent["importance"]) {
 }
 
 function earningsTimeLabel(time: EarningsEvent["time"]) {
-  if (time === "BMO") return "Before open";
-  if (time === "AMC") return "After close";
+  if (time === "BMO") return "Before Open";
+  if (time === "AMC") return "After Close";
   return "TBD";
 }
 
@@ -100,31 +100,37 @@ function EarningsPanel({ earnings }: { earnings: EarningsEvent[] }) {
   return (
     <Panel>
       <SectionHeader title="Earnings" />
-      <div className="divide-y divide-borderStrong/60">
-        {earnings.map((event) => (
-          <div
-            key={`${event.ticker}-${event.time}`}
-            className="flex items-center justify-between gap-4 py-3"
-          >
-            <div className="flex min-w-0 items-center gap-3">
-              <span
-                className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-transparent bg-cover bg-center bg-no-repeat text-[10px] font-bold text-textPrimary"
-                style={event.logoUrl ? { backgroundImage: `url(${event.logoUrl})` } : undefined}
-                aria-label={event.logoUrl ? `${event.company} logo` : undefined}
-              >
-                {event.logoUrl ? null : event.ticker.slice(0, 2)}
-              </span>
-              <div className="min-w-0">
-                <p className="truncate text-sm font-semibold text-textPrimary">{event.ticker}</p>
-                <p className="mt-1 truncate text-xs text-textMuted">{event.company}</p>
+      {earnings.length ? (
+        <div className="divide-y divide-borderStrong/60">
+          {earnings.slice(0, 5).map((event) => (
+            <div
+              key={`${event.ticker}-${event.time}`}
+              className="flex items-center justify-between gap-4 py-3"
+            >
+              <div className="flex min-w-0 items-center gap-3">
+                <span
+                  className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-transparent bg-cover bg-center bg-no-repeat text-[10px] font-bold text-textPrimary"
+                  style={event.logoUrl ? { backgroundImage: `url(${event.logoUrl})` } : undefined}
+                  aria-label={event.logoUrl ? `${event.company} logo` : undefined}
+                >
+                  {event.logoUrl ? null : event.ticker.slice(0, 2)}
+                </span>
+                <div className="min-w-0">
+                  <p className="truncate text-sm font-semibold text-textPrimary">{event.ticker}</p>
+                  <p className="mt-1 truncate text-xs text-textMuted">{event.company}</p>
+                </div>
               </div>
+              <p className="shrink-0 text-right text-sm font-semibold text-textSecondary">
+                {earningsTimeLabel(event.time)}
+              </p>
             </div>
-            <p className="shrink-0 text-right text-sm font-semibold text-textSecondary">
-              {earningsTimeLabel(event.time)}
-            </p>
-          </div>
-        ))}
-      </div>
+          ))}
+        </div>
+      ) : (
+        <div className="rounded-none border border-dashed border-borderStrong px-3 py-4 text-center text-xs text-textMuted">
+          No major earnings today
+        </div>
+      )}
     </Panel>
   );
 }

@@ -117,6 +117,19 @@ const payload: NewsCalendarPayload = {
   ],
   earnings: [],
   unusualWhalesEarnings: [
+    ...Array.from({ length: 11 }, (_, index) => {
+      const marketCap = (30 - index) * 1_000_000_000;
+      const symbol = `CAP${30 - index}`;
+      return earningsEvent({
+        id: `uw-earnings:${symbol}:2026-06-05:${index % 2 ? "postmarket" : "premarket"}`,
+        symbol,
+        companyName: `${symbol} Large Cap Inc`,
+        reportDate: "2026-06-05",
+        reportTime: index % 2 ? "postmarket" : "premarket",
+        marketCap,
+        impliedMovePct: 1 + index
+      });
+    }),
     earningsEvent({
       id: "uw-earnings:BIG:2026-06-05:premarket",
       symbol: "BIG",
@@ -197,6 +210,27 @@ const normalized = normalizeUnusualWhalesEarningsRow({
 assert(normalized?.impliedMovePct === 9.1, "implied move percentage calculation failed");
 
 const markup = renderToStaticMarkup(<NewsCalendarView data={payload} />);
+const earningsCalendarIndex = markup.indexOf("Earnings Calendar");
+const economicCalendarIndex = markup.indexOf("Economic Calendar");
+const latestNewsIndex = markup.indexOf("Latest Market News");
+assert(
+  latestNewsIndex > -1 &&
+    economicCalendarIndex > latestNewsIndex &&
+    earningsCalendarIndex > economicCalendarIndex,
+  "news/calendar layout should render latest news with economic and earnings calendars in the right rail"
+);
+assert(
+  markup.includes("xl:grid-cols-[minmax(0,1fr)_390px]") &&
+    markup.includes('<aside class="space-y-4"'),
+  "calendars should render in the compact right rail"
+);
+assert(
+  /Last Week<\/button>/.test(markup) &&
+    markup.includes("rounded-none border border-borderStrong bg-surfaceSubtle") &&
+    markup.includes("sm:grid-cols-7") &&
+    markup.includes("text-[10px]"),
+  "weekday selector buttons should use sharp, equally sized compact styling"
+);
 
 assert(markup.includes("Last Week"), "shared selector is missing Last Week");
 assert(
@@ -206,25 +240,39 @@ assert(
 assert(markup.includes("Next Week"), "shared selector is missing Next Week");
 assert(!markup.includes("Selected Day"), "earnings calendar should not render Selected Day label");
 assert(
-  (markup.match(/Friday, Jun 5/g) ?? []).length === 1,
-  "economic calendar should not render a date subtitle"
+  !markup.includes("Friday, Jun 5"),
+  "earnings calendar should not render a selected-day date subtitle"
 );
 assert(markup.includes("Before Open"), "earnings are not grouped under Before Open");
 assert(markup.includes("After Close"), "earnings are not grouped under After Close");
+for (const symbol of [
+  "CAP30",
+  "CAP29",
+  "CAP28",
+  "CAP27",
+  "CAP26",
+  "CAP25",
+  "CAP24",
+  "CAP23",
+  "CAP22",
+  "CAP21"
+]) {
+  assert(markup.includes(symbol), `${symbol} should be retained in the top-10 market-cap earnings`);
+}
 assert(
-  markup.includes("BIG") && markup.includes("MEGA") && markup.includes("NULLTIME"),
-  "large-cap earnings are not shown or unknown report times were not kept"
+  !markup.includes("CAP20") &&
+    !markup.includes("MEGA") &&
+    !markup.includes("BIG") &&
+    !markup.includes("SMOL") &&
+    !markup.includes("OLD"),
+  "earnings max-10, market-cap, or selected-day filter failed"
 );
 assert(
-  !markup.includes("SMOL") && !markup.includes("OLD"),
-  "market-cap or selected-day earnings filter failed"
-);
-assert(
-  markup.includes("9.1%") && markup.includes("4.2%") && markup.includes("5.5%"),
+  markup.includes("1.0%") && markup.includes("10.0%"),
   "implied move percentage is not visible"
 );
 assert(
-  markup.includes("PHL") && !markup.includes("placeholder-logo.svg"),
+  !markup.includes("placeholder-logo.svg"),
   "Unusual Whales placeholder logos should not render as images"
 );
 assert(
