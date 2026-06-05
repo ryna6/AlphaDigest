@@ -7,8 +7,15 @@ import {
   fetchUnusualWhalesNewsFeed,
   unusualWhalesSources
 } from "./adapters/unusual-whales-news";
+import type { UnusualWhalesEarningsEvent } from "./adapters/unusual-whales-earnings";
+import { getCachedUnusualWhalesEarnings } from "./adapters/unusual-whales-earnings";
 import type { HeatmapTile, Metric, SourceMeta } from "./schemas/common";
-import type { MarketsPayload, NewsCalendarPayload, TodayPayload } from "./schemas/dashboard";
+import type {
+  EarningsEvent,
+  MarketsPayload,
+  NewsCalendarPayload,
+  TodayPayload
+} from "./schemas/dashboard";
 
 const sectorShortNames: Record<string, string> = {
   XLK: "Tech",
@@ -174,6 +181,47 @@ async function fetchFinnhubCompanyLogo(symbol: string): Promise<string | undefin
 
   companyLogoCache.set(normalizedSymbol, request);
   return request;
+}
+
+function earningsTimingFromReportTime(reportTime: string | null): EarningsEvent["time"] {
+  if (reportTime === "premarket") return "BMO";
+  if (reportTime === "postmarket") return "AMC";
+  return "TBD";
+}
+
+function currencyOrDash(value: number | null) {
+  if (value === null || !Number.isFinite(value)) return "—";
+  return new Intl.NumberFormat("en-US", {
+    style: "currency",
+    currency: "USD",
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2
+  }).format(value);
+}
+
+function compactMoneyOrDash(value: number | null) {
+  if (value === null || !Number.isFinite(value)) return undefined;
+  const abs = Math.abs(value);
+  const format = (divisor: number, suffix: string) =>
+    `$${(abs / divisor).toFixed(abs / divisor >= 10 ? 1 : 2).replace(/\.0+$/, "")}${suffix}`;
+  if (abs >= 1_000_000_000_000) return format(1_000_000_000_000, "T");
+  if (abs >= 1_000_000_000) return format(1_000_000_000, "B");
+  if (abs >= 1_000_000) return format(1_000_000, "M");
+  return currencyOrDash(value);
+}
+
+function earningsSnapshotFromUnusualWhales(events: UnusualWhalesEarningsEvent[]): EarningsEvent[] {
+  return events.slice(0, 20).map((event) => ({
+    ticker: event.symbol,
+    company: event.companyName ?? event.symbol,
+    time: earningsTimingFromReportTime(event.reportTime),
+    expectedEps: currencyOrDash(event.epsMeanEstimate ?? event.streetMeanEstimate),
+    expectedRevenue: undefined,
+    actualEps: "—",
+    actualRevenue: "—",
+    marketCap: compactMoneyOrDash(event.marketCap),
+    ...(event.logo ? { logoUrl: event.logo } : {})
+  }));
 }
 
 async function earningsWithLogos() {
@@ -356,9 +404,10 @@ export async function getNewsCalendarPayload(): Promise<{
   mode: "mock" | "live";
   notices: string[];
 }> {
-  const [newsResult, earningsData] = await Promise.all([
+  const [newsResult, earningsData, unusualWhalesEarningsResult] = await Promise.all([
     fetchUnusualWhalesNewsFeed(100),
-    earningsWithLogos()
+    earningsWithLogos(),
+    getCachedUnusualWhalesEarnings({ limit: 250, order: "oi" })
   ]);
 
   const fallbackNews = todayMock.featuredNews.map((article) => ({
@@ -377,13 +426,26 @@ export async function getNewsCalendarPayload(): Promise<{
     payload: {
       news,
       economicCalendar: todayMock.economicCalendar,
-      earnings: earningsData,
+      earnings: unusualWhalesEarningsResult.events.length
+        ? earningsSnapshotFromUnusualWhales(unusualWhalesEarningsResult.events)
+        : earningsData,
+      unusualWhalesEarnings: unusualWhalesEarningsResult.events,
+      earningsMetadata: unusualWhalesEarningsResult.metadata,
       sourceMeta: [
         liveMeta(
           "Unusual Whales News Feed",
           unusualWhalesSources.feed,
           newsResult.mode,
           newsResult.message
+        ),
+        liveMeta(
+          "Unusual Whales Earnings Cache",
+          "https://phx.unusualwhales.com/api/companies_earnings/upcoming_earnings_v2",
+          unusualWhalesEarningsResult.mode === "supabase" ||
+            unusualWhalesEarningsResult.mode === "live"
+            ? "live"
+            : "unavailable",
+          unusualWhalesEarningsResult.message
         )
       ]
     },
