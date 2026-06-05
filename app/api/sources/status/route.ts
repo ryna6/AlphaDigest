@@ -14,8 +14,7 @@ const secretEnvVars = [
   "TWELVE_DATA_API_KEY",
   "COINGECKO_API_KEY",
   "FRED_API_KEY",
-  "SEC_API_KEY",
-  "UNUSUAL_WHALES_API_KEY"
+  "SEC_API_KEY"
 ];
 
 const publicConfigVars = ["NEXT_PUBLIC_APP_NAME", "SCRAPER_ENABLED", "HORMUZ_TRACKER_ENABLED"];
@@ -30,8 +29,14 @@ export function GET() {
       configured: status.ok,
       message: status.ok ? "Configured" : status.message
     })),
-    environment: secretEnvVars.map((envVar) => ({ envVar, configured: Boolean(process.env[envVar]) })),
-    publicConfig: publicConfigVars.map((envVar) => ({ envVar, configured: Boolean(process.env[envVar]) })),
+    environment: secretEnvVars.map((envVar) => ({
+      envVar,
+      configured: Boolean(process.env[envVar])
+    })),
+    publicConfig: publicConfigVars.map((envVar) => ({
+      envVar,
+      configured: Boolean(process.env[envVar])
+    })),
     scraperSources: [
       {
         source: "Unusual Whales",

@@ -25,4 +25,4 @@ SEC_API_KEY=
 HORMUZ_TRACKER_ENABLED=false
 ```
 
-Unusual Whales ingestion should scrape the public website server-side; do not configure an Unusual Whales API key or scraper feature flag. CoinGecko is treated as a no-key crypto source in this scaffold. API routes are deployed server-side by the Netlify Next.js plugin. Future scheduled jobs should live in `netlify/functions/`.
+Unusual Whales ingestion scrapes the public website server-side without separate provider credentials. CoinGecko is treated as a no-key crypto source in this scaffold. API routes are deployed server-side by the Netlify Next.js plugin. Future scheduled jobs should live in `netlify/functions/`.
