@@ -1,0 +1,30 @@
+import { DataTable } from "@/components/ui/data-table";
+import { Panel } from "@/components/ui/panel";
+import { SectionHeader } from "@/components/ui/section-header";
+
+const sources = [
+  ["Unusual Whales Featured News", "https://unusualwhales.com/news", "Featured market news", "Today", "Today’s Top News"],
+  ["Unusual Whales Broader News Feed", "https://unusualwhales.com/news-feed?limit=100&major_only=true", "Broader major news feed", "News & Calendar", "Latest Market News"],
+  ["Unusual Whales Economic Calendar", "https://unusualwhales.com/economic-calendar", "Economic events", "Today, News & Calendar", "Economic calendar cards"],
+  ["Unusual Whales Earnings", "https://unusualwhales.com/earnings", "Earnings calendar", "Today, News & Calendar, Ticker Explorer", "Earnings cards/calendar"],
+  ["Unusual Whales Dark Pool", "https://unusualwhales.com/large-trades?tab=dark-pool", "Dark pool trades", "Flow & Ownership, Ticker Explorer", "Dark pool table"],
+  ["Unusual Whales Whale Trades", "https://unusualwhales.com/large-trades?tab=whale", "Large whale trades", "Flow & Ownership, Ticker Explorer", "Whale trades table"],
+  ["Unusual Whales Insider Trades", "https://unusualwhales.com/politics/insider_trades?search=&ticker=", "Insider trades", "Flow & Ownership, Ticker Explorer", "Insider trades table"],
+  ["Capitol Trades", "https://www.capitoltrades.com/trades?pageSize=96", "Congressional trades", "Flow & Ownership, Ticker Explorer", "Congressional trades table"],
+  ["sec-api.io 13F API", "https://sec-api.io/docs/form-13-f-filings-institutional-holdings-api", "Institutional holdings", "Flow & Ownership, Ticker Explorer", "Institutional Positioning"],
+  ["Finnhub Global Markets API Key", "https://finnhub.io/docs/api", "Quotes and market data", "Markets", "Global Markets Heatmap"],
+  ["Finnhub Sectors Heatmap API Key", "https://finnhub.io/docs/api", "ETF market data", "Markets", "Sectors Heatmap"],
+  ["Finnhub Crypto Heatmap API Key", "https://finnhub.io/docs/api", "Crypto fallback", "Markets", "Crypto Heatmap fallback"],
+  ["Finnhub Macro Heatmap API Key", "https://finnhub.io/docs/api", "Macro quote support", "Markets, Economy & Sentiment, Today", "Macro Heatmap"],
+  ["Twelve Data API", "https://twelvedata.com/docs", "OHLC, charts, commodities", "Today, Markets, Ticker Explorer, Economy", "Charts and oil/gold/silver fallback"],
+  ["CoinGecko API", "https://docs.coingecko.com/", "Crypto prices", "Today, Markets", "Bitcoin card, crypto heatmap"],
+  ["FRED API", "https://fred.stlouisfed.org/docs/api/fred/", "Macro, yields, inflation, repo, spreads", "Economy & Sentiment, Today, Markets", "Macro cards/charts"],
+  ["CBOE Market Statistics", "https://www.cboe.com/data/mktstat.aspx?dt=2026-06-04", "Put/call ratios", "Today, Economy & Sentiment", "Sentiment cards"],
+  ["AAII Sentiment Survey", "https://www.aaii.com/sentimentsurvey/sent_results", "Investor sentiment", "Economy & Sentiment", "Investor sentiment cards"],
+  ["HormuzTracker", "https://www.hormuztracker.com/", "Strait of Hormuz risk", "Economy & Sentiment", "Geopolitical energy risk"],
+  ["HormuzTracker Methodology", "https://www.hormuztracker.com/methodology", "Attribution and methodology", "Sources & Methodology", "Attribution"],
+].map(([name, link, provides, usedIn, component]) => ({ name, link, provides, usedIn, component }));
+
+export default function SourcesMethodologyPage() {
+  return <div className="space-y-4"><div><h1 className="text-2xl font-semibold">Sources & Methodology</h1><p className="text-sm text-mutedText">Trust, freshness, methodology, and Netlify deployment/data pipeline notes.</p></div><Panel><SectionHeader title="Data Sources"/><DataTable columns={[{key:"name",label:"Source"},{key:"link",label:"Link"},{key:"provides",label:"Provides"},{key:"usedIn",label:"Used in"},{key:"component",label:"Component"}]} rows={sources}/></Panel><div className="grid gap-4 xl:grid-cols-2"><Panel><SectionHeader title="Metric Definitions"/><ul className="space-y-2 text-sm text-secondaryText">{["Put/call ratio: put option volume divided by call option volume.","VIX3M/VIX ratio: term-structure signal comparing 3-month and 30-day implied volatility.","Market breadth: participation measures such as advancers/decliners and percent above moving averages.","Dark pool: large off-exchange equity trade print.","Whale trade: unusually large options or equity trade.","13F filing: quarterly delayed institutional holdings report.","Congressional disclosure delay: lag between trade date and published report.","Credit spread: yield premium over Treasuries.","Yield curve: relationship between yields at different maturities.","Initial jobless claims: weekly new unemployment insurance claims.","Core CPI: CPI excluding food and energy.","PPI: producer price inflation.","Reverse repo: Fed facility used in short-term funding markets.","SOFR: secured overnight financing rate.","VIX: 30-day implied S&P 500 volatility index."].map(x=><li key={x}>{x}</li>)}</ul></Panel><Panel><SectionHeader title="Freshness Definitions"/><ul className="space-y-2 text-sm text-secondaryText">{["Fresh: within expected refresh window.","Delayed: source is inherently delayed or slightly behind.","Stale: outside expected refresh window but usable.","Degraded: source failures or rate limits; cached/mock fallback shown.","Unavailable: source disabled or no usable data."].map(x=><li key={x}>{x}</li>)}</ul></Panel></div><Panel><SectionHeader title="Netlify Deployment & Data Pipeline"/><p className="text-sm text-secondaryText">External source → server-side adapter / Netlify Function → Supabase storage → dashboard snapshot → Next.js API route → frontend. Future scheduled functions should refresh data by feature and write raw plus normalized snapshots.</p></Panel><Panel><SectionHeader title="Disclaimer"/><p className="text-sm text-warning">This dashboard is for personal research and market education only. It is not financial advice, investment advice, or a recommendation to buy or sell securities. Data may be delayed, incomplete, inaccurate, or stale.</p></Panel></div>;
+}

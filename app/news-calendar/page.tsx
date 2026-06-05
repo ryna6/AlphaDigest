@@ -1,0 +1,9 @@
+import { DataTable } from "@/components/ui/data-table";
+import { Panel } from "@/components/ui/panel";
+import { SectionHeader } from "@/components/ui/section-header";
+import { SourceFooter } from "@/components/ui/source-footer";
+import { compactColumns, earningsRows, economicRows, mockMeta, topNews } from "@/lib/data/fixtures/dashboard";
+
+export default function NewsCalendarPage() {
+  return <div className="space-y-4"><div><h1 className="text-2xl font-semibold">What events and headlines are driving markets?</h1><p className="text-sm text-mutedText">Broader news feed uses Unusual Whales major-only feed; SEC filings are intentionally excluded.</p></div><Panel><SectionHeader title="Latest Market News" subtitle="Initial 10 items; More loads another 10 in a later live implementation." action={<div className="flex gap-2"><button className="rounded-full border border-border px-3 py-1 text-xs">View All</button><button className="rounded-full border border-accent px-3 py-1 text-xs text-accent">More</button></div>} /><DataTable columns={[{key:"time",label:"Time"},{key:"headline",label:"Headline"},{key:"tickers",label:"Tags"},{key:"impact",label:"Impact"}]} rows={[...topNews, ...topNews].slice(0,10)} /><SourceFooter meta={{...mockMeta, source:"Unusual Whales broader news feed", sourceUrl:"https://unusualwhales.com/news-feed?limit=100&major_only=true"}} /></Panel><div className="grid gap-4 xl:grid-cols-2"><Panel><SectionHeader title="Economic Calendar"/><DataTable columns={[{key:"time",label:"Time"},{key:"event",label:"Event"},{key:"actual",label:"Actual",align:"right"},{key:"forecast",label:"Forecast",align:"right"},{key:"previous",label:"Previous",align:"right"},{key:"importance",label:"Importance"}]} rows={economicRows}/></Panel><Panel><SectionHeader title="Earnings Calendar"/><DataTable columns={compactColumns} rows={earningsRows}/></Panel></div></div>;
+}

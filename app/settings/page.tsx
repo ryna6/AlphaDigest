@@ -1,0 +1,7 @@
+import { DataTable } from "@/components/ui/data-table";
+import { Panel } from "@/components/ui/panel";
+import { SectionHeader } from "@/components/ui/section-header";
+import { getFinnhubKeyStatus } from "@/lib/data/adapters/finnhub-key-router";
+import { getEnvironmentStatus } from "@/lib/netlify/env";
+
+export default function SettingsPage(){const keys=getFinnhubKeyStatus(); return <div className="space-y-4"><h1 className="text-2xl font-semibold">Settings</h1><Panel><SectionHeader title="API / Source Preferences" subtitle="MVP is read-only. Configure real keys in Netlify environment variables."/><DataTable columns={[{key:"name",label:"Variable"},{key:"configured",label:"Configured"},{key:"clientExposed",label:"Client exposed"}]} rows={getEnvironmentStatus().map(x=>({...x,configured:x.configured?"Yes":"No",clientExposed:x.clientExposed?"Yes":"No"}))}/></Panel><Panel><SectionHeader title="Finnhub Heatmap Key Status"/><DataTable columns={[{key:"label",label:"Feature"},{key:"envVar",label:"Environment variable"},{key:"status",label:"Status"},{key:"message",label:"Message"}]} rows={keys.map(k=>({label:k.label,envVar:k.envVar,status:k.ok?"Configured":"Missing",message:k.ok?"Available server-side":k.message}))}/></Panel><Panel><SectionHeader title="Theme and refresh settings"/><p className="text-sm text-mutedText">Theme, refresh cadence, and source fallback preferences will be persisted in a future settings module.</p></Panel></div>}

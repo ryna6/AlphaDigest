@@ -1,0 +1,11 @@
+import { DataTable } from "@/components/ui/data-table";
+import { MiniChart } from "@/components/ui/mini-chart";
+import { Panel } from "@/components/ui/panel";
+import { SectionHeader } from "@/components/ui/section-header";
+import { SourceFooter } from "@/components/ui/source-footer";
+import { mockMeta } from "@/lib/data/fixtures/dashboard";
+
+export default function TickerPage({ params }: { params: { symbol: string } }) {
+  const symbol = params.symbol.toUpperCase();
+  return <div className="space-y-4"><div><h1 className="text-2xl font-semibold">{symbol} Ticker Explorer</h1><p className="text-sm text-mutedText">Price, timeline, flow, ownership, and sector context. Partial data states are expected.</p></div><Panel><SectionHeader title="Ticker Header"/><div className="grid gap-3 md:grid-cols-5">{[["Price","$211.08"],["Change","+0.7%"],["Sector","Technology"],["Market Cap","$3.1T"],["Updated","09:30 ET"]].map(([k,v])=><div key={k} className="rounded-xl border border-border bg-sidebar/40 p-3"><p className="text-xs text-mutedText">{k}</p><p className="font-mono text-sm text-primaryText">{v}</p></div>)}</div><SourceFooter meta={mockMeta}/></Panel><Panel><SectionHeader title="Price / OHLC Chart"/><MiniChart label={`${symbol} 1D / 5D / 1M / 3M / 1Y chart placeholder`}/></Panel><div className="grid gap-4 xl:grid-cols-2"><Panel><SectionHeader title="Today’s Story"/><p className="text-sm text-secondaryText">{symbol} is trading higher today with modestly positive news flow, limited unusual options activity in the mock flow window, and unavailable live ownership data until SEC API integration is configured.</p></Panel><Panel><SectionHeader title="Event Timeline"/><DataTable columns={[{key:"time",label:"Time"},{key:"type",label:"Type"},{key:"detail",label:"Detail"}]} rows={[{time:"09:05 ET",type:"News",detail:"Featured market headline mentions sector leadership."},{time:"10:05 ET",type:"Flow",detail:"Mock dark-pool print observed."}]}/></Panel><Panel><SectionHeader title="Flow Snapshot"/><p className="text-sm text-warning">Flow data unavailable or stale. Last successful update: 9:30 AM ET.</p></Panel><Panel><SectionHeader title="Ownership Snapshot"/><p className="text-sm text-mutedText">13F, insider, and congressional disclosure modules will show cached partial data when available.</p></Panel></div></div>;
+}
