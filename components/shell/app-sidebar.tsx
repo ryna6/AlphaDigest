@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { mainNavigation, utilityNavigation } from "@/lib/constants/navigation";
 import { cn } from "@/lib/utils/cn";
+import { AppLogo } from "./app-logo";
 
 export function AppSidebar() {
   const pathname = usePathname();
@@ -30,10 +31,10 @@ export function AppSidebar() {
     <aside className="hidden w-64 shrink-0 border-r border-borderStrong bg-sidebar p-4 lg:flex lg:flex-col">
       <Link
         href="/overview/today"
-        className="mb-6 block rounded-none border border-borderStrong bg-panel p-3"
+        className="mb-6 flex min-h-14 items-center rounded-none border border-borderStrong bg-panel px-3 py-2"
+        aria-label="Market Recap home"
       >
-        <p className="text-sm font-semibold text-textPrimary">MarketRecap</p>
-        <p className="mt-1 text-xs text-textMuted">Market briefing dashboard</p>
+        <AppLogo className="max-h-10 w-auto object-contain" />
       </Link>
       <nav className="space-y-1">{mainNavigation.map(renderItem)}</nav>
       <div className="mt-auto border-t border-borderStrong pt-4">

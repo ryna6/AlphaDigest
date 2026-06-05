@@ -33,11 +33,11 @@ export function MarketsView({ data }: { data: MarketsPayload }) {
       <PageTitle title="Markets" subtitle="What is moving across markets." />
       <Panel>
         <SectionHeader title="Indices" />
-        <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+        <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
           {data.strip.map((metric) => (
             <div
               key={metric.label}
-              className="min-h-32 rounded-none border border-borderStrong bg-sidebar p-4"
+              className="min-h-28 rounded-none border border-borderStrong bg-sidebar p-4"
             >
               <div className="flex items-center gap-2">
                 {metric.iconPath ? (
@@ -55,7 +55,7 @@ export function MarketsView({ data }: { data: MarketsPayload }) {
                   {metric.label}
                 </p>
               </div>
-              <div className="mt-5">
+              <div className="mt-4">
                 <div className="flex items-baseline justify-between gap-3">
                   <p className="min-w-0 text-2xl font-semibold text-textPrimary">{metric.value}</p>
                   {metric.changePercent ? (
