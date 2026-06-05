@@ -1,6 +1,5 @@
 import type { NewsItem } from "../schemas/dashboard";
 
-const UNUSUAL_WHALES_API_URL = "https://api.unusualwhales.com/api/news/headlines";
 const UNUSUAL_WHALES_TODAY_URL = "https://unusualwhales.com/news";
 const UNUSUAL_WHALES_FEED_URL = "https://unusualwhales.com/news-feed?limit=100&major_only=true";
 
@@ -11,17 +10,6 @@ const ENTITY_MAP: Record<string, string> = {
   quot: '"',
   apos: "'",
   nbsp: " "
-};
-
-type UnusualWhalesHeadline = {
-  created_at?: string;
-  headline?: string;
-  is_major?: boolean;
-  meta?: Record<string, unknown>;
-  sentiment?: string;
-  source?: string;
-  tags?: string[];
-  tickers?: string[];
 };
 
 type NewsFetchResult = {
@@ -54,18 +42,6 @@ function textFromHtml(value: string) {
   );
 }
 
-function formatTimestamp(value?: string) {
-  if (!value) return "Today";
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return value;
-  return new Intl.DateTimeFormat("en-US", {
-    hour: "numeric",
-    minute: "2-digit",
-    timeZone: "America/New_York",
-    timeZoneName: "short"
-  }).format(date);
-}
-
 function timestampFromText(value: string) {
   const text = textFromHtml(value);
   const timestamp = text.match(
@@ -74,35 +50,10 @@ function timestampFromText(value: string) {
   return timestamp?.[0]?.trim() || "Today";
 }
 
-function impactFromHeadline(item: UnusualWhalesHeadline): NewsItem["impact"] {
-  if (item.is_major) return "High";
-  const sentiment = item.sentiment?.toLowerCase();
-  if (sentiment && sentiment !== "neutral") return "Medium";
-  return "Low";
-}
-
 function tickersFromHeadline(headline: string) {
   return Array.from(
     new Set(Array.from(headline.matchAll(/\$([A-Z]{1,6})\b/g), (match) => match[1]))
   ).slice(0, 6);
-}
-
-function itemToNews(item: UnusualWhalesHeadline): NewsItem | null {
-  if (!item.headline?.trim()) return null;
-  const tags = item.tags?.filter(Boolean) ?? [];
-  const source = item.source || "Unusual Whales";
-
-  return {
-    headline: item.headline.trim(),
-    timestamp: formatTimestamp(item.created_at),
-    tickers: item.tickers?.filter(Boolean).slice(0, 6) ?? [],
-    whyItMatters: tags.length
-      ? `Tagged by Unusual Whales as ${tags.slice(0, 3).join(", ")}.`
-      : `Latest market headline from ${source}.`,
-    source,
-    category: tags[0] ?? "Market",
-    impact: impactFromHeadline(item)
-  };
 }
 
 function scrapedHeadingToNews(match: HeadingMatch, timestampPlacement: "after" | "before") {
@@ -120,15 +71,6 @@ function scrapedHeadingToNews(match: HeadingMatch, timestampPlacement: "after" |
     category: "Market",
     impact: "Medium" as const
   };
-}
-
-function normalizePayload(payload: unknown): UnusualWhalesHeadline[] {
-  if (Array.isArray(payload)) return payload as UnusualWhalesHeadline[];
-  if (payload && typeof payload === "object" && "data" in payload) {
-    const data = (payload as { data?: unknown }).data;
-    if (Array.isArray(data)) return data as UnusualWhalesHeadline[];
-  }
-  return [];
 }
 
 function headingMatches(html: string, tag: "h3" | "h4") {
@@ -204,61 +146,12 @@ async function scrapeNewsFeed(limit: number): Promise<NewsFetchResult> {
   return { items, mode: items.length ? "live" : "unavailable" };
 }
 
-async function fetchApiNews(params: URLSearchParams): Promise<NewsFetchResult> {
-  const token = process.env.UNUSUAL_WHALES_API_KEY;
-  if (!token) {
-    return {
-      items: [],
-      mode: "unavailable",
-      message: "UNUSUAL_WHALES_API_KEY is not configured."
-    };
-  }
-
-  const response = await fetch(`${UNUSUAL_WHALES_API_URL}?${params.toString()}`, {
-    headers: {
-      Authorization: `Bearer ${token}`,
-      Accept: "application/json"
-    },
-    cache: "no-store"
-  }).catch(() => null);
-
-  if (!response) {
-    return {
-      items: [],
-      mode: "unavailable",
-      message: "Unusual Whales API request failed."
-    };
-  }
-
-  if (!response.ok) {
-    return {
-      items: [],
-      mode: "unavailable",
-      message: `Unusual Whales API returned ${response.status}.`
-    };
-  }
-
-  const payload = await response.json();
-  const items = uniqueNews(normalizePayload(payload).map(itemToNews).filter(Boolean) as NewsItem[]);
-  return { items, mode: items.length ? "live" : "unavailable" };
-}
-
 export async function fetchUnusualWhalesFeaturedNews(limit = 5): Promise<NewsFetchResult> {
-  const scraped = await scrapeFeaturedNews(limit);
-  if (scraped.items.length) return scraped;
-
-  const params = new URLSearchParams({ limit: String(limit), page: "0" });
-  const api = await fetchApiNews(params);
-  return api.items.length ? api : scraped;
+  return scrapeFeaturedNews(limit);
 }
 
 export async function fetchUnusualWhalesNewsFeed(limit = 100): Promise<NewsFetchResult> {
-  const scraped = await scrapeNewsFeed(limit);
-  if (scraped.items.length) return scraped;
-
-  const params = new URLSearchParams({ limit: String(limit), page: "0", major_only: "true" });
-  const api = await fetchApiNews(params);
-  return api.items.length ? api : scraped;
+  return scrapeNewsFeed(limit);
 }
 
 export const unusualWhalesSources = {
