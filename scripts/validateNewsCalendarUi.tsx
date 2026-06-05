@@ -42,6 +42,10 @@ const { NewsCalendarView } =
   require("../components/dashboard/news-calendar/news-calendar-view") as typeof import("../components/dashboard/news-calendar/news-calendar-view");
 const { normalizeUnusualWhalesEarningsRow } =
   require("../lib/data/adapters/unusual-whales-earnings") as typeof import("../lib/data/adapters/unusual-whales-earnings");
+const { IMPORTANT_ECONOMIC_EVENTS, getImportantEconomicEventKey, shouldIncludeEconomicEvent } =
+  require("../lib/data/config/included-economic-events") as typeof import("../lib/data/config/included-economic-events");
+const { normalizeInvestingEconomicCalendarPayload } =
+  require("../lib/data/adapters/investing-economic-calendar") as typeof import("../lib/data/adapters/investing-economic-calendar");
 
 function assert(condition: unknown, message: string) {
   if (!condition) throw new Error(message);
@@ -106,6 +110,22 @@ const payload: NewsCalendarPayload = {
       forecast: "185K",
       previous: "175K",
       importance: "High"
+    },
+    {
+      source: "investing_com",
+      id: "62:2026-06-05T12:30:00Z",
+      eventId: 62,
+      eventKey: "corePpi",
+      time: "2026-06-05T12:30:00Z",
+      timestamp: "2026-06-05T12:30:00Z",
+      event: "Core PPI",
+      actual: "0.2%",
+      forecast: "0.2%",
+      previous: "0.1%",
+      importance: "High",
+      stars: 3,
+      isHighlighted: true,
+      highlightReason: "Core PPI"
     },
     {
       time: "2026-06-04T14:00:00Z",
@@ -209,6 +229,108 @@ const normalized = normalizeUnusualWhalesEarningsRow({
 });
 assert(normalized?.impliedMovePct === 9.1, "implied move percentage calculation failed");
 
+assert(IMPORTANT_ECONOMIC_EVENTS.corePpi.eventIds.includes(62), "Core PPI should use event ID 62");
+assert(IMPORTANT_ECONOMIC_EVENTS.ppi.eventIds.includes(238), "PPI should use event ID 238");
+assert(
+  !IMPORTANT_ECONOMIC_EVENTS.coreCpi.eventIds.includes(922),
+  "Core CPI should not include event ID 922"
+);
+for (const extraId of [11852, 28682, 31473]) {
+  assert(
+    !IMPORTANT_ECONOMIC_EVENTS.nonfarmPayrolls.eventIds.includes(extraId),
+    `Nonfarm Payrolls should not include event ID ${extraId}`
+  );
+}
+assert(
+  getImportantEconomicEventKey(62, "Unexpected name") === "corePpi",
+  "highlight matching by event ID failed"
+);
+assert(
+  getImportantEconomicEventKey(null, "Core CPI m/m") === "coreCpi",
+  "highlight fallback matching by event name failed"
+);
+assert(
+  shouldIncludeEconomicEvent("ISM Services PMI"),
+  "medium/high events should be included by default"
+);
+assert(!shouldIncludeEconomicEvent("Fed Chair Powell Speaks"), "Fed speaks should be excluded");
+assert(
+  !shouldIncludeEconomicEvent("Crude Oil Inventories"),
+  "crude oil inventory events should be excluded"
+);
+
+const investingEvents = normalizeInvestingEconomicCalendarPayload(
+  {
+    events: [
+      {
+        event_id: 227,
+        event_translated: "Nonfarm Payrolls",
+        importance: "high",
+        country_id: 5,
+        currency: "USD"
+      },
+      {
+        event_id: 52,
+        event_translated: "Consumer Credit",
+        importance: "medium",
+        country_id: 5,
+        currency: "USD"
+      },
+      {
+        event_id: 1810,
+        event_translated: "U.S. Baker Hughes Total Rig Count",
+        importance: "medium",
+        country_id: 5,
+        currency: "USD"
+      }
+    ],
+    occurrences: [
+      {
+        event_id: 227,
+        occurrence_time: "2026-06-05T12:30:00Z",
+        actual: 172,
+        forecast: 85,
+        previous: 179,
+        unit: "K"
+      },
+      {
+        event_id: 52,
+        occurrence_time: "2026-06-05T19:00:00Z",
+        actual: 20.73,
+        forecast: 17.8,
+        previous: 22.23,
+        unit: "B"
+      },
+      {
+        event_id: 1810,
+        occurrence_time: "2026-06-05T17:00:00Z",
+        actual: 563,
+        previous: 562
+      }
+    ]
+  },
+  "2026-06-05",
+  "2026-06-05T00:00:00Z"
+);
+assert(
+  investingEvents.some((event) => event.eventName === "Consumer Credit"),
+  "Investing.com metadata/occurrence merge should include non-highlight medium events"
+);
+assert(
+  investingEvents.some(
+    (event) =>
+      event.eventName === "Nonfarm Payrolls" &&
+      event.timestamp?.startsWith("2026-06-05T12:30:00") &&
+      event.actual === "172K" &&
+      event.isHighlighted
+  ),
+  "Investing.com occurrences should merge event names, timestamps, values, and highlight status"
+);
+assert(
+  !investingEvents.some((event) => /Rig Count/.test(event.eventName)),
+  "Investing.com normalization should apply excluded event patterns"
+);
+
 const markup = renderToStaticMarkup(<NewsCalendarView data={payload} />);
 const earningsCalendarIndex = markup.indexOf("Earnings Calendar");
 const economicCalendarIndex = markup.indexOf("Economic Calendar");
@@ -220,9 +342,9 @@ assert(
   "news/calendar layout should render latest news with economic and earnings calendars in the right rail"
 );
 assert(
-  markup.includes("xl:grid-cols-[minmax(0,1fr)_390px]") &&
-    markup.includes('<aside class="space-y-4"'),
-  "calendars should render in the compact right rail"
+  markup.includes("xl:grid-cols-[minmax(0,1fr)_minmax(380px,0.6fr)]") &&
+    markup.includes('<aside class="min-w-0 space-y-4"'),
+  "news/calendar layout should give the economic calendar wider responsive space"
 );
 assert(
   /Last Week<\/button>/.test(markup) &&
@@ -276,10 +398,23 @@ assert(
   "Unusual Whales placeholder logos should not render as images"
 );
 assert(
-  markup.includes("Payrolls") && !markup.includes("Factory Orders"),
+  markup.includes("Payrolls") && markup.includes("Core PPI") && !markup.includes("Factory Orders"),
   "economic calendar is not limited to the selected day"
 );
 assert(markup.includes("9:30 AM ET"), "economic calendar time is not formatted in ET");
+assert(markup.includes("Key"), "highlighted economic events should have a subtle Key badge");
+assert(
+  !markup.includes("eventId") && !markup.includes("highlightReason"),
+  "economic calendar should not show debug metadata"
+);
+assert(
+  markup.includes("Actual") && markup.includes("Forecast") && markup.includes("Previous"),
+  "economic calendar value columns are missing"
+);
+assert(
+  !markup.includes("Importance</th>"),
+  "economic calendar should not render textual importance column"
+);
 assert(!markup.includes("/news-calendar/earnings"), "earnings View All link is still rendered");
 for (const hiddenText of [
   "Expected EPS",

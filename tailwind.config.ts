@@ -20,7 +20,14 @@ const config: Config = {
         neutral: "#9CA3AF"
       },
       fontFamily: {
-        sans: ["Inter", "Geist", "IBM Plex Sans", "system-ui", "sans-serif"]
+        sans: [
+          "Space Grotesk",
+          "system-ui",
+          "-apple-system",
+          "BlinkMacSystemFont",
+          "Segoe UI",
+          "sans-serif"
+        ]
       },
       boxShadow: {
         panel: "0 10px 35px rgba(0, 0, 0, 0.22)"

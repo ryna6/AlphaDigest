@@ -21,9 +21,9 @@ function signedValueClass(value?: string) {
   return "text-textSecondary";
 }
 
-function importanceStars(importance: EconomicEvent["importance"]) {
-  const count = { Low: 1, Medium: 2, High: 3 }[importance];
-  return "☆".repeat(count);
+function importanceStars(importance: EconomicEvent["importance"], stars?: EconomicEvent["stars"]) {
+  const count = stars ?? { Low: 1, Medium: 2, High: 3 }[importance];
+  return "★".repeat(count);
 }
 
 function earningsTimeLabel(time: EarningsEvent["time"]) {
@@ -151,14 +151,14 @@ function EconomicEventsPanel({ events }: { events: EconomicEvent[] }) {
                 className="mt-1 text-xs leading-none tracking-[0.18em] text-textSecondary"
                 aria-label={`${event.importance} importance`}
               >
-                {importanceStars(event.importance)}
+                {importanceStars(event.importance, event.stars)}
               </p>
             </div>
             <p
               className="shrink-0 text-right text-sm font-semibold text-textSecondary"
               title={timestampTitle(event.time)}
             >
-              {formatEtTime(event.time)}
+              {formatEtTime(event.timestamp ?? event.time)}
             </p>
           </div>
         ))}
@@ -200,8 +200,7 @@ export function TodayView({ data }: { data: TodayPayload }) {
                     {metric.label}
                   </p>
                   {metric.label === "Risk-on / risk-off" ? (
-                    <InfoTooltip text="This metric compares the 3-month expected volatility (VIX3M) to the current VIX. 
-                      When the ratio > 1, it means traders expect higher volatility in the future, which can reflects a more risk-off market. When the ratio < 1, near-term fear is higher, which can suggest conditions is shifting towards a more risk-on market." />
+                    <InfoTooltip text="This metric compares the 3-month expected volatility (VIX3M) to the current VIX. When the ratio > 1, it means traders expect higher volatility in the future, which can reflects a more risk-off market. When the ratio < 1, near-term fear is higher, which can suggest conditions is shifting towards a more risk-on market." />
                   ) : null}
                 </div>
                 <p className="mt-5 text-2xl font-semibold text-textPrimary">{metric.value}</p>
