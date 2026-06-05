@@ -73,6 +73,7 @@ export const unusualWhalesEarningsEventSchema = z.object({
   stockVolume: z.number().nullable(),
   expectedMove: z.number().nullable(),
   impliedMove: z.number().nullable(),
+  impliedMovePct: z.number().nullable().default(null),
   streetMeanEstimate: z.number().nullable(),
   epsMeanEstimate: z.number().nullable(),
   lastEarningsDate: z.string().nullable(),

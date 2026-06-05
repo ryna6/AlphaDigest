@@ -12,7 +12,8 @@
     "format": "prettier --check .",
     "format:write": "prettier --write .",
     "fetch:uw-earnings": "tsx scripts/fetchUnusualWhalesEarnings.ts",
-    "test": "npm run typecheck"
+    "test": "npm run typecheck",
+    "validate:news-calendar": "sucrase-node scripts/validateNewsCalendarUi.tsx"
   },
   "dependencies": {
     "@supabase/supabase-js": "latest",
@@ -38,7 +39,8 @@
     "prettier": "latest",
     "tailwindcss": "^3.4.17",
     "typescript": "latest",
-    "tsx": "latest"
+    "tsx": "latest",
+    "sucrase": "latest"
   },
   "engines": {
     "node": ">=20.0.0"

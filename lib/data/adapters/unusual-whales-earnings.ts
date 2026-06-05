@@ -36,6 +36,7 @@ export type UnusualWhalesEarningsEvent = {
   stockVolume: number | null;
   expectedMove: number | null;
   impliedMove: number | null;
+  impliedMovePct: number | null;
   streetMeanEstimate: number | null;
   epsMeanEstimate: number | null;
   lastEarningsDate: string | null;
@@ -78,6 +79,22 @@ function numberOrNull(value: unknown) {
   if (typeof value !== "string" || !value.trim()) return null;
   const parsed = Number(value.replace(/,/g, ""));
   return Number.isFinite(parsed) ? parsed : null;
+}
+
+function calculateImpliedMovePct({
+  impliedMove,
+  expectedMove,
+  currentPrice,
+  previousPrice
+}: {
+  impliedMove: number | null;
+  expectedMove: number | null;
+  currentPrice: number | null;
+  previousPrice: number | null;
+}) {
+  const move = impliedMove ?? expectedMove;
+  const price = currentPrice ?? previousPrice;
+  return move !== null && price !== null && price > 0 ? (move / price) * 100 : null;
 }
 
 function booleanValue(value: unknown) {
@@ -134,6 +151,16 @@ export function normalizeUnusualWhalesEarningsRow(
   const reactions = Array.isArray(row.last_1d_reactions)
     ? row.last_1d_reactions.map(numberOrNull).filter((value): value is number => value !== null)
     : [];
+  const impliedMove = numberOrNull(row.implied_move);
+  const expectedMove = numberOrNull(row.expected_move);
+  const currentPrice = numberOrNull(row.curr);
+  const previousPrice = numberOrNull(row.prev);
+  const impliedMovePct = calculateImpliedMovePct({
+    impliedMove,
+    expectedMove,
+    currentPrice,
+    previousPrice
+  });
   const base = {
     source: "unusual_whales_earnings" as const,
     id,
@@ -150,14 +177,15 @@ export function normalizeUnusualWhalesEarningsRow(
     hasOptions: booleanValue(row.has_options),
     marketCapSize: stringOrNull(row.market_cap_size),
     marketCap: numberOrNull(row.marketcap),
-    currentPrice: numberOrNull(row.curr),
-    previousPrice: numberOrNull(row.prev),
+    currentPrice,
+    previousPrice,
     openInterest: numberOrNull(row.oi),
     callVolume: numberOrNull(row.call_vol),
     putVolume: numberOrNull(row.put_vol),
     stockVolume: numberOrNull(row.stock_volume),
-    expectedMove: numberOrNull(row.expected_move),
-    impliedMove: numberOrNull(row.implied_move),
+    expectedMove,
+    impliedMove,
+    impliedMovePct,
     streetMeanEstimate: numberOrNull(row.street_mean_est),
     epsMeanEstimate: numberOrNull(row.eps_mean_est),
     lastEarningsDate: stringOrNull(row.last_earnings_date),
@@ -266,6 +294,7 @@ function toDbRow(event: UnusualWhalesEarningsEvent) {
     stock_volume: event.stockVolume,
     expected_move: event.expectedMove,
     implied_move: event.impliedMove,
+    implied_move_pct: event.impliedMovePct,
     street_mean_estimate: event.streetMeanEstimate,
     eps_mean_estimate: event.epsMeanEstimate,
     last_earnings_date: event.lastEarningsDate,
@@ -281,6 +310,14 @@ function toDbRow(event: UnusualWhalesEarningsEvent) {
 }
 
 function fromDbRow(row: UnknownRecord): UnusualWhalesEarningsEvent {
+  const impliedMove = numberOrNull(row.implied_move);
+  const expectedMove = numberOrNull(row.expected_move);
+  const currentPrice = numberOrNull(row.current_price);
+  const previousPrice = numberOrNull(row.previous_price);
+  const impliedMovePct =
+    numberOrNull(row.implied_move_pct) ??
+    calculateImpliedMovePct({ impliedMove, expectedMove, currentPrice, previousPrice });
+
   return {
     source: SOURCE,
     id: String(row.id),
@@ -297,14 +334,15 @@ function fromDbRow(row: UnknownRecord): UnusualWhalesEarningsEvent {
     hasOptions: Boolean(row.has_options),
     marketCapSize: stringOrNull(row.market_cap_size),
     marketCap: numberOrNull(row.market_cap),
-    currentPrice: numberOrNull(row.current_price),
-    previousPrice: numberOrNull(row.previous_price),
+    currentPrice,
+    previousPrice,
     openInterest: numberOrNull(row.open_interest),
     callVolume: numberOrNull(row.call_volume),
     putVolume: numberOrNull(row.put_volume),
     stockVolume: numberOrNull(row.stock_volume),
-    expectedMove: numberOrNull(row.expected_move),
-    impliedMove: numberOrNull(row.implied_move),
+    expectedMove,
+    impliedMove,
+    impliedMovePct,
     streetMeanEstimate: numberOrNull(row.street_mean_estimate),
     epsMeanEstimate: numberOrNull(row.eps_mean_estimate),
     lastEarningsDate: stringOrNull(row.last_earnings_date),
