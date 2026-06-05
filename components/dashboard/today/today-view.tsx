@@ -183,10 +183,7 @@ function KeyStatsPanel({ stats }: { stats: Metric[] }) {
 export function TodayView({ data }: { data: TodayPayload }) {
   return (
     <>
-      <PageTitle
-        title="Today"
-        subtitle="What matters today across backdrop, tape, catalysts, and risk."
-      />
+      <PageTitle title="Today" />
       <Panel>
         <SectionHeader title="Market Summary" />
         <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">

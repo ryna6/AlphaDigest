@@ -23,7 +23,7 @@ const vars = [
 export default function SettingsPage() {
   return (
     <>
-      <PageTitle title="Settings" subtitle="Environment, source, theme, and refresh preferences." />
+      <PageTitle title="Settings" />
       <Panel>
         <SectionHeader
           title="Netlify Environment Variable Status"

@@ -8,6 +8,6 @@ export function AppLogo({ className }: { className: string }) {
 
   return (
     // eslint-disable-next-line @next/next/no-img-element
-    <img src="/logo.png" alt="Market Recap" className={className} onError={() => setHidden(true)} />
+    <img src="/logo.png" alt="MarketRecap" className={className} onError={() => setHidden(true)} />
   );
 }

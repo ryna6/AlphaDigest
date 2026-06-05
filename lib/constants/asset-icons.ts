@@ -4,6 +4,7 @@ export const heatmapIconFiles: Record<string, string> = {
   IJH: "ijh.png",
   IWM: "iwm.png",
   VIX: "vix.png",
+  "ES1!": "es1!.png",
   EWC: "ewc.png",
   IEUR: "ieur.png",
   EWJ: "ewj.png",
@@ -49,7 +50,8 @@ const metricIconSymbolByLabel: Record<string, string> = {
   "WTI Oil": "USO",
   Gold: "GLD",
   Bitcoin: "BTCUSD",
-  VIX: "VIX"
+  VIX: "VIX",
+  "S&P 500 Futures": "ES1!"
 };
 
 export const heatmapIconBasePath = "/assets/heatmap-icons";

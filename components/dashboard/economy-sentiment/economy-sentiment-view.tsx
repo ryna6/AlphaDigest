@@ -25,10 +25,7 @@ function MetricPanel({
 export function EconomySentimentView() {
   return (
     <>
-      <PageTitle
-        title="Economy & Sentiment"
-        subtitle="Is the broader backdrop supportive or risky."
-      />
+      <PageTitle title="Economy & Sentiment" />
       <Panel>
         <SectionHeader title="Macro Regime Summary" />
         <div className="grid gap-2 md:grid-cols-3 xl:grid-cols-6">
