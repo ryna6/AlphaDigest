@@ -266,8 +266,8 @@ export async function fetchUnusualWhalesEarnings(range = defaultEarningsRange())
     : new Error("Unusual Whales earnings request failed.");
 }
 
-function metadataSource(range: EarningsRange) {
-  return `${SOURCE}:${range.minDate}:${range.maxDate}`;
+function metadataSource(_range: EarningsRange) {
+  return SOURCE;
 }
 
 function toDbRow(event: UnusualWhalesEarningsEvent) {

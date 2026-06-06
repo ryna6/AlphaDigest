@@ -1,17 +1,17 @@
 import type { FinnhubFeatureArea } from "./adapters/finnhub-key-router";
 import { getFinnhubKey } from "./adapters/finnhub-key-router";
 import type { YahooMarketQuote } from "./adapters/yahoo-finance";
-import { fetchYahooMarketQuote } from "./adapters/yahoo-finance";
+import { getCachedYahooMarketQuote } from "./adapters/yahoo-finance";
 import { marketsMock, todayMock } from "./fixtures/mock-dashboard";
 import { formatEtDateKey } from "../utils/time";
 import { getHeatmapIconPath, getMetricIconPath } from "../constants/asset-icons";
 import {
-  fetchUnusualWhalesFeaturedNews,
-  fetchUnusualWhalesNewsFeed,
+  getCachedUnusualWhalesFeaturedArticles,
+  getCachedUnusualWhalesNewsFeed,
   unusualWhalesSources
 } from "./adapters/unusual-whales-news";
 import {
-  fetchInvestingEconomicCalendar,
+  getCachedInvestingEconomicCalendar,
   investingEconomicSources,
   type InvestingEconomicEvent
 } from "./adapters/investing-economic-calendar";
@@ -298,7 +298,7 @@ function dashboardEventFromInvestingEvent(event: InvestingEconomicEvent): Econom
 }
 
 export async function getEconomicCalendarEvents(dateKey = todayDateKey()) {
-  const result = await fetchInvestingEconomicCalendar(dateKey);
+  const result = await getCachedInvestingEconomicCalendar(dateKey);
   return {
     events: result.events
       .map(dashboardEventFromInvestingEvent)
@@ -347,7 +347,7 @@ async function todayMarketOverviewMetrics() {
     quoteMetric("macro-heatmap", "USO", "WTI Oil"),
     quoteMetric("macro-heatmap", "GLD", "Gold"),
     quoteMetric("crypto-heatmap", "BINANCE:BTCUSDT", "Bitcoin"),
-    fetchYahooMarketQuote("^VIX").then((quote) => yahooQuoteMetric(quote, "VIX"))
+    getCachedYahooMarketQuote("^VIX").then((quote) => yahooQuoteMetric(quote, "VIX"))
   ]);
 
   return liveMetrics
@@ -406,7 +406,7 @@ export async function getMarketsPayload(): Promise<{
     quoteMetric("global-markets", "QQQ", "Nasdaq 100"),
     quoteMetric("global-markets", "IJH", "Mid Cap"),
     quoteMetric("global-markets", "IWM", "Small Cap"),
-    fetchYahooMarketQuote("ES=F").then((quote) => yahooQuoteMetric(quote, "S&P 500 Futures"))
+    getCachedYahooMarketQuote("ES=F").then((quote) => yahooQuoteMetric(quote, "S&P 500 Futures"))
   ]);
   const strip = stripCandidates
     .map(
@@ -456,10 +456,12 @@ export async function getTodayPayload(): Promise<{
   const leading = [...markets.heatmaps.sectors]
     .sort((a, b) => b.changePercent - a.changePercent)
     .slice(0, 3);
-  const vix = await fetchFinnhubQuote("macro-heatmap", "^VIX");
+  const cachedVix = await getCachedYahooMarketQuote("^VIX");
   const vix3m = await fetchFinnhubQuote("macro-heatmap", "VIX3M");
   const riskRatio =
-    vix?.c && vix3m?.c ? (vix3m.c / vix.c).toFixed(2) : todayMock.marketSummary[1].value;
+    cachedVix?.price && vix3m?.c
+      ? (vix3m.c / cachedVix.price).toFixed(2)
+      : todayMock.marketSummary[1].value;
   const riskRatioValue = Number(riskRatio);
   const riskTone = Number.isFinite(riskRatioValue)
     ? riskRatioValue > 1
@@ -470,7 +472,7 @@ export async function getTodayPayload(): Promise<{
     : todayMock.marketSummary[1].change;
   const [featuredNewsResult, unusualWhalesEarningsResult, todayKeyStats, economicCalendarResult] =
     await Promise.all([
-      fetchUnusualWhalesFeaturedNews(50),
+      getCachedUnusualWhalesFeaturedArticles(50),
       getCachedUnusualWhalesEarnings({ limit: 250, order: "oi" }),
       todayMarketOverviewMetrics(),
       getEconomicCalendarEvents(todayDateKey())
@@ -565,7 +567,7 @@ export async function getNewsCalendarPayload(): Promise<{
 }> {
   const [newsResult, earningsData, unusualWhalesEarningsResult, economicCalendarResult] =
     await Promise.all([
-      fetchUnusualWhalesNewsFeed(100),
+      getCachedUnusualWhalesNewsFeed(100),
       earningsWithLogos(),
       getCachedUnusualWhalesEarnings({ limit: 250, order: "oi" }),
       getEconomicCalendarEvents(todayDateKey())

@@ -191,3 +191,181 @@ export async function fetchYahooMarketQuote(
   if (chartQuote) return chartQuote;
   return fetchYahooQuoteFallback(symbol);
 }
+
+import { createServerSupabaseClient } from "@/lib/db/supabase";
+import { payloadContentHash, sourceResult, updateRefreshMetadata } from "./supabase-refresh";
+import { stableHash } from "./unusual-whales-earnings";
+
+const MARKET_QUOTES_METADATA_SOURCE = "yahoo_market_quotes";
+const MARKET_QUOTE_SYMBOLS: Array<"^VIX" | "ES=F"> = ["^VIX", "ES=F"];
+
+type CachedMarketQuotesResult = {
+  quotes: YahooMarketQuote[];
+  mode: "live" | "unavailable";
+  message?: string;
+};
+
+function quoteContentHash(quote: YahooMarketQuote) {
+  return stableHash({
+    symbol: quote.symbol,
+    displaySymbol: quote.displaySymbol,
+    name: quote.name,
+    price: quote.price,
+    previousClose: quote.previousClose,
+    change: quote.change,
+    changePercent: quote.changePercent,
+    marketTime: quote.marketTime
+  });
+}
+
+function quoteToDbRow(quote: YahooMarketQuote) {
+  return {
+    id: `yahoo_finance:${quote.symbol}`,
+    source: quote.source,
+    symbol: quote.symbol,
+    display_symbol: quote.displaySymbol,
+    name: quote.name,
+    price: quote.price,
+    previous_close: quote.previousClose,
+    change: quote.change,
+    change_percent: quote.changePercent,
+    market_time: quote.marketTime,
+    raw: quote.raw,
+    content_hash: quoteContentHash(quote),
+    fetched_at: quote.fetchedAt,
+    updated_at: new Date().toISOString()
+  };
+}
+
+function quoteFromDbRow(row: Record<string, unknown>): YahooMarketQuote {
+  return {
+    source: "yahoo_finance",
+    symbol: String(row.symbol),
+    displaySymbol:
+      yahooString(row.display_symbol) ?? yahooLabels[String(row.symbol)] ?? String(row.symbol),
+    name: yahooString(row.name),
+    price: yahooNumber(row.price),
+    previousClose: yahooNumber(row.previous_close),
+    change: yahooNumber(row.change),
+    changePercent: yahooNumber(row.change_percent),
+    marketTime: yahooString(row.market_time),
+    raw:
+      row.raw && typeof row.raw === "object" && !Array.isArray(row.raw)
+        ? (row.raw as Record<string, unknown>)
+        : {},
+    fetchedAt: yahooString(row.fetched_at) ?? new Date().toISOString()
+  };
+}
+
+export async function refreshYahooMarketQuotes(symbols = MARKET_QUOTE_SYMBOLS) {
+  console.log("force_refresh_fetch", { source: MARKET_QUOTES_METADATA_SOURCE, symbols });
+  const supabase = createServerSupabaseClient();
+  const quotes = (await Promise.all(symbols.map((symbol) => fetchYahooMarketQuote(symbol)))).filter(
+    (quote): quote is YahooMarketQuote => Boolean(quote)
+  );
+  const rows = quotes.map(quoteToDbRow);
+  const contentHash = payloadContentHash(
+    rows.map(({ fetched_at: _fetchedAt, updated_at: _updatedAt, ...row }) => row)
+  );
+  console.log("force_refresh_normalized", {
+    source: MARKET_QUOTES_METADATA_SOURCE,
+    fetched: quotes.length,
+    normalized: rows.length
+  });
+
+  if (!supabase.ok)
+    return sourceResult({
+      ok: true,
+      count: rows.length,
+      changed: true,
+      contentHash,
+      persisted: false,
+      error: supabase.message
+    });
+
+  try {
+    const { data: metadata } = await supabase.client
+      .from("data_refresh_metadata")
+      .select("content_hash")
+      .eq("source", MARKET_QUOTES_METADATA_SOURCE)
+      .maybeSingle();
+    const changed = metadata?.content_hash !== contentHash;
+    let upserted = 0;
+    if (rows.length && changed) {
+      const { error } = await supabase.client
+        .from("market_quotes")
+        .upsert(rows, { onConflict: "id" });
+      if (error) throw new Error(`Supabase market quotes upsert failed: ${error.message}`);
+      upserted = rows.length;
+    }
+    await updateRefreshMetadata(supabase.client, MARKET_QUOTES_METADATA_SOURCE, {
+      ok: true,
+      changed,
+      rowCount: rows.length,
+      contentHash,
+      meta: { symbols }
+    });
+    console.log("force_refresh_upserted", {
+      source: MARKET_QUOTES_METADATA_SOURCE,
+      upserted,
+      changed
+    });
+    return sourceResult({
+      ok: true,
+      count: rows.length,
+      changed,
+      contentHash,
+      upserted,
+      persisted: true
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Unknown market quotes refresh error";
+    await updateRefreshMetadata(supabase.client, MARKET_QUOTES_METADATA_SOURCE, {
+      ok: false,
+      changed: null,
+      rowCount: rows.length,
+      contentHash,
+      error: message,
+      meta: { symbols }
+    });
+    console.error("force_refresh_error", { source: MARKET_QUOTES_METADATA_SOURCE, error: message });
+    return sourceResult({
+      ok: false,
+      count: rows.length,
+      changed: null,
+      contentHash,
+      error: message,
+      persisted: true
+    });
+  }
+}
+
+export async function getCachedYahooMarketQuotes(
+  symbols = MARKET_QUOTE_SYMBOLS
+): Promise<CachedMarketQuotesResult> {
+  const supabase = createServerSupabaseClient();
+  if (!supabase.ok) return { quotes: [], mode: "unavailable", message: supabase.message };
+  const { data, error } = await supabase.client
+    .from("market_quotes")
+    .select("*")
+    .in("symbol", symbols)
+    .order("symbol", { ascending: true });
+  if (error || !data?.length) {
+    return {
+      quotes: [],
+      mode: "unavailable",
+      message: error
+        ? `Supabase market quotes read failed: ${error.message}`
+        : "Supabase market quotes cache is empty."
+    };
+  }
+  return {
+    quotes: data.map((row) => quoteFromDbRow(row as Record<string, unknown>)),
+    mode: "live"
+  };
+}
+
+export async function getCachedYahooMarketQuote(symbol: "^VIX" | "ES=F") {
+  const result = await getCachedYahooMarketQuotes([symbol]);
+  return result.quotes.find((quote) => quote.symbol === symbol) ?? null;
+}
