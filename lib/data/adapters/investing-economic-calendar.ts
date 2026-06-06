@@ -20,6 +20,7 @@ export type InvestingEconomicEvent = {
   eventId: number | string | null;
   eventKey: ImportantEconomicEventKey | null;
   eventName: string;
+  eventDate: string;
   time: string | null;
   timestamp: string | null;
   importance: "medium" | "high" | string | null;
@@ -41,6 +42,19 @@ type FetchResult = {
 };
 
 const memoryCache = new Map<string, InvestingEconomicEvent[]>();
+
+export function buildInvestingEconomicCalendarCacheKey(dateKey: string) {
+  return `investing-economic:US:medium-high:${dateKey}`;
+}
+
+function shouldDebugEconomicCalendar() {
+  return process.env.ECONOMIC_CALENDAR_DEBUG === "1";
+}
+
+function debugEconomicCalendar(message: string, details: Record<string, unknown>) {
+  if (!shouldDebugEconomicCalendar()) return;
+  console.info(`[economic-calendar] ${message}`, details);
+}
 
 function isRecord(value: unknown): value is UnknownRecord {
   return Boolean(value) && typeof value === "object" && !Array.isArray(value);
@@ -240,10 +254,11 @@ function normalizeInvestingEconomicRow(
 
   return {
     source: "investing_com",
-    id: `${eventId ?? eventName}:${timestamp ?? dateKey}`,
+    id: `investing-economic:${dateKey}:${eventId ?? eventName}:${timestamp ?? "unknown"}`,
     eventId,
     eventKey,
     eventName,
+    eventDate: dateKey,
     time: timestamp ? formatEtTime(timestamp) : null,
     timestamp,
     importance,
@@ -333,14 +348,20 @@ export async function fetchInvestingEconomicCalendar(
     return { events: [], mode: "live" };
   }
 
-  const cached = memoryCache.get(dateKey);
+  const cacheKey = buildInvestingEconomicCalendarCacheKey(dateKey);
+  const cached = memoryCache.get(cacheKey);
   const url = buildInvestingEconomicCalendarUrl(dateKey);
   const fetchedAt = new Date().toISOString();
 
+  debugEconomicCalendar("fetch", { dateKey, cacheKey, investingCalendarUrl: url });
+
   try {
     const payload = await fetchPayload(url);
-    const events = normalizeInvestingEconomicCalendarPayload(payload, dateKey, fetchedAt);
-    memoryCache.set(dateKey, events);
+    const events = normalizeInvestingEconomicCalendarPayload(payload, dateKey, fetchedAt).filter(
+      (event) => event.eventDate === dateKey
+    );
+    memoryCache.set(cacheKey, events);
+    debugEconomicCalendar("fetched", { dateKey, cacheKey, numberOfEventsFetched: events.length });
     return { events, mode: "live" };
   } catch (error) {
     return {
