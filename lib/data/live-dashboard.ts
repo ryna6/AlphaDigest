@@ -11,6 +11,7 @@ import {
   unusualWhalesSources
 } from "./adapters/unusual-whales-news";
 import {
+  buildInvestingEconomicCalendarWeekRange,
   fetchInvestingEconomicCalendar,
   investingEconomicSources,
   type InvestingEconomicEvent
@@ -297,6 +298,12 @@ function dashboardEventFromInvestingEvent(event: InvestingEconomicEvent): Econom
   };
 }
 
+function addDaysToDateKey(dateKey: string, days: number) {
+  const date = new Date(`${dateKey}T12:00:00Z`);
+  date.setUTCDate(date.getUTCDate() + days);
+  return date.toISOString().slice(0, 10);
+}
+
 export async function getEconomicCalendarEvents(dateKey = todayDateKey()) {
   const result = await fetchInvestingEconomicCalendar(dateKey);
   return {
@@ -305,6 +312,41 @@ export async function getEconomicCalendarEvents(dateKey = todayDateKey()) {
       .filter((event) => event.eventDate === dateKey),
     mode: result.mode,
     message: result.message
+  };
+}
+
+export async function getEconomicCalendarWeekEvents(dateKey = todayDateKey()) {
+  const result = await fetchInvestingEconomicCalendar(dateKey);
+  const { startDate, endDate } = buildInvestingEconomicCalendarWeekRange(dateKey);
+  return {
+    events: result.events
+      .map(dashboardEventFromInvestingEvent)
+      .filter((event) =>
+        Boolean(event.eventDate && event.eventDate >= startDate && event.eventDate <= endDate)
+      ),
+    mode: result.mode,
+    message: result.message
+  };
+}
+
+export async function getEconomicCalendarAdjacentWeekEvents(dateKey = todayDateKey()) {
+  const { startDate } = buildInvestingEconomicCalendarWeekRange(dateKey);
+  const weekStartDates = [
+    addDaysToDateKey(startDate, -7),
+    startDate,
+    addDaysToDateKey(startDate, 7)
+  ];
+  const results = await Promise.all(
+    weekStartDates.map((weekStart) => getEconomicCalendarWeekEvents(weekStart))
+  );
+  const events = Array.from(
+    new Map(results.flatMap((result) => result.events).map((event) => [event.id, event])).values()
+  ).sort((a, b) => new Date(a.time).getTime() - new Date(b.time).getTime());
+  const messages = results.flatMap((result) => (result.message ? [result.message] : []));
+  return {
+    events,
+    mode: results.some((result) => result.mode !== "live") ? "unavailable" : "live",
+    message: messages.length ? Array.from(new Set(messages)).join(" ") : undefined
   };
 }
 
@@ -568,7 +610,7 @@ export async function getNewsCalendarPayload(): Promise<{
       fetchUnusualWhalesNewsFeed(100),
       earningsWithLogos(),
       getCachedUnusualWhalesEarnings({ limit: 250, order: "oi" }),
-      getEconomicCalendarEvents(todayDateKey())
+      getEconomicCalendarAdjacentWeekEvents(todayDateKey())
     ]);
 
   const fallbackNews = todayMock.featuredNews.map((article) => ({

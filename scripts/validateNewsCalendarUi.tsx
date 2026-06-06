@@ -343,7 +343,7 @@ assert(
   }) === "neutral",
   "Interest Rate Decision should not get misleading red/green"
 );
-function assertSingleDayInvestingUrl(dateKey: string) {
+function assertWeeklyInvestingUrl(dateKey: string) {
   const investingUrl = buildInvestingEconomicCalendarUrl(dateKey);
   const parsed = new URL(investingUrl);
   const start = parsed.searchParams.get("start_date");
@@ -351,23 +351,26 @@ function assertSingleDayInvestingUrl(dateKey: string) {
   if (!start) throw new Error(`${dateKey} start_date should be present`);
   if (!end) throw new Error(`${dateKey} end_date should be present`);
   assert(
-    start === `${dateKey}T00:00:00.000-04:00`,
-    `${dateKey} start_date should be single-day ET`
+    start === `2026-06-01T00:00:00.000-04:00`,
+    `${dateKey} start_date should be the Monday week start in ET`
   );
-  assert(end === `${dateKey}T23:59:59.999-04:00`, `${dateKey} end_date should be single-day ET`);
-  assert(start.slice(0, 10) === end.slice(0, 10), `${dateKey} start/end dates should match`);
   assert(
-    investingUrl.includes(encodeURIComponent(`${dateKey}T00:00:00.000-04:00`)),
+    end === `2026-06-07T23:59:59.999-04:00`,
+    `${dateKey} end_date should be the Sunday week end in ET`
+  );
+  assert(start.slice(0, 10) !== end.slice(0, 10), `${dateKey} start/end dates should span a week`);
+  assert(
+    investingUrl.includes(encodeURIComponent(`2026-06-01T00:00:00.000-04:00`)),
     "start_date should be URL-encoded"
   );
 }
 
 for (const dateKey of ["2026-06-01", "2026-06-02", "2026-06-03", "2026-06-04", "2026-06-05"]) {
-  assertSingleDayInvestingUrl(dateKey);
+  assertWeeklyInvestingUrl(dateKey);
   assert(
     buildInvestingEconomicCalendarCacheKey(dateKey) ===
-      `investing-economic:US:medium-high:${dateKey}`,
-    "Investing.com cache key should include selected date"
+      `investing-economic:US:medium-high:2026-06-01:2026-06-07`,
+    "Investing.com cache key should include selected week range"
   );
 }
 
@@ -475,6 +478,18 @@ assert(
   !investingEvents.some((event) => /Rig Count/.test(event.eventName)),
   "Investing.com normalization should apply excluded event patterns"
 );
+
+const RealDate = Date;
+class FixedDate extends RealDate {
+  constructor(value?: string | number | Date) {
+    super(value ?? "2026-06-05T16:00:00Z");
+  }
+
+  static now() {
+    return new RealDate("2026-06-05T16:00:00Z").getTime();
+  }
+}
+(globalThis as typeof globalThis & { Date: DateConstructor }).Date = FixedDate as DateConstructor;
 
 const markup = renderToStaticMarkup(<NewsCalendarView data={payload} />);
 const earningsCalendarIndex = markup.indexOf("Earnings Calendar");
@@ -621,7 +636,7 @@ const todayData: TodayPayload = {
 const todayMarkup = renderToStaticMarkup(<TodayView data={todayData} />);
 const summaryOrder = [
   "Leading Sectors",
-  "Risk On / Risk Off",
+  "Risk On Risk Off",
   "Put/Call Ratio",
   "Today&#x27;s Earnings",
   "Today&#x27;s Economic Events"

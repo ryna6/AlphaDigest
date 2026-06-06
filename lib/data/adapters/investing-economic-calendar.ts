@@ -43,8 +43,34 @@ type FetchResult = {
 
 const memoryCache = new Map<string, InvestingEconomicEvent[]>();
 
+function dateKeyFromDate(date: Date) {
+  return date.toISOString().slice(0, 10);
+}
+
+function addUtcDays(date: Date, days: number) {
+  const copy = new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate()));
+  copy.setUTCDate(copy.getUTCDate() + days);
+  return copy;
+}
+
+function addDaysToDateKey(dateKey: string, days: number) {
+  return dateKeyFromDate(addUtcDays(new Date(`${dateKey}T00:00:00Z`), days));
+}
+
+function mondayForDateKey(dateKey: string) {
+  const weekday = new Date(`${dateKey}T12:00:00Z`).getUTCDay();
+  const daysFromMonday = weekday === 0 ? 6 : weekday - 1;
+  return addDaysToDateKey(dateKey, -daysFromMonday);
+}
+
+export function buildInvestingEconomicCalendarWeekRange(dateKey: string) {
+  const startDate = mondayForDateKey(dateKey);
+  return { startDate, endDate: addDaysToDateKey(startDate, 6) };
+}
+
 export function buildInvestingEconomicCalendarCacheKey(dateKey: string) {
-  return `investing-economic:US:medium-high:${dateKey}`;
+  const { startDate, endDate } = buildInvestingEconomicCalendarWeekRange(dateKey);
+  return `investing-economic:US:medium-high:${startDate}:${endDate}`;
 }
 
 function shouldDebugEconomicCalendar() {
@@ -107,12 +133,14 @@ function isWeekendDateKey(dateKey: string) {
 }
 
 export function buildInvestingEconomicCalendarUrl(dateKey: string) {
-  const offset = getTimezoneOffset(dateKey);
+  const { startDate, endDate } = buildInvestingEconomicCalendarWeekRange(dateKey);
+  const startOffset = getTimezoneOffset(startDate);
+  const endOffset = getTimezoneOffset(endDate);
   const params = new URLSearchParams({
     domain_id: "1",
     limit: "200",
-    start_date: `${dateKey}T00:00:00.000${offset}`,
-    end_date: `${dateKey}T23:59:59.999${offset}`,
+    start_date: `${startDate}T00:00:00.000${startOffset}`,
+    end_date: `${endDate}T23:59:59.999${endOffset}`,
     country_ids: "5",
     importance: "medium,high"
   });
@@ -252,13 +280,15 @@ function normalizeInvestingEconomicRow(
 
   const country = asString(getPath(row, [["country"], ["country_name"], ["country", "name"]]));
 
+  const eventDate = (timestamp ? formatEtDateKey(timestamp) : null) ?? dateKey;
+
   return {
     source: "investing_com",
-    id: `investing-economic:${dateKey}:${eventId ?? eventName}:${timestamp ?? "unknown"}`,
+    id: `investing-economic:${eventDate}:${eventId ?? eventName}:${timestamp ?? "unknown"}`,
     eventId,
     eventKey,
     eventName,
-    eventDate: dateKey,
+    eventDate,
     time: timestamp ? formatEtTime(timestamp) : null,
     timestamp,
     importance,
@@ -344,10 +374,6 @@ export async function fetchInvestingEconomicCalendar(
   if (!/^\d{4}-\d{2}-\d{2}$/.test(dateKey)) {
     return { events: [], mode: "unavailable", message: "Invalid economic calendar date." };
   }
-  if (isWeekendDateKey(dateKey)) {
-    return { events: [], mode: "live" };
-  }
-
   const cacheKey = buildInvestingEconomicCalendarCacheKey(dateKey);
   const cached = memoryCache.get(cacheKey);
   const url = buildInvestingEconomicCalendarUrl(dateKey);
@@ -357,8 +383,9 @@ export async function fetchInvestingEconomicCalendar(
 
   try {
     const payload = await fetchPayload(url);
+    const { startDate, endDate } = buildInvestingEconomicCalendarWeekRange(dateKey);
     const events = normalizeInvestingEconomicCalendarPayload(payload, dateKey, fetchedAt).filter(
-      (event) => event.eventDate === dateKey
+      (event) => event.eventDate >= startDate && event.eventDate <= endDate
     );
     memoryCache.set(cacheKey, events);
     debugEconomicCalendar("fetched", { dateKey, cacheKey, numberOfEventsFetched: events.length });
@@ -460,16 +487,6 @@ function economicFromDbRow(row: UnknownRecord): InvestingEconomicEvent {
   };
 }
 
-function dateKeyFromDate(date: Date) {
-  return date.toISOString().slice(0, 10);
-}
-
-function addUtcDays(date: Date, days: number) {
-  const copy = new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate()));
-  copy.setUTCDate(copy.getUTCDate() + days);
-  return copy;
-}
-
 function dateKeysBetween(startDate: string, endDate: string) {
   const start = new Date(`${startDate}T00:00:00Z`);
   const end = new Date(`${endDate}T00:00:00Z`);
@@ -484,17 +501,18 @@ function dateKeysBetween(startDate: string, endDate: string) {
 }
 
 export function defaultEconomicRefreshDateKeys(date = new Date()) {
-  const keys: string[] = [];
-  for (let offset = 0; keys.length < 5 && offset < 10; offset += 1) {
-    const key = dateKeyFromDate(addUtcDays(date, -offset));
-    if (!isWeekendDateKey(key)) keys.push(key);
-  }
-  return keys.reverse();
+  const todayKey = formatEtDateKey(date) ?? dateKeyFromDate(date);
+  const currentWeek = buildInvestingEconomicCalendarWeekRange(todayKey).startDate;
+  return [addDaysToDateKey(currentWeek, -7), currentWeek, addDaysToDateKey(currentWeek, 7)];
 }
 
 export async function refreshInvestingEconomicEvents(dateKeys = defaultEconomicRefreshDateKeys()) {
   const uniqueDateKeys = Array.from(
-    new Set(dateKeys.filter((key) => /^\d{4}-\d{2}-\d{2}$/.test(key) && !isWeekendDateKey(key)))
+    new Set(
+      dateKeys
+        .filter((key) => /^\d{4}-\d{2}-\d{2}$/.test(key))
+        .map((key) => buildInvestingEconomicCalendarWeekRange(key).startDate)
+    )
   );
   const supabase = createServerSupabaseClient();
   const events: InvestingEconomicEvent[] = [];
@@ -505,7 +523,10 @@ export async function refreshInvestingEconomicEvents(dateKeys = defaultEconomicR
     console.log("force_refresh_fetch", { source: INVESTING_METADATA_SOURCE, date: dateKey, url });
     const result = await fetchInvestingEconomicCalendar(dateKey);
     fetchMeta.push({ date: dateKey, mode: result.mode, count: result.events.length, url });
-    events.push(...result.events.filter((event) => event.eventDate === dateKey));
+    const { startDate, endDate } = buildInvestingEconomicCalendarWeekRange(dateKey);
+    events.push(
+      ...result.events.filter((event) => event.eventDate >= startDate && event.eventDate <= endDate)
+    );
   }
 
   const deduped = Array.from(new Map(events.map((event) => [event.id, event])).values());
@@ -588,7 +609,9 @@ export async function refreshInvestingEconomicEvents(dateKeys = defaultEconomicR
 
 export function economicRefreshDateKeysFromParams(params: URLSearchParams) {
   const date = params.get("date");
-  if (date && /^\d{4}-\d{2}-\d{2}$/.test(date)) return isWeekendDateKey(date) ? [] : [date];
+  if (date && /^\d{4}-\d{2}-\d{2}$/.test(date)) {
+    return [buildInvestingEconomicCalendarWeekRange(date).startDate];
+  }
   const startDate = params.get("start_date");
   const endDate = params.get("end_date");
   if (
