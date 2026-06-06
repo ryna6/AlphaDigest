@@ -288,6 +288,8 @@ function dashboardEventFromInvestingEvent(event: InvestingEconomicEvent): Econom
     actual: event.actual,
     forecast: event.forecast,
     previous: event.previous,
+    unit: event.unit,
+    referencePeriod: event.referencePeriod,
     importance: economicImportanceFromStars(event.stars),
     stars: event.stars,
     isHighlighted: event.isHighlighted,

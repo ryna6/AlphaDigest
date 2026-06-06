@@ -257,6 +257,8 @@ create table if not exists investing_economic_events (
   actual text,
   forecast text,
   previous text,
+  unit text,
+  reference_period text,
   is_highlighted boolean not null default false,
   highlight_reason text,
   country text,
@@ -339,6 +341,8 @@ alter table investing_economic_events add column if not exists stars integer;
 alter table investing_economic_events add column if not exists actual text;
 alter table investing_economic_events add column if not exists forecast text;
 alter table investing_economic_events add column if not exists previous text;
+alter table investing_economic_events add column if not exists unit text;
+alter table investing_economic_events add column if not exists reference_period text;
 alter table investing_economic_events add column if not exists is_highlighted boolean not null default false;
 alter table investing_economic_events add column if not exists highlight_reason text;
 alter table investing_economic_events add column if not exists country text;

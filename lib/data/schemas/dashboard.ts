@@ -44,6 +44,8 @@ export const eventSchema = z.object({
   actual: z.string().nullable().optional(),
   forecast: z.string().nullable().optional(),
   previous: z.string().nullable().optional(),
+  unit: z.string().nullable().optional(),
+  referencePeriod: z.string().nullable().optional(),
   importance: z.enum(["Low", "Medium", "High"]),
   stars: z
     .union([z.literal(1), z.literal(2), z.literal(3)])

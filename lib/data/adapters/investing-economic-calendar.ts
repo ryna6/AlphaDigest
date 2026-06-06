@@ -10,7 +10,8 @@ const INVESTING_ECONOMIC_CALENDAR_ENDPOINT =
   "https://endpoints.investing.com/pd-instruments/v1/calendars/economic/events/occurrences";
 const INVESTING_ECONOMIC_CALENDAR_PAGE = "https://www.investing.com/economic-calendar/";
 const ECONOMIC_CALENDAR_TIMEOUT_MS = 12_000;
-const ECONOMIC_CALENDAR_RETRIES = 2;
+const ECONOMIC_CALENDAR_RETRIES = 1;
+const ECONOMIC_CALENDAR_FAILURE_COOLDOWN_MS = 60_000;
 
 type UnknownRecord = Record<string, unknown>;
 
@@ -28,6 +29,8 @@ export type InvestingEconomicEvent = {
   actual: string | null;
   forecast: string | null;
   previous: string | null;
+  unit: string | null;
+  referencePeriod: string | null;
   isHighlighted: boolean;
   highlightReason: string | null;
   country: string | null;
@@ -41,7 +44,19 @@ type FetchResult = {
   message?: string;
 };
 
-const memoryCache = new Map<string, InvestingEconomicEvent[]>();
+type MemoryCacheEntry = {
+  events: InvestingEconomicEvent[];
+  expiresAt: number;
+  fetchedAt: string;
+};
+
+type FailureCooldownEntry = {
+  expiresAt: number;
+  message: string;
+};
+
+const memoryCache = new Map<string, MemoryCacheEntry>();
+const failureCooldownCache = new Map<string, FailureCooldownEntry>();
 
 export function buildInvestingEconomicCalendarCacheKey(dateKey: string) {
   return `investing-economic:US:medium-high:${dateKey}`;
@@ -54,6 +69,36 @@ function shouldDebugEconomicCalendar() {
 function debugEconomicCalendar(message: string, details: Record<string, unknown>) {
   if (!shouldDebugEconomicCalendar()) return;
   console.info(`[economic-calendar] ${message}`, details);
+}
+
+function economicCalendarCacheTtlMs(dateKey: string) {
+  const todayKey = formatEtDateKey(new Date());
+  if (todayKey && dateKey === todayKey) return 5 * 60_000;
+  if (todayKey && dateKey < todayKey) return 24 * 60 * 60_000;
+  return 30 * 60_000;
+}
+
+function cacheInvestingEconomicEvents(
+  cacheKey: string,
+  dateKey: string,
+  events: InvestingEconomicEvent[]
+) {
+  memoryCache.set(cacheKey, {
+    events,
+    expiresAt: Date.now() + economicCalendarCacheTtlMs(dateKey),
+    fetchedAt: new Date().toISOString()
+  });
+}
+
+function getFreshInvestingEconomicEvents(cacheKey: string) {
+  const cached = memoryCache.get(cacheKey);
+  if (!cached) return null;
+  if (cached.expiresAt > Date.now()) return cached.events;
+  return null;
+}
+
+function investingEconomicErrorMessage(error: unknown) {
+  return error instanceof Error ? error.message : "Investing.com economic calendar unavailable.";
 }
 
 function isRecord(value: unknown): value is UnknownRecord {
@@ -198,6 +243,38 @@ function formatEconomicValue(row: UnknownRecord, paths: string[][]) {
   return value;
 }
 
+function compactInvestingEconomicRaw(
+  row: UnknownRecord,
+  normalized: {
+    eventId: number | string | null;
+    time: string | null;
+    eventName: string;
+    country: string | null;
+    importance: InvestingEconomicEvent["importance"];
+    actual: string | null;
+    forecast: string | null;
+    previous: string | null;
+    unit: string | null;
+    referencePeriod: string | null;
+  }
+) {
+  return {
+    event_id: normalized.eventId,
+    time: normalized.time,
+    event_name: normalized.eventName,
+    country: normalized.country,
+    importance: normalized.importance,
+    actual: normalized.actual,
+    forecast: normalized.forecast,
+    previous: normalized.previous,
+    unit: normalized.unit,
+    reference_period: normalized.referencePeriod,
+    source_datetime: asString(
+      getPath(row, [["datetime"], ["date_time"], ["date"], ["timestamp"], ["occurrence_time"]])
+    )
+  };
+}
+
 function normalizeInvestingEconomicRow(
   row: UnknownRecord,
   dateKey: string,
@@ -251,6 +328,41 @@ function normalizeInvestingEconomicRow(
   if (importance === "low") return null;
 
   const country = asString(getPath(row, [["country"], ["country_name"], ["country", "name"]]));
+  const unit = asString(getPath(row, [["unit"], ["event", "unit"]]));
+  const referencePeriod = asString(
+    getPath(row, [
+      ["reference_period"],
+      ["referencePeriod"],
+      ["period"],
+      ["period_name"],
+      ["event", "reference_period"]
+    ])
+  );
+  const actual = formatEconomicValue(row, [["actual"], ["actual_value"], ["actualValue"]]);
+  const forecast = formatEconomicValue(row, [
+    ["forecast"],
+    ["consensus"],
+    ["forecast_value"],
+    ["forecastValue"]
+  ]);
+  const previous = formatEconomicValue(row, [
+    ["previous"],
+    ["prev"],
+    ["previous_value"],
+    ["previousValue"]
+  ]);
+  const normalized = {
+    eventId,
+    time: timestamp,
+    eventName,
+    country,
+    importance,
+    actual,
+    forecast,
+    previous,
+    unit,
+    referencePeriod
+  };
 
   return {
     source: "investing_com",
@@ -263,24 +375,16 @@ function normalizeInvestingEconomicRow(
     timestamp,
     importance,
     stars: starsFromImportance(importance),
-    actual: formatEconomicValue(row, [["actual"], ["actual_value"], ["actualValue"]]),
-    forecast: formatEconomicValue(row, [
-      ["forecast"],
-      ["consensus"],
-      ["forecast_value"],
-      ["forecastValue"]
-    ]),
-    previous: formatEconomicValue(row, [
-      ["previous"],
-      ["prev"],
-      ["previous_value"],
-      ["previousValue"]
-    ]),
+    actual,
+    forecast,
+    previous,
+    unit,
+    referencePeriod,
     isHighlighted: Boolean(eventKey),
     highlightReason,
     country,
     fetchedAt,
-    raw: row
+    raw: compactInvestingEconomicRaw(row, normalized)
   };
 }
 
@@ -324,14 +428,19 @@ async function fetchPayload(url: string) {
     try {
       const response = await fetchWithTimeout(url);
       if (response.ok) return (await response.json()) as unknown;
-      if (![429, 500, 502, 503, 504].includes(response.status)) {
-        throw new Error(`Investing.com economic calendar responded ${response.status}`);
+
+      const retryAfter = response.headers.get("retry-after");
+      const message = `Investing.com economic calendar responded ${response.status}`;
+      if (response.status === 429) {
+        throw new Error(retryAfter ? `${message}; retry-after=${retryAfter}` : message);
       }
-      lastError = new Error(`Investing.com economic calendar responded ${response.status}`);
+      if (![500, 502, 503, 504].includes(response.status)) throw new Error(message);
+      lastError = new Error(message);
     } catch (error) {
       lastError = error;
+      if (error instanceof Error && error.message.includes("responded 429")) break;
     }
-    if (attempt < ECONOMIC_CALENDAR_RETRIES) await sleep(350 * 2 ** attempt);
+    if (attempt < ECONOMIC_CALENDAR_RETRIES) await sleep(500 * 2 ** attempt);
   }
   throw lastError instanceof Error
     ? lastError
@@ -349,7 +458,22 @@ export async function fetchInvestingEconomicCalendar(
   }
 
   const cacheKey = buildInvestingEconomicCalendarCacheKey(dateKey);
-  const cached = memoryCache.get(cacheKey);
+  const freshCached = getFreshInvestingEconomicEvents(cacheKey);
+  if (freshCached) {
+    debugEconomicCalendar("cache-hit", {
+      dateKey,
+      cacheKey,
+      numberOfEventsFetched: freshCached.length
+    });
+    return { events: freshCached, mode: "live" };
+  }
+
+  const failureCooldown = failureCooldownCache.get(cacheKey);
+  if (failureCooldown && failureCooldown.expiresAt > Date.now()) {
+    const stale = memoryCache.get(cacheKey)?.events ?? [];
+    return { events: stale, mode: "unavailable", message: failureCooldown.message };
+  }
+
   const url = buildInvestingEconomicCalendarUrl(dateKey);
   const fetchedAt = new Date().toISOString();
 
@@ -360,16 +484,24 @@ export async function fetchInvestingEconomicCalendar(
     const events = normalizeInvestingEconomicCalendarPayload(payload, dateKey, fetchedAt).filter(
       (event) => event.eventDate === dateKey
     );
-    memoryCache.set(cacheKey, events);
+    cacheInvestingEconomicEvents(cacheKey, dateKey, events);
+    failureCooldownCache.delete(cacheKey);
     debugEconomicCalendar("fetched", { dateKey, cacheKey, numberOfEventsFetched: events.length });
     return { events, mode: "live" };
   } catch (error) {
-    return {
-      events: cached ?? [],
-      mode: "unavailable",
-      message:
-        error instanceof Error ? error.message : "Investing.com economic calendar unavailable."
-    };
+    const message = investingEconomicErrorMessage(error);
+    const stale = memoryCache.get(cacheKey)?.events ?? [];
+    failureCooldownCache.set(cacheKey, {
+      expiresAt: Date.now() + ECONOMIC_CALENDAR_FAILURE_COOLDOWN_MS,
+      message
+    });
+    console.warn("economic_calendar_fetch_error", {
+      date: dateKey,
+      cacheKey,
+      staleCount: stale.length,
+      error: message
+    });
+    return { events: stale, mode: "unavailable", message };
   }
 }
 
@@ -402,6 +534,8 @@ function eventContentHash(event: InvestingEconomicEvent) {
     actual: event.actual,
     forecast: event.forecast,
     previous: event.previous,
+    unit: event.unit,
+    referencePeriod: event.referencePeriod,
     isHighlighted: event.isHighlighted,
     highlightReason: event.highlightReason,
     country: event.country
@@ -422,6 +556,8 @@ function economicToDbRow(event: InvestingEconomicEvent) {
     actual: event.actual,
     forecast: event.forecast,
     previous: event.previous,
+    unit: event.unit,
+    reference_period: event.referencePeriod,
     is_highlighted: event.isHighlighted,
     highlight_reason: event.highlightReason,
     country: event.country,
@@ -452,6 +588,8 @@ function economicFromDbRow(row: UnknownRecord): InvestingEconomicEvent {
     actual: asString(row.actual),
     forecast: asString(row.forecast),
     previous: asString(row.previous),
+    unit: asString(row.unit),
+    referencePeriod: asString(row.reference_period),
     isHighlighted: Boolean(row.is_highlighted),
     highlightReason: asString(row.highlight_reason),
     country: asString(row.country),

@@ -178,17 +178,17 @@ const payload: NewsCalendarPayload = {
         companyName: `${symbol} Large Cap Inc`,
         reportDate: "2026-06-05",
         reportTime: index % 2 ? "postmarket" : "premarket",
-        marketCap,
+        marketCap: index === 10 ? 4_000_000_000 : marketCap,
         impliedMovePct: 1 + index
       });
     }),
     earningsEvent({
       id: "uw-earnings:BIG:2026-06-05:premarket",
       symbol: "BIG",
-      companyName: "Big Cap Inc",
+      companyName: "Mid-Cap Big Inc",
       reportDate: "2026-06-05",
       reportTime: "premarket",
-      marketCap: 10_000_000_000,
+      marketCap: 9_000_000_000,
       impliedMovePct: 9.1
     }),
     earningsEvent({
@@ -515,15 +515,49 @@ assert(markup.includes("After Close"), "earnings are not grouped under After Clo
 for (const symbol of ["CAP30", "CAP29", "CAP28", "CAP27", "CAP26", "CAP25", "CAP24", "CAP23"]) {
   assert(markup.includes(symbol), `${symbol} should be retained in the top-8 market-cap earnings`);
 }
+assert(!markup.includes("OLD"), "earnings selected-day filter failed");
+
+const fiveBMarkup = renderToStaticMarkup(
+  React.createElement(NewsCalendarView, {
+    data: {
+      ...payload,
+      unusualWhalesEarnings: [
+        earningsEvent({
+          id: "uw-earnings:SUB10:2026-06-05:premarket",
+          symbol: "SUB10",
+          companyName: "Mid-Cap Earnings Inc",
+          reportDate: "2026-06-05",
+          reportTime: "premarket",
+          marketCap: 7_500_000_000,
+          impliedMovePct: 6.5
+        }),
+        earningsEvent({
+          id: "uw-earnings:FIVE:2026-06-05:postmarket",
+          symbol: "FIVE",
+          companyName: "Five Billion Earnings Inc",
+          reportDate: "2026-06-05",
+          reportTime: "postmarket",
+          marketCap: 5_000_000_000,
+          impliedMovePct: 7.5
+        }),
+        earningsEvent({
+          id: "uw-earnings:TINY:2026-06-05:premarket",
+          symbol: "TINY",
+          companyName: "Tiny Earnings Inc",
+          reportDate: "2026-06-05",
+          reportTime: "premarket",
+          marketCap: 4_900_000_000,
+          impliedMovePct: 8.5
+        })
+      ]
+    }
+  })
+);
 assert(
-  !markup.includes("CAP22") &&
-    !markup.includes("CAP21") &&
-    !markup.includes("CAP20") &&
-    !markup.includes("MEGA") &&
-    !markup.includes("BIG") &&
-    !markup.includes("SMOL") &&
-    !markup.includes("OLD"),
-  "earnings max-8, market-cap, or selected-day filter failed"
+  fiveBMarkup.includes("Mid-Cap Earnings Inc") &&
+    fiveBMarkup.includes("Five Billion Earnings Inc") &&
+    !fiveBMarkup.includes("Tiny Earnings Inc"),
+  "earnings $5B market-cap filter failed"
 );
 assert(
   markup.includes("1.0%") && markup.includes("8.0%"),
