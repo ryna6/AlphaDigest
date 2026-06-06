@@ -12,6 +12,7 @@ import {
 } from "./adapters/unusual-whales-news";
 import {
   fetchInvestingEconomicCalendar,
+  getCachedInvestingEconomicCalendar,
   investingEconomicSources,
   type InvestingEconomicEvent
 } from "./adapters/investing-economic-calendar";
@@ -299,12 +300,37 @@ function dashboardEventFromInvestingEvent(event: InvestingEconomicEvent): Econom
 
 export async function getEconomicCalendarEvents(dateKey = todayDateKey()) {
   const result = await fetchInvestingEconomicCalendar(dateKey);
+  const liveEvents = result.events
+    .map(dashboardEventFromInvestingEvent)
+    .filter((event) => event.eventDate === dateKey);
+
+  if (result.mode === "live" && liveEvents.length > 0) {
+    return { events: liveEvents, mode: result.mode, message: result.message };
+  }
+
+  const cachedResult = await getCachedInvestingEconomicCalendar(dateKey);
+  const cachedEvents = cachedResult.events
+    .map(dashboardEventFromInvestingEvent)
+    .filter((event) => event.eventDate === dateKey);
+
+  if (cachedEvents.length > 0) {
+    const liveMessage = result.message ? ` Live scrape: ${result.message}` : "";
+    return {
+      events: cachedEvents,
+      mode: cachedResult.mode,
+      message: cachedResult.message
+        ? `${cachedResult.message}${liveMessage}`
+        : result.mode === "live"
+          ? "Using cached economic calendar rows because the live scrape returned no rows."
+          : result.message
+    };
+  }
+
   return {
-    events: result.events
-      .map(dashboardEventFromInvestingEvent)
-      .filter((event) => event.eventDate === dateKey),
+    events: liveEvents,
     mode: result.mode,
-    message: result.message
+    message:
+      result.mode === "unavailable" ? (result.message ?? cachedResult.message) : result.message
   };
 }
 

@@ -62,6 +62,33 @@ function assert(condition: unknown, message: string) {
   if (!condition) throw new Error(message);
 }
 
+function withMockedNow<T>(isoTimestamp: string, callback: () => T) {
+  const RealDate = Date;
+  const fixedTime = new RealDate(isoTimestamp).getTime();
+
+  class MockDate extends RealDate {
+    constructor(value?: string | number | Date) {
+      if (value === undefined) {
+        super(fixedTime);
+      } else {
+        super(value);
+      }
+    }
+
+    static now() {
+      return fixedTime;
+    }
+  }
+
+  (globalThis as typeof globalThis & { Date: DateConstructor }).Date =
+    MockDate as unknown as DateConstructor;
+  try {
+    return callback();
+  } finally {
+    (globalThis as typeof globalThis & { Date: DateConstructor }).Date = RealDate;
+  }
+}
+
 function earningsEvent(
   overrides: Partial<UnusualWhalesEarningsEvent> &
     Pick<
@@ -346,20 +373,15 @@ assert(
 function assertSingleDayInvestingUrl(dateKey: string) {
   const investingUrl = buildInvestingEconomicCalendarUrl(dateKey);
   const parsed = new URL(investingUrl);
-  const start = parsed.searchParams.get("start_date");
-  const end = parsed.searchParams.get("end_date");
-  if (!start) throw new Error(`${dateKey} start_date should be present`);
-  if (!end) throw new Error(`${dateKey} end_date should be present`);
   assert(
-    start === `${dateKey}T00:00:00.000-04:00`,
-    `${dateKey} start_date should be single-day ET`
+    parsed.pathname === "/economic-calendar/Service/getCalendarFilteredData",
+    "Investing.com URL should point to the economic-calendar AJAX endpoint"
   );
-  assert(end === `${dateKey}T23:59:59.999-04:00`, `${dateKey} end_date should be single-day ET`);
-  assert(start.slice(0, 10) === end.slice(0, 10), `${dateKey} start/end dates should match`);
-  assert(
-    investingUrl.includes(encodeURIComponent(`${dateKey}T00:00:00.000-04:00`)),
-    "start_date should be URL-encoded"
-  );
+  assert(parsed.searchParams.get("country") === "5", "country should filter to United States");
+  assert(parsed.searchParams.get("dateFrom") === dateKey, `${dateKey} dateFrom should match`);
+  assert(parsed.searchParams.get("dateTo") === dateKey, `${dateKey} dateTo should match`);
+  assert(parsed.searchParams.get("timeZone") === "55", "timezone should use fixed EST id");
+  assert(parsed.searchParams.get("importance") === "2,3", "importance should include medium/high");
 }
 
 for (const dateKey of ["2026-06-01", "2026-06-02", "2026-06-03", "2026-06-04", "2026-06-05"]) {
@@ -402,55 +424,42 @@ assert(
   "Last Week and Next Week should preserve the selected weekday when regenerating dates"
 );
 
+const weekendInitialSelection = initialDaySelection(new Date("2026-06-06T16:00:00Z"));
+assert(
+  weekendInitialSelection.selectedDate === "2026-06-01" &&
+    weekendInitialSelection.selectedWeekday === 1,
+  "weekend initial selector state should select Monday of the current ET week"
+);
+
 const investingEvents = normalizeInvestingEconomicCalendarPayload(
   {
-    events: [
-      {
-        event_id: 227,
-        event_translated: "Nonfarm Payrolls",
-        importance: "high",
-        country_id: 5,
-        currency: "USD"
-      },
-      {
-        event_id: 52,
-        event_translated: "Consumer Credit",
-        importance: "medium",
-        country_id: 5,
-        currency: "USD"
-      },
-      {
-        event_id: 1810,
-        event_translated: "U.S. Baker Hughes Total Rig Count",
-        importance: "medium",
-        country_id: 5,
-        currency: "USD"
-      }
-    ],
-    occurrences: [
-      {
-        event_id: 227,
-        occurrence_time: "2026-06-05T12:30:00Z",
-        actual: 172,
-        forecast: 85,
-        previous: 179,
-        unit: "K"
-      },
-      {
-        event_id: 52,
-        occurrence_time: "2026-06-05T19:00:00Z",
-        actual: 20.73,
-        forecast: 17.8,
-        previous: 22.23,
-        unit: "B"
-      },
-      {
-        event_id: 1810,
-        occurrence_time: "2026-06-05T17:00:00Z",
-        actual: 563,
-        previous: 562
-      }
-    ]
+    data: `<tr eventRowId="1" event_attr_id="227" event="Nonfarm Payrolls" data-event-datetime="2026/06/05 08:30:00">
+  <td class="flagCur"><span title="United States" class="ceFlags"></span></td>
+  <td class="time">8:30 AM</td>
+  <td class="event">Nonfarm Payrolls</td>
+  <td class="sentiment"><i class="grayFullBullishIcon"></i><i class="grayFullBullishIcon"></i><i class="grayFullBullishIcon"></i></td>
+  <td class="act">172K</td>
+  <td class="forecast">85K</td>
+  <td class="previous">179K</td>
+</tr>
+<tr eventRowId="2" event_attr_id="52" event="Consumer Credit" data-event-datetime="2026/06/05 15:00:00">
+  <td class="flagCur"><span title="United States" class="ceFlags"></span></td>
+  <td class="time">3:00 PM</td>
+  <td class="event">Consumer Credit</td>
+  <td class="sentiment"><i class="grayFullBullishIcon"></i><i class="grayFullBullishIcon"></i></td>
+  <td class="act">20.73B</td>
+  <td class="forecast">17.8B</td>
+  <td class="previous">22.23B</td>
+</tr>
+<tr eventRowId="3" event_attr_id="1810" event="U.S. Baker Hughes Total Rig Count" data-event-datetime="2026/06/05 13:00:00">
+  <td class="flagCur"><span title="United States" class="ceFlags"></span></td>
+  <td class="time">1:00 PM</td>
+  <td class="event">U.S. Baker Hughes Total Rig Count</td>
+  <td class="sentiment"><i class="grayFullBullishIcon"></i><i class="grayFullBullishIcon"></i></td>
+  <td class="act">563</td>
+  <td class="forecast">-</td>
+  <td class="previous">562</td>
+</tr>`
   },
   "2026-06-05",
   "2026-06-05T00:00:00Z"
@@ -463,9 +472,9 @@ assert(
   investingEvents.some(
     (event) =>
       event.eventName === "Nonfarm Payrolls" &&
-      event.timestamp?.startsWith("2026-06-05T12:30:00") &&
+      event.timestamp === "08:30" &&
       event.eventDate === "2026-06-05" &&
-      event.id.startsWith("investing-economic:2026-06-05:227:") &&
+      event.id === "investing-economic:2026-06-05:227:08:30" &&
       event.actual === "172K" &&
       event.isHighlighted
   ),
@@ -476,7 +485,9 @@ assert(
   "Investing.com normalization should apply excluded event patterns"
 );
 
-const markup = renderToStaticMarkup(<NewsCalendarView data={payload} />);
+const markup = withMockedNow("2026-06-05T16:00:00Z", () =>
+  renderToStaticMarkup(<NewsCalendarView data={payload} />)
+);
 const earningsCalendarIndex = markup.indexOf("Earnings Calendar");
 const economicCalendarIndex = markup.indexOf("Economic Calendar");
 const latestNewsIndex = markup.indexOf("Latest Market News");
@@ -621,7 +632,7 @@ const todayData: TodayPayload = {
 const todayMarkup = renderToStaticMarkup(<TodayView data={todayData} />);
 const summaryOrder = [
   "Leading Sectors",
-  "Risk On / Risk Off",
+  "Risk On Risk Off",
   "Put/Call Ratio",
   "Today&#x27;s Earnings",
   "Today&#x27;s Economic Events"

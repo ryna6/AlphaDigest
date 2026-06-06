@@ -310,6 +310,15 @@ function eventDateKey(event: EconomicEvent) {
   return direct ?? formatEtDateKey(event.time);
 }
 
+function groupEconomicEventsByDate(events: EconomicEvent[]) {
+  return events.reduce<Record<string, EconomicEvent[]>>((grouped, event) => {
+    const key = eventDateKey(event);
+    if (!key) return grouped;
+    grouped[key] = [...(grouped[key] ?? []), event];
+    return grouped;
+  }, {});
+}
+
 function EconomicCalendar({
   initialEvents,
   selectedDate
@@ -317,9 +326,9 @@ function EconomicCalendar({
   initialEvents: EconomicEvent[];
   selectedDate: string;
 }) {
-  const [eventsByDate, setEventsByDate] = useState<Record<string, EconomicEvent[]>>(() => ({
-    [selectedDate]: initialEvents.filter((event) => eventDateKey(event) === selectedDate)
-  }));
+  const [eventsByDate, setEventsByDate] = useState<Record<string, EconomicEvent[]>>(() =>
+    groupEconomicEventsByDate(initialEvents)
+  );
   const [loadingDate, setLoadingDate] = useState<string | null>(null);
 
   useEffect(() => {

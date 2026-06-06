@@ -1,18 +1,42 @@
-import { formatEtDateKey, formatEtTime } from "@/lib/utils/time";
+import { formatEtDateKey } from "@/lib/utils/time";
+import { createServerSupabaseClient } from "@/lib/db/supabase";
 import type { ImportantEconomicEventKey } from "../config/included-economic-events";
 import {
   getImportantEconomicEventKey,
   getImportantEconomicEventLabel,
   shouldIncludeEconomicEvent
 } from "../config/included-economic-events";
+import { payloadContentHash, sourceResult, updateRefreshMetadata } from "./supabase-refresh";
+import { stableHash } from "./unusual-whales-earnings";
 
 const INVESTING_ECONOMIC_CALENDAR_ENDPOINT =
-  "https://endpoints.investing.com/pd-instruments/v1/calendars/economic/events/occurrences";
+  "https://www.investing.com/economic-calendar/Service/getCalendarFilteredData";
 const INVESTING_ECONOMIC_CALENDAR_PAGE = "https://www.investing.com/economic-calendar/";
 const ECONOMIC_CALENDAR_TIMEOUT_MS = 12_000;
 const ECONOMIC_CALENDAR_RETRIES = 2;
+const FIXED_EST_TIMEZONE_ID = "55";
+const PAGE_SIZE = 50;
+const MAX_PAGES = 30;
+const INVESTING_METADATA_SOURCE = "investing_economic_events";
 
 type UnknownRecord = Record<string, unknown>;
+
+type ParsedCalendarRow = {
+  date: string;
+  timeET: string | null;
+  timeDisplay: string | null;
+  key: string;
+  name: string;
+  importance: "medium" | "high";
+  stars: 2 | 3;
+  actual: string | null;
+  forecast: string | null;
+  previous: string | null;
+  actualNumeric: number | null;
+  forecastNumeric: number | null;
+  previousNumeric: number | null;
+  country: string | null;
+};
 
 export type InvestingEconomicEvent = {
   source: "investing_com";
@@ -41,10 +65,23 @@ type FetchResult = {
   message?: string;
 };
 
+type CachedEconomicResult = FetchResult & { metadata?: Record<string, unknown> | null };
+
 const memoryCache = new Map<string, InvestingEconomicEvent[]>();
 
 export function buildInvestingEconomicCalendarCacheKey(dateKey: string) {
   return `investing-economic:US:medium-high:${dateKey}`;
+}
+
+export function buildInvestingEconomicCalendarUrl(dateKey: string) {
+  const params = new URLSearchParams({
+    country: "5",
+    dateFrom: dateKey,
+    dateTo: dateKey,
+    timeZone: FIXED_EST_TIMEZONE_ID,
+    importance: "2,3"
+  });
+  return `${INVESTING_ECONOMIC_CALENDAR_ENDPOINT}?${params.toString()}`;
 }
 
 function shouldDebugEconomicCalendar() {
@@ -74,242 +111,260 @@ function asNumberOrString(value: unknown): number | string | null {
   return Number.isFinite(numeric) && /^\d+$/.test(text) ? numeric : text;
 }
 
-function getPath(record: UnknownRecord, paths: string[][]): unknown {
-  for (const path of paths) {
-    let current: unknown = record;
-    for (const key of path) {
-      if (!isRecord(current)) {
-        current = undefined;
-        break;
-      }
-      current = current[key];
-    }
-    if (current !== undefined && current !== null && current !== "") return current;
-  }
-  return undefined;
+function cleanHtmlText(value: unknown) {
+  return String(value ?? "")
+    .replace(/<[^>]+>/g, " ")
+    .replace(/&nbsp;/g, " ")
+    .replace(/&amp;/g, "&")
+    .replace(/&#39;/g, "'")
+    .replace(/&quot;/g, '"')
+    .replace(/\n|\r/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
 }
 
-function getTimezoneOffset(dateKey: string) {
-  const date = new Date(`${dateKey}T12:00:00Z`);
-  const parts = new Intl.DateTimeFormat("en-US", {
-    timeZone: "America/New_York",
-    timeZoneName: "shortOffset"
-  }).formatToParts(date);
-  const offsetName = parts.find((part) => part.type === "timeZoneName")?.value ?? "GMT-5";
-  const match = offsetName.match(/GMT([+-])(\d{1,2})(?::(\d{2}))?/);
-  if (!match) return "-05:00";
-  return `${match[1]}${match[2].padStart(2, "0")}:${match[3] ?? "00"}`;
+function decodeHtmlAttribute(value: unknown) {
+  return cleanHtmlText(value);
 }
 
-function isWeekendDateKey(dateKey: string) {
-  const weekday = new Date(`${dateKey}T12:00:00Z`).getUTCDay();
-  return weekday === 0 || weekday === 6;
+function getCell(rowHtml: string, cls: string) {
+  return (
+    (rowHtml.match(new RegExp(`<td[^>]*class="[^"]*${cls}[^"]*"[^>]*>([\\s\\S]*?)<\\/td>`, "i")) ||
+      [])[1] || ""
+  );
 }
 
-export function buildInvestingEconomicCalendarUrl(dateKey: string) {
-  const offset = getTimezoneOffset(dateKey);
-  const params = new URLSearchParams({
-    domain_id: "1",
-    limit: "200",
-    start_date: `${dateKey}T00:00:00.000${offset}`,
-    end_date: `${dateKey}T23:59:59.999${offset}`,
-    country_ids: "5",
-    importance: "medium,high"
-  });
-  return `${INVESTING_ECONOMIC_CALENDAR_ENDPOINT}?${params.toString()}`;
-}
-
-function normalizeImportance(value: unknown): InvestingEconomicEvent["importance"] {
-  const text = asString(value)?.toLowerCase();
-  if (!text) return null;
-  if (text === "3" || text.includes("high")) return "high";
-  if (text === "2" || text.includes("medium")) return "medium";
-  if (text === "1" || text.includes("low")) return "low";
-  return text;
-}
-
-function starsFromImportance(importance: InvestingEconomicEvent["importance"]): 1 | 2 | 3 | null {
-  if (importance === "high") return 3;
-  if (importance === "medium") return 2;
-  if (importance === "low") return 1;
+function parseImportance(rowHtml: string): ParsedCalendarRow["importance"] | "low" | null {
+  const fullBulls = (rowHtml.match(/grayFullBullishIcon/g) || []).length;
+  if (fullBulls >= 3) return "high";
+  if (fullBulls === 2) return "medium";
+  if (fullBulls === 1) return "low";
   return null;
 }
 
-function normalizeTimestamp(value: unknown, dateKey: string): string | null {
-  const text = asString(value);
-  if (!text) return null;
-  if (/^\d{1,2}:\d{2}(?::\d{2})?$/.test(text))
-    return `${dateKey}T${text.length === 5 ? `${text}:00` : text}${getTimezoneOffset(dateKey)}`;
-  if (/^\d{1,2}:\d{2}\s*(AM|PM)$/i.test(text)) return text;
-  const parsed = new Date(text);
-  if (Number.isFinite(parsed.getTime())) return parsed.toISOString();
-  return text;
-}
+function parseNumericLoose(value: unknown) {
+  const raw = cleanHtmlText(value);
+  if (!raw || raw === "-" || raw === "." || raw === "—") return null;
 
-function eventIdKey(value: unknown) {
-  const id = asNumberOrString(value);
-  return id === null ? null : String(id);
-}
-
-function mergeInvestingEventsWithOccurrences(payload: UnknownRecord): UnknownRecord[] {
-  const events = Array.isArray(payload.events) ? payload.events.filter(isRecord) : [];
-  const occurrences = Array.isArray(payload.occurrences)
-    ? payload.occurrences.filter(isRecord)
-    : [];
-  if (!events.length || !occurrences.length) return [];
-
-  const eventsById = new Map<string, UnknownRecord>();
-  events.forEach((event) => {
-    const key = eventIdKey(event.event_id ?? event.eventId ?? event.id);
-    if (key) eventsById.set(key, event);
-  });
-
-  return occurrences.map((occurrence) => {
-    const key = eventIdKey(occurrence.event_id ?? occurrence.eventId ?? occurrence.id);
-    return { ...(key ? eventsById.get(key) : undefined), ...occurrence };
-  });
-}
-
-function extractRows(payload: unknown): UnknownRecord[] {
-  if (Array.isArray(payload)) return payload.filter(isRecord);
-  if (!isRecord(payload)) return [];
-
-  const mergedRows = mergeInvestingEventsWithOccurrences(payload);
-  if (mergedRows.length) return mergedRows;
-
-  for (const key of ["data", "events", "occurrences", "results", "rows"]) {
-    const value = payload[key];
-    if (Array.isArray(value)) return value.filter(isRecord);
-    if (isRecord(value)) {
-      const nested = extractRows(value);
-      if (nested.length) return nested;
-    }
+  let normalized = raw.replace(/,/g, "");
+  let multiplier = 1;
+  if (/k$/i.test(normalized)) {
+    multiplier = 1_000;
+    normalized = normalized.slice(0, -1).trim();
+  } else if (/m$/i.test(normalized)) {
+    multiplier = 1_000_000;
+    normalized = normalized.slice(0, -1).trim();
+  } else if (/b$/i.test(normalized)) {
+    multiplier = 1_000_000_000;
+    normalized = normalized.slice(0, -1).trim();
   }
-  return [];
+
+  normalized = normalized.replace(/%/g, "").trim();
+  const numeric = Number(normalized);
+  return Number.isFinite(numeric) ? numeric * multiplier : null;
 }
 
-function formatEconomicValue(row: UnknownRecord, paths: string[][]) {
-  const raw = getPath(row, paths);
-  const value = asString(raw);
-  if (value === null) return null;
-
-  const unit = asString(row.unit);
-  if (unit && typeof raw === "number") return `${value}${unit}`;
-  return value;
+function formatAbbrevNumeric(value: number, decimals = 1) {
+  const abs = Math.abs(value);
+  if (abs >= 1_000_000_000)
+    return `${(value / 1_000_000_000).toFixed(decimals).replace(/\.0$/, "")}B`;
+  if (abs >= 1_000_000) return `${(value / 1_000_000).toFixed(decimals).replace(/\.0$/, "")}M`;
+  if (abs >= 1_000) return `${(value / 1_000).toFixed(decimals).replace(/\.0$/, "")}K`;
+  if (Number.isInteger(value)) return String(value);
+  return value
+    .toFixed(abs >= 100 ? 1 : 2)
+    .replace(/\.0$/, "")
+    .replace(/(\.\d*[1-9])0+$/, "$1");
 }
 
-function normalizeInvestingEconomicRow(
-  row: UnknownRecord,
-  dateKey: string,
-  fetchedAt: string
-): InvestingEconomicEvent | null {
-  const eventId = asNumberOrString(
-    getPath(row, [
-      ["event_id"],
-      ["eventId"],
-      ["event", "id"],
-      ["event", "event_id"],
-      ["economic_event_id"],
-      ["id"]
-    ])
-  );
-  const eventName = asString(
-    getPath(row, [
-      ["event_name"],
-      ["eventName"],
-      ["event", "name"],
-      ["event", "title"],
-      ["event_translated"],
-      ["event_meta_title"],
-      ["long_name"],
-      ["short_name"],
-      ["name"],
-      ["title"]
-    ])
-  );
-  if (!eventName) return null;
+function formatMetricValue({ raw, numeric }: { raw: unknown; numeric: number | null }) {
+  const cleanRaw = cleanHtmlText(raw);
+  if (!cleanRaw || cleanRaw === "-" || cleanRaw === "." || cleanRaw === "—") return null;
+  if (cleanRaw.includes("%")) return cleanRaw;
+  if (/\b[KMB]\b/i.test(cleanRaw)) return cleanRaw;
+  if (typeof numeric !== "number" || !Number.isFinite(numeric)) return cleanRaw;
+  return formatAbbrevNumeric(numeric);
+}
 
-  if (!shouldIncludeEconomicEvent(eventName)) return null;
-  const eventKey = getImportantEconomicEventKey(eventId, eventName);
-  const highlightReason = getImportantEconomicEventLabel(eventKey);
+function to12HourFrom24(time24: string | null) {
+  const match = String(time24 || "").match(/^(\d{1,2}):(\d{2})$/);
+  if (!match) return null;
+  const hour = Number(match[1]);
+  if (!Number.isFinite(hour) || hour < 0 || hour > 23) return null;
+  const suffix = hour >= 12 ? "PM" : "AM";
+  const displayHour = hour % 12 || 12;
+  return `${displayHour}:${match[2]} ${suffix}`;
+}
 
-  const timestamp = normalizeTimestamp(
-    getPath(row, [
-      ["datetime"],
-      ["date_time"],
-      ["date"],
-      ["time"],
-      ["timestamp"],
-      ["occurrence_time"],
-      ["occurrenceTime"]
-    ]),
-    dateKey
-  );
-  const importance = normalizeImportance(
-    getPath(row, [["importance"], ["importance_level"], ["impact"], ["volatility"]])
-  );
-  if (importance === "low") return null;
-
-  const country = asString(getPath(row, [["country"], ["country_name"], ["country", "name"]]));
-
+function parseDateAndTime(dateRaw: unknown) {
+  const normalized = String(dateRaw || "").trim();
+  const match = normalized.match(/(\d{4})[\/-](\d{2})[\/-](\d{2})\s+(\d{2}):(\d{2})/);
+  if (!match) return { date: null, timeET: null, timeDisplay: null };
+  const timeET = `${match[4]}:${match[5]}`;
   return {
-    source: "investing_com",
-    id: `investing-economic:${dateKey}:${eventId ?? eventName}:${timestamp ?? "unknown"}`,
-    eventId,
-    eventKey,
-    eventName,
-    eventDate: dateKey,
-    time: timestamp ? formatEtTime(timestamp) : null,
-    timestamp,
-    importance,
-    stars: starsFromImportance(importance),
-    actual: formatEconomicValue(row, [["actual"], ["actual_value"], ["actualValue"]]),
-    forecast: formatEconomicValue(row, [
-      ["forecast"],
-      ["consensus"],
-      ["forecast_value"],
-      ["forecastValue"]
-    ]),
-    previous: formatEconomicValue(row, [
-      ["previous"],
-      ["prev"],
-      ["previous_value"],
-      ["previousValue"]
-    ]),
-    isHighlighted: Boolean(eventKey),
-    highlightReason,
-    country,
-    fetchedAt,
-    raw: row
+    date: `${match[1]}-${match[2]}-${match[3]}`,
+    timeET,
+    timeDisplay: to12HourFrom24(timeET)
   };
 }
 
-export function normalizeInvestingEconomicCalendarPayload(
-  payload: unknown,
-  dateKey: string,
-  fetchedAt = new Date().toISOString()
-) {
-  return extractRows(payload)
-    .map((row) => normalizeInvestingEconomicRow(row, dateKey, fetchedAt))
-    .filter((event): event is InvestingEconomicEvent => Boolean(event))
-    .sort((a, b) => new Date(a.timestamp ?? 0).getTime() - new Date(b.timestamp ?? 0).getTime());
+function extract24HourTime(value: unknown) {
+  const normalized = cleanHtmlText(value);
+  if (!normalized) return null;
+
+  const twelveHour = normalized.match(/\b(\d{1,2}):(\d{2})\s*([AaPp][Mm])\b/);
+  if (twelveHour) {
+    const hour12 = Number(twelveHour[1]);
+    const minute = Number(twelveHour[2]);
+    if (hour12 < 1 || hour12 > 12 || minute < 0 || minute > 59) return null;
+    const hour24 = (hour12 % 12) + (twelveHour[3].toUpperCase() === "PM" ? 12 : 0);
+    return `${String(hour24).padStart(2, "0")}:${String(minute).padStart(2, "0")}`;
+  }
+
+  const twentyFourHour = normalized.match(/\b([01]?\d|2[0-3]):([0-5]\d)\b/);
+  if (!twentyFourHour) return null;
+  return `${String(Number(twentyFourHour[1])).padStart(2, "0")}:${twentyFourHour[2]}`;
+}
+
+function parseEventDateTime(rowHtml: string) {
+  const dateRaw = (rowHtml.match(/data-event-datetime="([^"]+)"/i) || [])[1] || "";
+  const base = parseDateAndTime(dateRaw);
+  if (!base.date) return base;
+
+  const timeCell = extract24HourTime(getCell(rowHtml, "time"));
+  const timeET = timeCell || base.timeET;
+  return {
+    date: base.date,
+    timeET,
+    timeDisplay: to12HourFrom24(timeET)
+  };
+}
+
+function countServerRows(html: string) {
+  const matches = String(html || "").match(/<tr[^>]*eventRowId[^>]*>/gi);
+  return matches ? matches.length : 0;
+}
+
+function parseInvestingCalendarRows(html: string): ParsedCalendarRow[] {
+  const rows: ParsedCalendarRow[] = [];
+  const trRegex = /<tr[^>]*eventRowId[^>]*>([\s\S]*?)<\/tr>/gi;
+  let match: RegExpExecArray | null;
+
+  while ((match = trRegex.exec(html))) {
+    const rowHtml = match[0];
+    const importance = parseImportance(rowHtml);
+    if (importance !== "medium" && importance !== "high") continue;
+
+    const eventName =
+      decodeHtmlAttribute((rowHtml.match(/event="([^"]+)"/i) || [])[1]) ||
+      cleanHtmlText(getCell(rowHtml, "event"));
+    if (!eventName || !shouldIncludeEconomicEvent(eventName)) continue;
+
+    const country = decodeHtmlAttribute(
+      (rowHtml.match(/title="([^"]+)"[^>]*class="ceFlags/i) || [])[1]
+    );
+    if (country && country.toLowerCase() !== "united states") continue;
+
+    const { date, timeET, timeDisplay } = parseEventDateTime(rowHtml);
+    if (!date) continue;
+
+    const rawActual = getCell(rowHtml, "act");
+    const rawForecast = getCell(rowHtml, "forecast");
+    const rawPrevious = getCell(rowHtml, "previous");
+    const actualNumeric = parseNumericLoose(rawActual);
+    const forecastNumeric = parseNumericLoose(rawForecast);
+    const previousNumeric = parseNumericLoose(rawPrevious);
+    const eventAttrId = (rowHtml.match(/event_attr_id="(\d+)"/i) || [])[1];
+
+    rows.push({
+      date,
+      timeET,
+      timeDisplay,
+      key: String(eventAttrId || `${date}-${eventName}`),
+      name: eventName,
+      importance,
+      stars: importance === "high" ? 3 : 2,
+      actual: formatMetricValue({ raw: rawActual, numeric: actualNumeric }),
+      forecast: formatMetricValue({ raw: rawForecast, numeric: forecastNumeric }),
+      previous: formatMetricValue({ raw: rawPrevious, numeric: previousNumeric }),
+      actualNumeric,
+      forecastNumeric,
+      previousNumeric,
+      country: country || "United States"
+    });
+  }
+
+  return rows;
+}
+
+function sortParsedRows(a: ParsedCalendarRow, b: ParsedCalendarRow) {
+  if (a.date !== b.date) return a.date.localeCompare(b.date);
+  const timeA = a.timeET || "99:99";
+  const timeB = b.timeET || "99:99";
+  if (timeA !== timeB) return timeA.localeCompare(timeB);
+  return b.stars - a.stars;
+}
+
+function normalizeParsedRow(row: ParsedCalendarRow, fetchedAt: string): InvestingEconomicEvent {
+  const eventId = asNumberOrString(row.key);
+  const eventKey = getImportantEconomicEventKey(eventId, row.name);
+  const highlightReason = getImportantEconomicEventLabel(eventKey);
+
+  return {
+    source: "investing_com",
+    id: `investing-economic:${row.date}:${row.key}:${row.timeET ?? "unknown"}`,
+    eventId,
+    eventKey,
+    eventName: row.name,
+    eventDate: row.date,
+    time: row.timeDisplay,
+    timestamp: row.timeET,
+    importance: row.importance,
+    stars: row.stars,
+    actual: row.actual,
+    forecast: row.forecast,
+    previous: row.previous,
+    isHighlighted: Boolean(eventKey),
+    highlightReason,
+    country: row.country,
+    fetchedAt,
+    raw: row
+  };
 }
 
 function sleep(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-async function fetchWithTimeout(url: string) {
+async function fetchInvestingCalendarPage(start: string, end: string, limitFrom: number) {
+  const body = new URLSearchParams({
+    country: "5",
+    dateFrom: start,
+    dateTo: end,
+    timeZone: FIXED_EST_TIMEZONE_ID,
+    timeFilter: "timeOnly",
+    currentTab: "custom",
+    submitFilters: "1",
+    limit_from: String(limitFrom),
+    importance: "2,3"
+  });
+  body.append("importance[]", "2");
+  body.append("importance[]", "3");
+
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), ECONOMIC_CALENDAR_TIMEOUT_MS);
   try {
-    return await fetch(url, {
+    return await fetch(INVESTING_ECONOMIC_CALENDAR_ENDPOINT, {
+      method: "POST",
       headers: {
-        "User-Agent": "Mozilla/5.0",
+        "User-Agent": "Mozilla/5.0 (compatible; MarketRecap/1.0)",
+        "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8",
+        "X-Requested-With": "XMLHttpRequest",
         Accept: "application/json, text/plain, */*",
         Origin: "https://www.investing.com",
         Referer: INVESTING_ECONOMIC_CALENDAR_PAGE
       },
+      body: body.toString(),
       cache: "no-store",
       signal: controller.signal
     });
@@ -318,11 +373,11 @@ async function fetchWithTimeout(url: string) {
   }
 }
 
-async function fetchPayload(url: string) {
+async function fetchInvestingCalendarPayload(start: string, end: string, limitFrom: number) {
   let lastError: unknown;
   for (let attempt = 0; attempt <= ECONOMIC_CALENDAR_RETRIES; attempt += 1) {
     try {
-      const response = await fetchWithTimeout(url);
+      const response = await fetchInvestingCalendarPage(start, end, limitFrom);
       if (response.ok) return (await response.json()) as unknown;
       if (![429, 500, 502, 503, 504].includes(response.status)) {
         throw new Error(`Investing.com economic calendar responded ${response.status}`);
@@ -336,6 +391,57 @@ async function fetchPayload(url: string) {
   throw lastError instanceof Error
     ? lastError
     : new Error("Investing.com economic calendar failed");
+}
+
+async function scrapeInvestingEconomicCalendar(start: string, end: string) {
+  const rows: ParsedCalendarRow[] = [];
+  const seenKeys = new Set<string>();
+  const seenOffsets = new Set<number>();
+  let limitFrom = 0;
+
+  for (let page = 0; page < MAX_PAGES; page += 1) {
+    if (seenOffsets.has(limitFrom)) break;
+    seenOffsets.add(limitFrom);
+
+    const payload = await fetchInvestingCalendarPayload(start, end, limitFrom);
+    const html = isRecord(payload) ? (asString(payload.data) ?? "") : "";
+    const pageRows = parseInvestingCalendarRows(html);
+    const serverRowCount = countServerRows(html);
+    const beforeCount = rows.length;
+
+    for (const row of pageRows) {
+      const dedupeKey = `${row.date}:${row.timeET || ""}:${row.key}:${row.name}`;
+      if (seenKeys.has(dedupeKey)) continue;
+      seenKeys.add(dedupeKey);
+      rows.push(row);
+    }
+
+    const hasMore = isRecord(payload) && Boolean(payload.bind_scroll_handler) && serverRowCount > 0;
+    if (!hasMore) break;
+
+    const fetchedNewRows = rows.length - beforeCount;
+    if (fetchedNewRows === 0 && pageRows.length === 0) break;
+    limitFrom += PAGE_SIZE;
+  }
+
+  return rows.sort(sortParsedRows);
+}
+
+function isWeekendDateKey(dateKey: string) {
+  const weekday = new Date(`${dateKey}T12:00:00Z`).getUTCDay();
+  return weekday === 0 || weekday === 6;
+}
+
+export function normalizeInvestingEconomicCalendarPayload(
+  payload: unknown,
+  dateKey: string,
+  fetchedAt = new Date().toISOString()
+) {
+  const html = isRecord(payload) ? (asString(payload.data) ?? "") : "";
+  return parseInvestingCalendarRows(html)
+    .filter((row) => row.date === dateKey)
+    .sort(sortParsedRows)
+    .map((row) => normalizeParsedRow(row, fetchedAt));
 }
 
 export async function fetchInvestingEconomicCalendar(
@@ -356,10 +462,9 @@ export async function fetchInvestingEconomicCalendar(
   debugEconomicCalendar("fetch", { dateKey, cacheKey, investingCalendarUrl: url });
 
   try {
-    const payload = await fetchPayload(url);
-    const events = normalizeInvestingEconomicCalendarPayload(payload, dateKey, fetchedAt).filter(
-      (event) => event.eventDate === dateKey
-    );
+    const events = (await scrapeInvestingEconomicCalendar(dateKey, dateKey))
+      .filter((row) => row.date === dateKey)
+      .map((row) => normalizeParsedRow(row, fetchedAt));
     memoryCache.set(cacheKey, events);
     debugEconomicCalendar("fetched", { dateKey, cacheKey, numberOfEventsFetched: events.length });
     return { events, mode: "live" };
@@ -379,14 +484,6 @@ export function investingEconomicSources() {
     endpoint: INVESTING_ECONOMIC_CALENDAR_ENDPOINT
   };
 }
-
-import { createServerSupabaseClient } from "@/lib/db/supabase";
-import { payloadContentHash, sourceResult, updateRefreshMetadata } from "./supabase-refresh";
-import { stableHash } from "./unusual-whales-earnings";
-
-const INVESTING_METADATA_SOURCE = "investing_economic_events";
-
-type CachedEconomicResult = FetchResult & { metadata?: Record<string, unknown> | null };
 
 function eventContentHash(event: InvestingEconomicEvent) {
   return stableHash({
@@ -458,6 +555,13 @@ function economicFromDbRow(row: UnknownRecord): InvestingEconomicEvent {
     fetchedAt: asString(row.fetched_at) ?? new Date().toISOString(),
     raw: isRecord(row.raw) ? row.raw : {}
   };
+}
+
+function starsFromImportance(importance: string | null): 1 | 2 | 3 | null {
+  if (importance === "high") return 3;
+  if (importance === "medium") return 2;
+  if (importance === "low") return 1;
+  return null;
 }
 
 function dateKeyFromDate(date: Date) {
