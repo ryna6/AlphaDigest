@@ -593,7 +593,7 @@ const todayData: TodayPayload = {
   ...todayMock,
   marketSummary: [
     { label: "Leading Sectors", value: "Tech", tone: "positive" },
-    { label: "Risk On / Risk Off", value: "1.10", change: "Risk Off", tone: "neutral" },
+    { label: "Risk On Risk Off", value: "1.10", change: "Risk Off", tone: "neutral" },
     { label: "Put/Call Ratio", value: "0.91", change: "Neutral", tone: "neutral" },
     { label: "Today's Earnings", value: "2 Earnings", tone: "neutral" },
     {
@@ -621,7 +621,7 @@ const todayData: TodayPayload = {
 const todayMarkup = renderToStaticMarkup(<TodayView data={todayData} />);
 const summaryOrder = [
   "Leading Sectors",
-  "Risk On Risk Off",
+  "Risk On / Risk Off",
   "Put/Call Ratio",
   "Today&#x27;s Earnings",
   "Today&#x27;s Economic Events"
