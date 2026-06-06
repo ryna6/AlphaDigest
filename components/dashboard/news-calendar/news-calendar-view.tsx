@@ -310,6 +310,30 @@ function eventDateKey(event: EconomicEvent) {
   return direct ?? formatEtDateKey(event.time);
 }
 
+function groupEconomicEventsByDate(events: EconomicEvent[]) {
+  return events.reduce<Record<string, EconomicEvent[]>>((grouped, event) => {
+    const dateKey = eventDateKey(event);
+    if (!dateKey) return grouped;
+    grouped[dateKey] = [...(grouped[dateKey] ?? []), event];
+    return grouped;
+  }, {});
+}
+
+function weekDateKeysForDate(dateKey: string) {
+  const monday = mondayForDateKey(dateKey);
+  return Array.from({ length: 5 }, (_, index) => addDaysToDateKey(monday, index));
+}
+
+function withEmptyWeekdayBuckets(grouped: Record<string, EconomicEvent[]>, dateKeys: string[]) {
+  return dateKeys.reduce<Record<string, EconomicEvent[]>>(
+    (withBuckets, dateKey) => ({
+      ...withBuckets,
+      [dateKey]: withBuckets[dateKey] ?? []
+    }),
+    grouped
+  );
+}
+
 function EconomicCalendar({
   initialEvents,
   selectedDate
@@ -317,9 +341,13 @@ function EconomicCalendar({
   initialEvents: EconomicEvent[];
   selectedDate: string;
 }) {
-  const [eventsByDate, setEventsByDate] = useState<Record<string, EconomicEvent[]>>(() => ({
-    [selectedDate]: initialEvents.filter((event) => eventDateKey(event) === selectedDate)
-  }));
+  const [eventsByDate, setEventsByDate] = useState<Record<string, EconomicEvent[]>>(() => {
+    const groupedEvents = groupEconomicEventsByDate(initialEvents);
+    const initialWeekDateKeys = [-1, 0, 1].flatMap((weekOffset) =>
+      buildWeekDays(weekOffset as WeekOffset).map((day) => day.date)
+    );
+    return withEmptyWeekdayBuckets(groupedEvents, initialWeekDateKeys);
+  });
   const [loadingDate, setLoadingDate] = useState<string | null>(null);
 
   useEffect(() => {
@@ -331,11 +359,13 @@ function EconomicCalendar({
       .then((payload) => {
         if (cancelled) return;
         const events = Array.isArray(payload?.payload?.events) ? payload.payload.events : [];
+        const groupedEvents = withEmptyWeekdayBuckets(
+          groupEconomicEventsByDate(events),
+          weekDateKeysForDate(selectedDate)
+        );
         setEventsByDate((current) => ({
           ...current,
-          [selectedDate]: events.filter(
-            (event: EconomicEvent) => eventDateKey(event) === selectedDate
-          )
+          ...groupedEvents
         }));
       })
       .catch(() => {
