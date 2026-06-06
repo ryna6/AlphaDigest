@@ -138,42 +138,48 @@ function EarningsPanel({ earnings }: { earnings: EarningsEvent[] }) {
 function EconomicEventsPanel({ events }: { events: EconomicEvent[] }) {
   return (
     <Panel>
-      <SectionHeader title="Economic Events" />
-      <div className="divide-y divide-borderStrong/60">
-        {events.map((event) => (
-          <div
-            key={`${event.event}-${event.time}`}
-            className={cn(
-              "flex items-center justify-between gap-4 px-3 py-3",
-              event.isHighlighted &&
-                "bg-accentBlue/10 shadow-[inset_3px_0_0_rgba(56,189,248,0.95)] ring-1 ring-inset ring-accentBlue/25"
-            )}
-          >
-            <div className="min-w-0">
+      <SectionHeader title="Today's Economic Events" />
+      {events.length ? (
+        <div className="divide-y divide-borderStrong/60">
+          {events.map((event) => (
+            <div
+              key={`${event.event}-${event.time}`}
+              className={cn(
+                "flex items-center justify-between gap-4 px-3 py-3",
+                event.isHighlighted &&
+                  "bg-accentBlue/10 shadow-[inset_3px_0_0_rgba(56,189,248,0.95)] ring-1 ring-inset ring-accentBlue/25"
+              )}
+            >
+              <div className="min-w-0">
+                <p
+                  className={cn(
+                    "truncate text-sm font-semibold text-textPrimary",
+                    event.isHighlighted && "font-bold text-white"
+                  )}
+                >
+                  {event.event}
+                </p>
+                <p
+                  className="mt-1 text-xs leading-none tracking-[0.18em] text-textSecondary"
+                  aria-label={`${event.importance} importance`}
+                >
+                  {importanceStars(event.importance, event.stars)}
+                </p>
+              </div>
               <p
-                className={cn(
-                  "truncate text-sm font-semibold text-textPrimary",
-                  event.isHighlighted && "font-bold text-white"
-                )}
+                className="shrink-0 text-right text-sm font-semibold text-textSecondary"
+                title={timestampTitle(event.time)}
               >
-                {event.event}
-              </p>
-              <p
-                className="mt-1 text-xs leading-none tracking-[0.18em] text-textSecondary"
-                aria-label={`${event.importance} importance`}
-              >
-                {importanceStars(event.importance, event.stars)}
+                {formatEtTime(event.timestamp ?? event.time)}
               </p>
             </div>
-            <p
-              className="shrink-0 text-right text-sm font-semibold text-textSecondary"
-              title={timestampTitle(event.time)}
-            >
-              {formatEtTime(event.timestamp ?? event.time)}
-            </p>
-          </div>
-        ))}
-      </div>
+          ))}
+        </div>
+      ) : (
+        <div className="rounded-none border border-dashed border-borderStrong px-3 py-4 text-center text-xs text-textMuted">
+          No economic events are available for today.
+        </div>
+      )}
     </Panel>
   );
 }

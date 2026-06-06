@@ -12,7 +12,7 @@ import {
 } from "./adapters/unusual-whales-news";
 import {
   buildInvestingEconomicCalendarWeekRange,
-  fetchInvestingEconomicCalendar,
+  getCachedInvestingEconomicCalendarRange,
   investingEconomicSources,
   type InvestingEconomicEvent
 } from "./adapters/investing-economic-calendar";
@@ -265,7 +265,7 @@ function formatEconomicEventCount(count: number) {
 }
 
 function formatImportantEconomicEventCount(count: number) {
-  return `${count} Very Important`;
+  return `${count} Significant`;
 }
 
 function economicImportanceFromStars(
@@ -305,7 +305,7 @@ function addDaysToDateKey(dateKey: string, days: number) {
 }
 
 export async function getEconomicCalendarEvents(dateKey = todayDateKey()) {
-  const result = await fetchInvestingEconomicCalendar(dateKey);
+  const result = await getCachedInvestingEconomicCalendarRange(dateKey);
   return {
     events: result.events
       .map(dashboardEventFromInvestingEvent)
@@ -316,8 +316,8 @@ export async function getEconomicCalendarEvents(dateKey = todayDateKey()) {
 }
 
 export async function getEconomicCalendarWeekEvents(dateKey = todayDateKey()) {
-  const result = await fetchInvestingEconomicCalendar(dateKey);
   const { startDate, endDate } = buildInvestingEconomicCalendarWeekRange(dateKey);
+  const result = await getCachedInvestingEconomicCalendarRange(startDate, endDate);
   return {
     events: result.events
       .map(dashboardEventFromInvestingEvent)
@@ -523,10 +523,7 @@ export async function getTodayPayload(): Promise<{
     ? earningsSnapshotFromUnusualWhales(topTodayEarnings)
     : [];
   const earningsSummary = todayEarningsSummary(todayEarnings);
-  const todayEconomicEvents =
-    economicCalendarResult.mode === "live"
-      ? economicCalendarResult.events
-      : todayMock.economicCalendar;
+  const todayEconomicEvents = economicCalendarResult.events;
   const highlightedEconomicEventCount = todayEconomicEvents.filter(
     (event) => event.isHighlighted || event.eventKey
   ).length;
@@ -628,10 +625,7 @@ export async function getNewsCalendarPayload(): Promise<{
   return {
     payload: {
       news,
-      economicCalendar:
-        economicCalendarResult.mode === "live"
-          ? economicCalendarResult.events
-          : todayMock.economicCalendar,
+      economicCalendar: economicCalendarResult.events,
       earnings: unusualWhalesEarningsResult.events.length
         ? earningsSnapshotFromUnusualWhales(unusualWhalesEarningsResult.events)
         : earningsData,

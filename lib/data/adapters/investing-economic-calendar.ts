@@ -625,17 +625,21 @@ export function economicRefreshDateKeysFromParams(params: URLSearchParams) {
   return defaultEconomicRefreshDateKeys();
 }
 
-export async function getCachedInvestingEconomicCalendar(
-  dateKey = formatEtDateKey(new Date()) ?? ""
+export async function getCachedInvestingEconomicCalendarRange(
+  startDate: string,
+  endDate = startDate
 ): Promise<CachedEconomicResult> {
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(dateKey))
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(startDate) || !/^\d{4}-\d{2}-\d{2}$/.test(endDate)) {
     return { events: [], mode: "unavailable", message: "Invalid economic calendar date." };
+  }
   const supabase = createServerSupabaseClient();
   if (!supabase.ok) return { events: [], mode: "unavailable", message: supabase.message };
   const { data, error } = await supabase.client
     .from("investing_economic_events")
     .select("*")
-    .eq("event_date", dateKey)
+    .gte("event_date", startDate)
+    .lte("event_date", endDate)
+    .order("event_date", { ascending: true })
     .order("event_time", { ascending: true, nullsFirst: false });
   if (error || !data?.length) {
     return {
@@ -647,4 +651,10 @@ export async function getCachedInvestingEconomicCalendar(
     };
   }
   return { events: data.map((row) => economicFromDbRow(row as UnknownRecord)), mode: "live" };
+}
+
+export async function getCachedInvestingEconomicCalendar(
+  dateKey = formatEtDateKey(new Date()) ?? ""
+): Promise<CachedEconomicResult> {
+  return getCachedInvestingEconomicCalendarRange(dateKey);
 }
