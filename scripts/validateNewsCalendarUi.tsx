@@ -593,13 +593,13 @@ const todayData: TodayPayload = {
   ...todayMock,
   marketSummary: [
     { label: "Leading Sectors", value: "Tech", tone: "positive" },
-    { label: "Risk On Risk Off", value: "1.10", change: "Risk Off", tone: "neutral" },
+    { label: "Risk On / Risk Off", value: "1.10", change: "Risk Off", tone: "neutral" },
     { label: "Put/Call Ratio", value: "0.91", change: "Neutral", tone: "neutral" },
     { label: "Today's Earnings", value: "2 Earnings", tone: "neutral" },
     {
       label: "Today's Economic Events",
       value: "2 Events",
-      change: "1 Very Important",
+      change: "1 Significant",
       tone: "neutral"
     }
   ],
