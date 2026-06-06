@@ -14,6 +14,7 @@ import { SectionHeader } from "@/components/ui/section-header";
 import { formatEtDateKey, formatEtDateTime, formatEtTime, timestampTitle } from "@/lib/utils/time";
 import { cn } from "@/lib/utils/cn";
 import { getMajorEarningsForDate, groupEarningsBySession } from "@/lib/data/earnings-utils";
+import { getEconomicActualTone } from "@/lib/data/economic-surprise";
 
 type WeekOffset = -1 | 0 | 1;
 type EarningsGroupKey = "premarket" | "postmarket";
@@ -258,7 +259,7 @@ function EarningsCalendar({
   selectedDate: string;
 }) {
   const grouped = useMemo(() => {
-    const topEarnings = getMajorEarningsForDate(data.unusualWhalesEarnings, selectedDate, 10);
+    const topEarnings = getMajorEarningsForDate(data.unusualWhalesEarnings, selectedDate, 8);
     const groupsBySession = groupEarningsBySession(topEarnings);
     return {
       premarket: groupsBySession.premarket,
@@ -359,32 +360,28 @@ function EconomicCalendar({
               {selectedEvents.map((event) => (
                 <tr
                   key={event.id ?? `${event.event}-${event.time}`}
-                  className={cn("hover:bg-panelHover/60", event.isHighlighted && "bg-accentBlue/5")}
+                  className={cn(
+                    "hover:bg-panelHover/60",
+                    event.isHighlighted &&
+                      "bg-accentBlue/10 shadow-[inset_3px_0_0_rgba(56,189,248,0.95)] ring-1 ring-inset ring-accentBlue/25"
+                  )}
                 >
                   <td
                     className={cn(
-                      "border-b border-borderStrong/50 px-2.5 py-3 align-top tabular text-textSecondary last:border-b-0",
-                      event.isHighlighted && "border-l-2 border-l-accentBlue/70"
+                      "border-b border-borderStrong/50 px-2.5 py-3 align-top tabular text-textSecondary last:border-b-0"
                     )}
                   >
                     {formatEtTime(event.timestamp ?? event.time)}
                   </td>
                   <td className="min-w-0 border-b border-borderStrong/50 px-2.5 py-3 align-top last:border-b-0">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <p
-                        className={cn(
-                          "whitespace-normal break-words font-semibold leading-snug text-textPrimary",
-                          event.isHighlighted && "text-white"
-                        )}
-                      >
-                        {event.event}
-                      </p>
-                      {event.isHighlighted ? (
-                        <span className="rounded-sm border border-accentBlue/40 bg-accentBlue/10 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-[0.14em] text-accentBlue">
-                          Key
-                        </span>
-                      ) : null}
-                    </div>
+                    <p
+                      className={cn(
+                        "whitespace-normal break-words font-semibold leading-snug text-textPrimary",
+                        event.isHighlighted && "font-bold text-white"
+                      )}
+                    >
+                      {event.event}
+                    </p>
                     <p
                       className="mt-1 text-[11px] leading-none tracking-[0.16em] text-textSecondary"
                       aria-label={`${event.importance} importance`}
@@ -392,14 +389,21 @@ function EconomicCalendar({
                       {importanceStars(event.importance, event.stars)}
                     </p>
                   </td>
-                  {[event.actual, event.forecast, event.previous].map((value, index) => (
-                    <td
-                      key={`${event.id ?? event.event}-value-${index}`}
-                      className="border-b border-borderStrong/50 px-2.5 py-3 align-top tabular text-textSecondary last:border-b-0"
-                    >
-                      {value ?? "—"}
-                    </td>
-                  ))}
+                  {[event.actual, event.forecast, event.previous].map((value, index) => {
+                    const actualTone = index === 0 ? getEconomicActualTone(event) : "neutral";
+                    return (
+                      <td
+                        key={`${event.id ?? event.event}-value-${index}`}
+                        className={cn(
+                          "border-b border-borderStrong/50 px-2.5 py-3 align-top tabular text-textSecondary last:border-b-0",
+                          actualTone === "positive" && "font-semibold text-positive",
+                          actualTone === "negative" && "font-semibold text-negative"
+                        )}
+                      >
+                        {value ?? "—"}
+                      </td>
+                    );
+                  })}
                 </tr>
               ))}
             </tbody>
@@ -415,7 +419,7 @@ function EconomicCalendar({
 }
 
 export function NewsCalendarView({ data }: { data: NewsCalendarPayload }) {
-  const latestNews = data.news.slice(0, 8);
+  const latestNews = data.news.slice(0, 12);
   const [selection, setSelection] = useState<DaySelection>(() => initialDaySelection());
 
   return (
