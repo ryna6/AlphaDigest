@@ -379,3 +379,249 @@ export function investingEconomicSources() {
     endpoint: INVESTING_ECONOMIC_CALENDAR_ENDPOINT
   };
 }
+
+import { createServerSupabaseClient } from "@/lib/db/supabase";
+import { payloadContentHash, sourceResult, updateRefreshMetadata } from "./supabase-refresh";
+import { stableHash } from "./unusual-whales-earnings";
+
+const INVESTING_METADATA_SOURCE = "investing_economic_events";
+
+type CachedEconomicResult = FetchResult & { metadata?: Record<string, unknown> | null };
+
+function eventContentHash(event: InvestingEconomicEvent) {
+  return stableHash({
+    id: event.id,
+    eventId: event.eventId,
+    eventKey: event.eventKey,
+    eventName: event.eventName,
+    eventDate: event.eventDate,
+    time: event.time,
+    timestamp: event.timestamp,
+    importance: event.importance,
+    stars: event.stars,
+    actual: event.actual,
+    forecast: event.forecast,
+    previous: event.previous,
+    isHighlighted: event.isHighlighted,
+    highlightReason: event.highlightReason,
+    country: event.country
+  });
+}
+
+function economicToDbRow(event: InvestingEconomicEvent) {
+  return {
+    id: event.id,
+    event_id: event.eventId === null ? null : String(event.eventId),
+    event_key: event.eventKey,
+    event_name: event.eventName,
+    event_date: event.eventDate,
+    time: event.time,
+    event_time: event.timestamp,
+    importance: event.importance,
+    stars: event.stars,
+    actual: event.actual,
+    forecast: event.forecast,
+    previous: event.previous,
+    is_highlighted: event.isHighlighted,
+    highlight_reason: event.highlightReason,
+    country: event.country,
+    source_name: event.source,
+    source_url: buildInvestingEconomicCalendarUrl(event.eventDate),
+    raw: event.raw,
+    content_hash: eventContentHash(event),
+    fetched_at: event.fetchedAt,
+    updated_at: new Date().toISOString()
+  };
+}
+
+function economicFromDbRow(row: UnknownRecord): InvestingEconomicEvent {
+  return {
+    source: "investing_com",
+    id: String(row.id),
+    eventId: asNumberOrString(row.event_id),
+    eventKey: asString(row.event_key) as ImportantEconomicEventKey | null,
+    eventName: String(row.event_name ?? ""),
+    eventDate: String(row.event_date),
+    time: asString(row.time),
+    timestamp: asString(row.event_time),
+    importance: asString(row.importance),
+    stars:
+      row.stars === 1 || row.stars === 2 || row.stars === 3
+        ? row.stars
+        : starsFromImportance(asString(row.importance)),
+    actual: asString(row.actual),
+    forecast: asString(row.forecast),
+    previous: asString(row.previous),
+    isHighlighted: Boolean(row.is_highlighted),
+    highlightReason: asString(row.highlight_reason),
+    country: asString(row.country),
+    fetchedAt: asString(row.fetched_at) ?? new Date().toISOString(),
+    raw: isRecord(row.raw) ? row.raw : {}
+  };
+}
+
+function dateKeyFromDate(date: Date) {
+  return date.toISOString().slice(0, 10);
+}
+
+function addUtcDays(date: Date, days: number) {
+  const copy = new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate()));
+  copy.setUTCDate(copy.getUTCDate() + days);
+  return copy;
+}
+
+function dateKeysBetween(startDate: string, endDate: string) {
+  const start = new Date(`${startDate}T00:00:00Z`);
+  const end = new Date(`${endDate}T00:00:00Z`);
+  if (!Number.isFinite(start.getTime()) || !Number.isFinite(end.getTime()) || start > end)
+    return [];
+  const keys: string[] = [];
+  for (let cursor = start; cursor <= end; cursor = addUtcDays(cursor, 1)) {
+    const key = dateKeyFromDate(cursor);
+    if (!isWeekendDateKey(key)) keys.push(key);
+  }
+  return keys;
+}
+
+export function defaultEconomicRefreshDateKeys(date = new Date()) {
+  const keys: string[] = [];
+  for (let offset = 0; keys.length < 5 && offset < 10; offset += 1) {
+    const key = dateKeyFromDate(addUtcDays(date, -offset));
+    if (!isWeekendDateKey(key)) keys.push(key);
+  }
+  return keys.reverse();
+}
+
+export async function refreshInvestingEconomicEvents(dateKeys = defaultEconomicRefreshDateKeys()) {
+  const uniqueDateKeys = Array.from(
+    new Set(dateKeys.filter((key) => /^\d{4}-\d{2}-\d{2}$/.test(key) && !isWeekendDateKey(key)))
+  );
+  const supabase = createServerSupabaseClient();
+  const events: InvestingEconomicEvent[] = [];
+  const fetchMeta: Array<Record<string, unknown>> = [];
+
+  for (const dateKey of uniqueDateKeys) {
+    const url = buildInvestingEconomicCalendarUrl(dateKey);
+    console.log("force_refresh_fetch", { source: INVESTING_METADATA_SOURCE, date: dateKey, url });
+    const result = await fetchInvestingEconomicCalendar(dateKey);
+    fetchMeta.push({ date: dateKey, mode: result.mode, count: result.events.length, url });
+    events.push(...result.events.filter((event) => event.eventDate === dateKey));
+  }
+
+  const deduped = Array.from(new Map(events.map((event) => [event.id, event])).values());
+  const rows = deduped.map(economicToDbRow);
+  const contentHash = payloadContentHash(
+    rows.map(({ fetched_at: _fetchedAt, updated_at: _updatedAt, ...row }) => row)
+  );
+  console.log("force_refresh_normalized", {
+    source: INVESTING_METADATA_SOURCE,
+    fetched: events.length,
+    normalized: rows.length
+  });
+
+  if (!supabase.ok)
+    return sourceResult({
+      ok: true,
+      count: rows.length,
+      changed: true,
+      contentHash,
+      persisted: false,
+      error: supabase.message,
+      meta: { dates: uniqueDateKeys }
+    });
+
+  try {
+    const { data: metadata } = await supabase.client
+      .from("data_refresh_metadata")
+      .select("content_hash")
+      .eq("source", INVESTING_METADATA_SOURCE)
+      .maybeSingle();
+    const changed = metadata?.content_hash !== contentHash;
+    let upserted = 0;
+    if (rows.length && changed) {
+      const { error } = await supabase.client
+        .from("investing_economic_events")
+        .upsert(rows, { onConflict: "id" });
+      if (error) throw new Error(`Supabase economic events upsert failed: ${error.message}`);
+      upserted = rows.length;
+    }
+    await updateRefreshMetadata(supabase.client, INVESTING_METADATA_SOURCE, {
+      ok: true,
+      changed,
+      rowCount: rows.length,
+      contentHash,
+      meta: { dates: uniqueDateKeys, fetches: fetchMeta }
+    });
+    console.log("force_refresh_upserted", { source: INVESTING_METADATA_SOURCE, upserted, changed });
+    return sourceResult({
+      ok: true,
+      count: rows.length,
+      changed,
+      contentHash,
+      upserted,
+      persisted: true,
+      meta: { dates: uniqueDateKeys }
+    });
+  } catch (error) {
+    const message =
+      error instanceof Error ? error.message : "Unknown economic events refresh error";
+    await updateRefreshMetadata(supabase.client, INVESTING_METADATA_SOURCE, {
+      ok: false,
+      changed: null,
+      rowCount: rows.length,
+      contentHash,
+      error: message,
+      meta: { dates: uniqueDateKeys, fetches: fetchMeta }
+    });
+    console.error("force_refresh_error", { source: INVESTING_METADATA_SOURCE, error: message });
+    return sourceResult({
+      ok: false,
+      count: rows.length,
+      changed: null,
+      contentHash,
+      error: message,
+      persisted: true,
+      meta: { dates: uniqueDateKeys }
+    });
+  }
+}
+
+export function economicRefreshDateKeysFromParams(params: URLSearchParams) {
+  const date = params.get("date");
+  if (date && /^\d{4}-\d{2}-\d{2}$/.test(date)) return isWeekendDateKey(date) ? [] : [date];
+  const startDate = params.get("start_date");
+  const endDate = params.get("end_date");
+  if (
+    startDate &&
+    endDate &&
+    /^\d{4}-\d{2}-\d{2}$/.test(startDate) &&
+    /^\d{4}-\d{2}-\d{2}$/.test(endDate)
+  ) {
+    return dateKeysBetween(startDate, endDate);
+  }
+  return defaultEconomicRefreshDateKeys();
+}
+
+export async function getCachedInvestingEconomicCalendar(
+  dateKey = formatEtDateKey(new Date()) ?? ""
+): Promise<CachedEconomicResult> {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(dateKey))
+    return { events: [], mode: "unavailable", message: "Invalid economic calendar date." };
+  const supabase = createServerSupabaseClient();
+  if (!supabase.ok) return { events: [], mode: "unavailable", message: supabase.message };
+  const { data, error } = await supabase.client
+    .from("investing_economic_events")
+    .select("*")
+    .eq("event_date", dateKey)
+    .order("event_time", { ascending: true, nullsFirst: false });
+  if (error || !data?.length) {
+    return {
+      events: [],
+      mode: "unavailable",
+      message: error
+        ? `Supabase economic events read failed: ${error.message}`
+        : "Supabase economic events cache is empty for selected date."
+    };
+  }
+  return { events: data.map((row) => economicFromDbRow(row as UnknownRecord)), mode: "live" };
+}
