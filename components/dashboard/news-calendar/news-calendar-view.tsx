@@ -14,11 +14,12 @@ import { SectionHeader } from "@/components/ui/section-header";
 import { formatEtDateKey, formatEtDateTime, formatEtTime, timestampTitle } from "@/lib/utils/time";
 import { cn } from "@/lib/utils/cn";
 import { getMajorEarningsForDate, groupEarningsBySession } from "@/lib/data/earnings-utils";
+import { getEconomicActualTone } from "@/lib/data/economic-surprise";
 
-type WeekOffset = -1 | 0 | 1;
+export type WeekOffset = -1 | 0 | 1;
 type EarningsGroupKey = "premarket" | "postmarket";
 
-type DaySelection = {
+export type DaySelection = {
   weekOffset: WeekOffset;
   selectedDate: string;
   selectedWeekday: number;
@@ -59,49 +60,52 @@ function NewsList({ news }: { news: NewsItem[] }) {
   );
 }
 
-function dateKey(date: Date) {
-  const year = date.getFullYear();
-  const month = `${date.getMonth() + 1}`.padStart(2, "0");
-  const day = `${date.getDate()}`.padStart(2, "0");
-  return `${year}-${month}-${day}`;
+function isDateKey(value: string | undefined | null) {
+  return Boolean(value && /^\d{4}-\d{2}-\d{2}$/.test(value));
 }
 
-function addDays(date: Date, days: number) {
-  const next = new Date(date);
-  next.setDate(next.getDate() + days);
-  return next;
+function addDaysToDateKey(dateKey: string, days: number) {
+  const date = new Date(`${dateKey}T12:00:00Z`);
+  date.setUTCDate(date.getUTCDate() + days);
+  return date.toISOString().slice(0, 10);
 }
 
-function mondayForWeek(date: Date) {
-  const day = date.getDay();
-  const daysFromMonday = day === 0 ? 6 : day - 1;
-  return addDays(date, -daysFromMonday);
-}
-
-function selectedWeekdayFor(date: Date) {
-  const weekday = date.getDay();
+function weekdayForDateKey(dateKey: string) {
+  const weekday = new Date(`${dateKey}T12:00:00Z`).getUTCDay();
   return weekday >= 1 && weekday <= 5 ? weekday : 1;
 }
 
-function buildWeekDays(weekOffset: WeekOffset, today = new Date()) {
-  const monday = addDays(mondayForWeek(today), weekOffset * 7);
+function mondayForDateKey(dateKey: string) {
+  const weekday = new Date(`${dateKey}T12:00:00Z`).getUTCDay();
+  const daysFromMonday = weekday === 0 ? 6 : weekday - 1;
+  return addDaysToDateKey(dateKey, -daysFromMonday);
+}
+
+function weekdayLabelForDateKey(dateKey: string) {
+  return new Intl.DateTimeFormat("en-US", {
+    weekday: "short",
+    month: "short",
+    day: "numeric",
+    timeZone: "UTC"
+  }).format(new Date(`${dateKey}T12:00:00Z`));
+}
+
+export function buildWeekDays(weekOffset: WeekOffset, today = new Date()) {
+  const todayEtDateKey = formatEtDateKey(today) ?? today.toISOString().slice(0, 10);
+  const monday = addDaysToDateKey(mondayForDateKey(todayEtDateKey), weekOffset * 7);
   return Array.from({ length: 5 }, (_, index) => {
-    const date = addDays(monday, index);
+    const dayDateKey = addDaysToDateKey(monday, index);
     return {
-      date: dateKey(date),
-      label: new Intl.DateTimeFormat("en-US", {
-        weekday: "short",
-        month: "short",
-        day: "numeric"
-      }).format(date),
+      date: dayDateKey,
+      label: weekdayLabelForDateKey(dayDateKey),
       weekday: index + 1
     };
   });
 }
 
-function initialDaySelection(): DaySelection {
-  const today = new Date();
-  const selectedWeekday = selectedWeekdayFor(today);
+export function initialDaySelection(today = new Date()): DaySelection {
+  const todayEtDateKey = formatEtDateKey(today) ?? today.toISOString().slice(0, 10);
+  const selectedWeekday = weekdayForDateKey(todayEtDateKey);
   const days = buildWeekDays(0, today);
   return {
     weekOffset: 0,
@@ -109,6 +113,16 @@ function initialDaySelection(): DaySelection {
     selectedDate: days[selectedWeekday - 1]?.date ?? days[0].date,
     days
   };
+}
+
+function debugEconomicCalendarSelection(message: string, details: Record<string, unknown>) {
+  if (typeof window === "undefined") return;
+  try {
+    if (window.localStorage.getItem("debugEconomicCalendar") !== "1") return;
+    console.info(`[economic-calendar] ${message}`, details);
+  } catch {
+    // localStorage may be unavailable in private browsing or SSR-like environments.
+  }
 }
 
 function WeekdaySelector({
@@ -121,13 +135,15 @@ function WeekdaySelector({
   const moveWeek = (direction: -1 | 1) => {
     const nextOffset = Math.max(-1, Math.min(1, selection.weekOffset + direction)) as WeekOffset;
     const days = buildWeekDays(nextOffset);
-    const selectedDay = direction === 1 ? days[0] : days[days.length - 1];
-    onChange({
+    const selectedDay = days[selection.selectedWeekday - 1] ?? days[0];
+    const nextSelection = {
       weekOffset: nextOffset,
       selectedWeekday: selectedDay.weekday,
       selectedDate: selectedDay.date,
       days
-    });
+    };
+    debugEconomicCalendarSelection("week-change", nextSelection);
+    onChange(nextSelection);
   };
 
   return (
@@ -147,13 +163,15 @@ function WeekdaySelector({
             <button
               key={day.date}
               type="button"
-              onClick={() =>
-                onChange({
+              onClick={() => {
+                const nextSelection = {
                   ...selection,
                   selectedDate: day.date,
                   selectedWeekday: day.weekday
-                })
-              }
+                };
+                debugEconomicCalendarSelection("day-change", nextSelection);
+                onChange(nextSelection);
+              }}
               className={cn(
                 "rounded-none border px-1.5 py-2 text-[10px] font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accentBlue/60",
                 active
@@ -258,7 +276,7 @@ function EarningsCalendar({
   selectedDate: string;
 }) {
   const grouped = useMemo(() => {
-    const topEarnings = getMajorEarningsForDate(data.unusualWhalesEarnings, selectedDate, 10);
+    const topEarnings = getMajorEarningsForDate(data.unusualWhalesEarnings, selectedDate, 8);
     const groupsBySession = groupEarningsBySession(topEarnings);
     return {
       premarket: groupsBySession.premarket,
@@ -287,6 +305,7 @@ function EarningsCalendar({
 }
 
 function eventDateKey(event: EconomicEvent) {
+  if (isDateKey(event.eventDate)) return event.eventDate;
   const direct = /^\d{4}-\d{2}-\d{2}$/.test(event.time) ? event.time : null;
   return direct ?? formatEtDateKey(event.time);
 }
@@ -312,7 +331,12 @@ function EconomicCalendar({
       .then((payload) => {
         if (cancelled) return;
         const events = Array.isArray(payload?.payload?.events) ? payload.payload.events : [];
-        setEventsByDate((current) => ({ ...current, [selectedDate]: events }));
+        setEventsByDate((current) => ({
+          ...current,
+          [selectedDate]: events.filter(
+            (event: EconomicEvent) => eventDateKey(event) === selectedDate
+          )
+        }));
       })
       .catch(() => {
         if (!cancelled) setEventsByDate((current) => ({ ...current, [selectedDate]: [] }));
@@ -325,7 +349,16 @@ function EconomicCalendar({
     };
   }, [eventsByDate, selectedDate]);
 
-  const selectedEvents = eventsByDate[selectedDate] ?? [];
+  const selectedEvents = (eventsByDate[selectedDate] ?? []).filter(
+    (event) => eventDateKey(event) === selectedDate
+  );
+
+  useEffect(() => {
+    debugEconomicCalendarSelection("display", {
+      selectedDate,
+      numberOfEventsDisplayed: selectedEvents.length
+    });
+  }, [selectedDate, selectedEvents.length]);
 
   return (
     <Panel>
@@ -359,32 +392,28 @@ function EconomicCalendar({
               {selectedEvents.map((event) => (
                 <tr
                   key={event.id ?? `${event.event}-${event.time}`}
-                  className={cn("hover:bg-panelHover/60", event.isHighlighted && "bg-accentBlue/5")}
+                  className={cn(
+                    "hover:bg-panelHover/60",
+                    event.isHighlighted &&
+                      "bg-accentBlue/10 shadow-[inset_3px_0_0_rgba(56,189,248,0.95)] ring-1 ring-inset ring-accentBlue/25"
+                  )}
                 >
                   <td
                     className={cn(
-                      "border-b border-borderStrong/50 px-2.5 py-3 align-top tabular text-textSecondary last:border-b-0",
-                      event.isHighlighted && "border-l-2 border-l-accentBlue/70"
+                      "border-b border-borderStrong/50 px-2.5 py-3 align-top tabular text-textSecondary last:border-b-0"
                     )}
                   >
                     {formatEtTime(event.timestamp ?? event.time)}
                   </td>
                   <td className="min-w-0 border-b border-borderStrong/50 px-2.5 py-3 align-top last:border-b-0">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <p
-                        className={cn(
-                          "whitespace-normal break-words font-semibold leading-snug text-textPrimary",
-                          event.isHighlighted && "text-white"
-                        )}
-                      >
-                        {event.event}
-                      </p>
-                      {event.isHighlighted ? (
-                        <span className="rounded-sm border border-accentBlue/40 bg-accentBlue/10 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-[0.14em] text-accentBlue">
-                          Key
-                        </span>
-                      ) : null}
-                    </div>
+                    <p
+                      className={cn(
+                        "whitespace-normal break-words font-semibold leading-snug text-textPrimary",
+                        event.isHighlighted && "font-bold text-white"
+                      )}
+                    >
+                      {event.event}
+                    </p>
                     <p
                       className="mt-1 text-[11px] leading-none tracking-[0.16em] text-textSecondary"
                       aria-label={`${event.importance} importance`}
@@ -392,14 +421,21 @@ function EconomicCalendar({
                       {importanceStars(event.importance, event.stars)}
                     </p>
                   </td>
-                  {[event.actual, event.forecast, event.previous].map((value, index) => (
-                    <td
-                      key={`${event.id ?? event.event}-value-${index}`}
-                      className="border-b border-borderStrong/50 px-2.5 py-3 align-top tabular text-textSecondary last:border-b-0"
-                    >
-                      {value ?? "—"}
-                    </td>
-                  ))}
+                  {[event.actual, event.forecast, event.previous].map((value, index) => {
+                    const actualTone = index === 0 ? getEconomicActualTone(event) : "neutral";
+                    return (
+                      <td
+                        key={`${event.id ?? event.event}-value-${index}`}
+                        className={cn(
+                          "border-b border-borderStrong/50 px-2.5 py-3 align-top tabular text-textSecondary last:border-b-0",
+                          actualTone === "positive" && "font-semibold text-positive",
+                          actualTone === "negative" && "font-semibold text-negative"
+                        )}
+                      >
+                        {value ?? "—"}
+                      </td>
+                    );
+                  })}
                 </tr>
               ))}
             </tbody>
@@ -415,7 +451,7 @@ function EconomicCalendar({
 }
 
 export function NewsCalendarView({ data }: { data: NewsCalendarPayload }) {
-  const latestNews = data.news.slice(0, 8);
+  const latestNews = data.news.slice(0, 12);
   const [selection, setSelection] = useState<DaySelection>(() => initialDaySelection());
 
   return (

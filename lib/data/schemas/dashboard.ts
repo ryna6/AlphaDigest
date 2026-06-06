@@ -34,6 +34,10 @@ export const eventSchema = z.object({
   id: z.string().optional(),
   eventId: z.union([z.number(), z.string()]).nullable().optional(),
   eventKey: z.string().nullable().optional(),
+  eventDate: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/)
+    .optional(),
   time: z.string(),
   timestamp: z.string().nullable().optional(),
   event: z.string(),

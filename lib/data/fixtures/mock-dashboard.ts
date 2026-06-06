@@ -30,14 +30,20 @@ export const todayMock: TodayPayload = {
   },
   marketSummary: [
     {
-      label: "Leading sectors",
+      label: "Leading Sectors",
       value: "Tech, Comm Services, Energy",
       change: "+0.82% / +0.61% / +0.44%",
       tone: "positive"
     },
-    { label: "Risk-on / risk-off", value: "1.22", change: "risk off", tone: "neutral" },
-    { label: "Today’s earnings", value: "1 Earning", tone: "neutral" },
-    { label: "Put/call ratio", value: "0.91", change: "Neutral", tone: "neutral" }
+    { label: "Risk On Risk Off", value: "1.22", change: "risk off", tone: "neutral" },
+    { label: "Put/Call Ratio", value: "0.91", change: "Neutral", tone: "neutral" },
+    { label: "Today's Earnings", value: "1 Earning", tone: "neutral" },
+    {
+      label: "Today's Economic Events",
+      value: "2 Events",
+      change: "1 Very Important",
+      tone: "neutral"
+    }
   ],
   keyStats: [
     {

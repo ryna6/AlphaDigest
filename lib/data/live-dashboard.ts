@@ -259,6 +259,14 @@ function todayEarningsSummary(events: UnusualWhalesEarningsEvent[]) {
   };
 }
 
+function formatEconomicEventCount(count: number) {
+  return `${count} ${count === 1 ? "Event" : "Events"}`;
+}
+
+function formatImportantEconomicEventCount(count: number) {
+  return `${count} Very Important`;
+}
+
 function economicImportanceFromStars(
   stars: InvestingEconomicEvent["stars"]
 ): EconomicEvent["importance"] {
@@ -273,6 +281,7 @@ function dashboardEventFromInvestingEvent(event: InvestingEconomicEvent): Econom
     id: event.id,
     eventId: event.eventId,
     eventKey: event.eventKey,
+    eventDate: event.eventDate,
     time: event.timestamp ?? event.time ?? "",
     timestamp: event.timestamp,
     event: event.eventName,
@@ -291,7 +300,9 @@ function dashboardEventFromInvestingEvent(event: InvestingEconomicEvent): Econom
 export async function getEconomicCalendarEvents(dateKey = todayDateKey()) {
   const result = await fetchInvestingEconomicCalendar(dateKey);
   return {
-    events: result.events.map(dashboardEventFromInvestingEvent),
+    events: result.events
+      .map(dashboardEventFromInvestingEvent)
+      .filter((event) => event.eventDate === dateKey),
     mode: result.mode,
     message: result.message
   };
@@ -470,27 +481,40 @@ export async function getTodayPayload(): Promise<{
     ? earningsSnapshotFromUnusualWhales(topTodayEarnings)
     : [];
   const earningsSummary = todayEarningsSummary(todayEarnings);
+  const todayEconomicEvents =
+    economicCalendarResult.mode === "live"
+      ? economicCalendarResult.events
+      : todayMock.economicCalendar;
+  const highlightedEconomicEventCount = todayEconomicEvents.filter(
+    (event) => event.isHighlighted || event.eventKey
+  ).length;
 
   return {
     payload: {
       ...todayMock,
       marketSummary: [
         {
-          label: "Leading sectors",
+          label: "Leading Sectors",
           value: leading.map((item) => sectorShortNames[item.symbol] ?? item.label).join(", "),
           change: leading.map((item) => formatPercent(item.changePercent)).join(" / "),
           tone: leading[0]?.changePercent >= 0 ? "positive" : "negative"
         },
-        { label: "Risk-on / risk-off", value: riskRatio, change: riskTone, tone: "neutral" },
+        { label: "Risk On Risk Off", value: riskRatio, change: riskTone, tone: "neutral" },
         {
-          label: "Today’s earnings",
+          label: "Put/Call Ratio",
+          value: todayMock.marketSummary[2].value,
+          change: todayMock.marketSummary[2].change,
+          tone: "neutral"
+        },
+        {
+          label: "Today's Earnings",
           value: earningsSummary.value,
           tone: "neutral"
         },
         {
-          label: "Put/call ratio",
-          value: todayMock.marketSummary[3].value,
-          change: todayMock.marketSummary[3].change,
+          label: "Today's Economic Events",
+          value: formatEconomicEventCount(todayEconomicEvents.length),
+          change: formatImportantEconomicEventCount(highlightedEconomicEventCount),
           tone: "neutral"
         }
       ],
@@ -499,10 +523,7 @@ export async function getTodayPayload(): Promise<{
         : todayMock.featuredNews,
       earnings: earningsData,
       unusualWhalesEarnings: todayEarnings,
-      economicCalendar:
-        economicCalendarResult.mode === "live"
-          ? economicCalendarResult.events
-          : todayMock.economicCalendar,
+      economicCalendar: todayEconomicEvents,
       keyStats: todayKeyStats,
       sectorSnapshot: leading.map((item) => ({
         label: item.label,

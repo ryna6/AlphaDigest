@@ -33,7 +33,7 @@ function earningsTimeLabel(time: EarningsEvent["time"]) {
 }
 
 function roroExplanation(metric: Metric) {
-  if (metric.label !== "Risk-on / risk-off") return metric.change;
+  if (metric.label !== "Risk On Risk Off") return metric.change;
 
   const ratio = Number(metric.value);
   if (!Number.isFinite(ratio)) return metric.change;
@@ -143,10 +143,21 @@ function EconomicEventsPanel({ events }: { events: EconomicEvent[] }) {
         {events.map((event) => (
           <div
             key={`${event.event}-${event.time}`}
-            className="flex items-center justify-between gap-4 py-3"
+            className={cn(
+              "flex items-center justify-between gap-4 px-3 py-3",
+              event.isHighlighted &&
+                "bg-accentBlue/10 shadow-[inset_3px_0_0_rgba(56,189,248,0.95)] ring-1 ring-inset ring-accentBlue/25"
+            )}
           >
             <div className="min-w-0">
-              <p className="truncate text-sm font-semibold text-textPrimary">{event.event}</p>
+              <p
+                className={cn(
+                  "truncate text-sm font-semibold text-textPrimary",
+                  event.isHighlighted && "font-bold text-white"
+                )}
+              >
+                {event.event}
+              </p>
               <p
                 className="mt-1 text-xs leading-none tracking-[0.18em] text-textSecondary"
                 aria-label={`${event.importance} importance`}
@@ -186,7 +197,7 @@ export function TodayView({ data }: { data: TodayPayload }) {
       <PageTitle title="Today" />
       <Panel>
         <SectionHeader title="Market Summary" />
-        <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
           {data.marketSummary.map((metric) => {
             const explanation = roroExplanation(metric);
 
@@ -199,7 +210,7 @@ export function TodayView({ data }: { data: TodayPayload }) {
                   <p className="text-xs font-semibold uppercase tracking-[0.2em] text-textMuted">
                     {metric.label}
                   </p>
-                  {metric.label === "Risk-on / risk-off" ? (
+                  {metric.label === "Risk On Risk Off" ? (
                     <InfoTooltip text="This metric compares the 3-month expected volatility (VIX3M) to the current VIX. When the ratio > 1, it means traders expect higher volatility in the future, which can reflects a more risk-off market. When the ratio < 1, near-term fear is higher, which can suggest conditions is shifting towards a more risk-on market." />
                   ) : null}
                 </div>
@@ -229,8 +240,8 @@ export function TodayView({ data }: { data: TodayPayload }) {
         </Panel>
         <aside className="space-y-4">
           <KeyStatsPanel stats={data.keyStats} />
-          <EarningsPanel earnings={data.earnings} />
           <EconomicEventsPanel events={data.economicCalendar} />
+          <EarningsPanel earnings={data.earnings} />
         </aside>
       </div>
     </>
