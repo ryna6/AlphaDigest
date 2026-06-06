@@ -380,7 +380,7 @@ export const economyMock: EconomyPayload = {
   ],
   labor: [
     { label: "Unemployment", value: "3.9%", tone: "neutral" },
-    { label: "Initial claims", value: "229K", tone: "warning" },
+    { label: "Initial jobless claims", value: "229K", tone: "warning" },
     { label: "Continuing claims", value: "1.79M", tone: "warning" }
   ],
   sentiment: [
