@@ -168,6 +168,7 @@ export const newsCalendarPayloadSchema = z.object({
   earnings: z.array(earningsSchema),
   unusualWhalesEarnings: z.array(unusualWhalesEarningsEventSchema).default([]),
   earningsMetadata: earningsMetadataSchema.default(null),
+  earningsMessage: z.string().optional(),
   sourceMeta: z.array(sourceMetaSchema)
 });
 
