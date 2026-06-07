@@ -273,9 +273,8 @@ function EarningsRow({ event }: { event: UnusualWhalesEarningsEvent }) {
 function EarningsGroup({ title, events }: { title: string; events: UnusualWhalesEarningsEvent[] }) {
   return (
     <div>
-      <div className="mb-2 flex items-center justify-between text-[11px] font-semibold uppercase tracking-[0.18em] text-textMuted">
-        <span>{title}</span>
-        <span className="tabular text-textSecondary">{events.length}</span>
+      <div className="mb-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-textMuted">
+        {title}
       </div>
       {events.length ? (
         <div className="space-y-2">
@@ -300,7 +299,7 @@ function EarningsCalendar({
   selectedDate: string;
 }) {
   const grouped = useMemo(() => {
-    const topEarnings = getMajorEarningsForDate(data.unusualWhalesEarnings, selectedDate, 8);
+    const topEarnings = getMajorEarningsForDate(data.unusualWhalesEarnings, selectedDate, 12);
     const groupsBySession = groupEarningsBySession(topEarnings);
     return {
       premarket: groupsBySession.premarket,
