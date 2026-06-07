@@ -35,7 +35,7 @@ export const todayMock: TodayPayload = {
       change: "+0.82% / +0.61% / +0.44%",
       tone: "positive"
     },
-    { label: "Risk On Risk Off", value: "1.22", change: "risk off", tone: "neutral" },
+    { label: "Risk On / Risk Off", value: "1.22", change: "risk off", tone: "neutral" },
     { label: "Put/Call Ratio", value: "0.91", change: "Neutral", tone: "neutral" },
     { label: "Today's Earnings", value: "1 Earning", tone: "neutral" },
     {

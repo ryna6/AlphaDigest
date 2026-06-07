@@ -535,21 +535,39 @@ assert(
 );
 assert(markup.includes("Before Open"), "earnings are not grouped under Before Open");
 assert(markup.includes("After Close"), "earnings are not grouped under After Close");
-for (const symbol of ["CAP30", "CAP29", "CAP28", "CAP27", "CAP26", "CAP25", "CAP24", "CAP23"]) {
-  assert(markup.includes(symbol), `${symbol} should be retained in the top-8 market-cap earnings`);
+assert(
+  markup.includes(
+    '<div class="mb-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-textMuted">Before Open</div>'
+  ) &&
+    markup.includes(
+      '<div class="mb-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-textMuted">After Close</div>'
+    ),
+  "earnings session labels should not show visible counts"
+);
+for (const symbol of [
+  "CAP30",
+  "CAP29",
+  "CAP28",
+  "CAP27",
+  "CAP26",
+  "CAP25",
+  "CAP24",
+  "CAP23",
+  "CAP22",
+  "CAP21"
+]) {
+  assert(markup.includes(symbol), `${symbol} should be retained in the top-10 market-cap earnings`);
 }
 assert(
-  !markup.includes("CAP22") &&
-    !markup.includes("CAP21") &&
-    !markup.includes("CAP20") &&
+  !markup.includes("CAP20") &&
     !markup.includes("MEGA") &&
     !markup.includes("BIG") &&
     !markup.includes("SMOL") &&
     !markup.includes("OLD"),
-  "earnings max-8, market-cap, or selected-day filter failed"
+  "earnings max-10, market-cap, or selected-day filter failed"
 );
 assert(
-  markup.includes("1.0%") && markup.includes("8.0%"),
+  markup.includes("1.0%") && markup.includes("10.0%"),
   "implied move percentage is not visible"
 );
 assert(
@@ -615,8 +633,8 @@ assert(
 const todayData: TodayPayload = {
   ...todayMock,
   marketSummary: [
-    { label: "Leading Sectors", value: "Tech", tone: "positive" },
-    { label: "Risk On Risk Off", value: "1.10", change: "Risk Off", tone: "neutral" },
+    { label: "Leading Sectors", value: "Tech", change: "+0.82%", tone: "positive" },
+    { label: "Risk On / Risk Off", value: "1.10", change: "Risk Off", tone: "neutral" },
     { label: "Put/Call Ratio", value: "0.91", change: "Neutral", tone: "neutral" },
     { label: "Today's Earnings", value: "2 Earnings", tone: "neutral" },
     {
@@ -644,7 +662,7 @@ const todayData: TodayPayload = {
 const todayMarkup = renderToStaticMarkup(<TodayView data={todayData} />);
 const summaryOrder = [
   "Leading Sectors",
-  "Risk On Risk Off",
+  "Risk On / Risk Off",
   "Put/Call Ratio",
   "Today&#x27;s Earnings",
   "Today&#x27;s Economic Events"
@@ -661,6 +679,26 @@ assert(
   todayMarkup.includes("xl:grid-cols-5"),
   "Today Market Summary should support five responsive cards"
 );
+assert(
+  todayMarkup.includes("Risk On / Risk Off") && !todayMarkup.includes("Risk On Risk Off"),
+  "Risk On / Risk Off title should render with slash separators"
+);
+assert(
+  todayMarkup.includes("whitespace-pre-line") &&
+    todayMarkup.includes("current VIX.\n\nWhen the ratio &gt; 1"),
+  "Risk On / Risk Off tooltip should preserve a paragraph break"
+);
+assert(
+  todayMarkup.includes("flex min-h-32 flex-col") &&
+    todayMarkup.includes("flex flex-1 flex-col justify-center"),
+  "Today Market Summary card contents should be vertically centered"
+);
+assert(
+  todayMarkup.includes("mt-4") &&
+    todayMarkup.includes("text-[1.2rem] leading-tight") &&
+    todayMarkup.includes("text-[0.7rem]"),
+  "Leading Sectors sector text should use a smaller size and extra title spacing"
+);
 const asideMarkup = todayMarkup.slice(todayMarkup.indexOf("Market Overview"));
 assert(
   asideMarkup.indexOf("Economic Events") > -1 &&
@@ -674,6 +712,18 @@ assert(
 assert(
   !todayMarkup.includes("3.4%") && !todayMarkup.includes("3.2%") && !todayMarkup.includes("3.1%"),
   "Today Economic Events should not show actual, forecast, or previous values"
+);
+const emptyTodayMarkup = renderToStaticMarkup(
+  <TodayView data={{ ...todayData, earnings: [], economicCalendar: [] }} />
+);
+assert(
+  emptyTodayMarkup.includes("Today&#x27;s Earnings") &&
+    emptyTodayMarkup.includes("No major earnings today."),
+  "Today earnings title or empty state punctuation regressed"
+);
+assert(
+  emptyTodayMarkup.includes("No economic events for today."),
+  "Today Economic Events empty state text regressed"
 );
 
 console.log("News & Calendar UI validation passed.");

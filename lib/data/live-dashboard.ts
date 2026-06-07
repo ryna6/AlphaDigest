@@ -538,7 +538,7 @@ export async function getTodayPayload(): Promise<{
           change: leading.map((item) => formatPercent(item.changePercent)).join(" / "),
           tone: leading[0]?.changePercent >= 0 ? "positive" : "negative"
         },
-        { label: "Risk On Risk Off", value: riskRatio, change: riskTone, tone: "neutral" },
+        { label: "Risk On / Risk Off", value: riskRatio, change: riskTone, tone: "neutral" },
         {
           label: "Put/Call Ratio",
           value: todayMock.marketSummary[2].value,
