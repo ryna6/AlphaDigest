@@ -39,7 +39,7 @@ moduleWithResolver._resolveFilename = function (
 
 (globalThis as typeof globalThis & { React: typeof React }).React = React;
 
-const { NewsCalendarView, buildWeekDays, initialDaySelection } =
+const { NewsCalendarView, buildWeekDays, initialDaySelection, moveWeekSelection } =
   require("../components/dashboard/news-calendar/news-calendar-view") as typeof import("../components/dashboard/news-calendar/news-calendar-view");
 const { TodayView } =
   require("../components/dashboard/today/today-view") as typeof import("../components/dashboard/today/today-view");
@@ -397,12 +397,20 @@ assert(
   initialSelection.weekOffset === 0 &&
     initialSelection.selectedWeekday === 5 &&
     initialSelection.selectedDate === "2026-06-05",
-  "initial selector state should select the current ET weekday"
+  "initial selector state should select the current weekday"
 );
+const weekendSelection = initialDaySelection(new Date("2026-06-06T16:00:00Z"));
 assert(
-  previousWeekDays[initialSelection.selectedWeekday - 1]?.date === "2026-05-29" &&
-    nextWeekDays[initialSelection.selectedWeekday - 1]?.date === "2026-06-12",
-  "Last Week and Next Week should preserve the selected weekday when regenerating dates"
+  weekendSelection.weekOffset === 1 &&
+    weekendSelection.selectedWeekday === 1 &&
+    weekendSelection.selectedDate === "2026-06-08",
+  "weekend initial selector state should select next Monday"
+);
+const tuesdaySelection = initialDaySelection(new Date("2026-06-02T16:00:00Z"));
+assert(
+  moveWeekSelection(tuesdaySelection, -1).selectedDate === "2026-05-29" &&
+    moveWeekSelection(tuesdaySelection, 1).selectedDate === "2026-06-08",
+  "Last Week should select previous Friday and Next Week should select next Monday"
 );
 
 const investingEvents = normalizeInvestingEconomicCalendarPayload(
@@ -516,8 +524,8 @@ assert(
 
 assert(markup.includes("Last Week"), "shared selector is missing Last Week");
 assert(
-  markup.includes("Fri, Jun 5") || markup.includes("Fri Jun 5"),
-  "weekday button did not render the selected week date"
+  markup.includes("Fri") && markup.includes("June 5") && !markup.includes("Fri, June 5"),
+  "weekday button did not render split weekday/date labels without commas"
 );
 assert(markup.includes("Next Week"), "shared selector is missing Next Week");
 assert(!markup.includes("Selected Day"), "earnings calendar should not render Selected Day label");
