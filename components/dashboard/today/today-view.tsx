@@ -33,7 +33,8 @@ function earningsTimeLabel(time: EarningsEvent["time"]) {
 }
 
 function roroExplanation(metric: Metric) {
-  if (metric.label !== "Risk On Risk Off") return metric.change;
+  if (metric.label !== "Risk On Risk Off" && metric.label !== "Risk On / Risk Off")
+    return metric.change;
 
   const ratio = Number(metric.value);
   if (!Number.isFinite(ratio)) return metric.change;
@@ -99,7 +100,7 @@ export function FeaturedArticleList({
 function EarningsPanel({ earnings }: { earnings: EarningsEvent[] }) {
   return (
     <Panel>
-      <SectionHeader title="Earnings" />
+      <SectionHeader title="Today's Earnings" />
       {earnings.length ? (
         <div className="divide-y divide-borderStrong/60">
           {earnings.slice(0, 5).map((event) => (
@@ -128,7 +129,7 @@ function EarningsPanel({ earnings }: { earnings: EarningsEvent[] }) {
         </div>
       ) : (
         <div className="rounded-none border border-dashed border-borderStrong px-3 py-4 text-center text-xs text-textMuted">
-          No major earnings today
+          No major earnings today.
         </div>
       )}
     </Panel>
@@ -177,7 +178,7 @@ function EconomicEventsPanel({ events }: { events: EconomicEvent[] }) {
         </div>
       ) : (
         <div className="rounded-none border border-dashed border-borderStrong px-3 py-4 text-center text-xs text-textMuted">
-          No economic events are available for today.
+          No economic events for today.
         </div>
       )}
     </Panel>
@@ -206,24 +207,51 @@ export function TodayView({ data }: { data: TodayPayload }) {
         <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
           {data.marketSummary.map((metric) => {
             const explanation = roroExplanation(metric);
+            const isRiskOnRiskOff =
+              metric.label === "Risk On Risk Off" || metric.label === "Risk On / Risk Off";
+            const isLeadingSectors = metric.label === "Leading Sectors";
+            const displayLabel = isRiskOnRiskOff ? "Risk On / Risk Off" : metric.label;
 
             return (
               <div
                 key={metric.label}
-                className="min-h-32 rounded-none border border-borderStrong bg-sidebar p-4"
+                className="flex min-h-32 flex-col rounded-none border border-borderStrong bg-sidebar p-4"
               >
                 <div className="flex items-center gap-2">
                   <p className="text-xs font-semibold uppercase tracking-[0.2em] text-textMuted">
-                    {metric.label}
+                    {displayLabel}
                   </p>
-                  {metric.label === "Risk On Risk Off" ? (
-                    <InfoTooltip text="This metric compares the 3-month expected volatility (VIX3M) to the current VIX. When the ratio > 1, it means traders expect higher volatility in the future, which can reflects a more risk-off market. When the ratio < 1, near-term fear is higher, which can suggest conditions is shifting towards a more risk-on market." />
+                  {isRiskOnRiskOff ? (
+                    <InfoTooltip
+                      text={
+                        "This metric compares the 3-month expected volatility (VIX3M) to the current VIX.\n\nWhen the ratio > 1, it means traders expect higher volatility in the future, which can reflects a more risk-off market. When the ratio < 1, near-term fear is higher, which can suggest conditions is shifting towards a more risk-on market."
+                      }
+                    />
                   ) : null}
                 </div>
-                <p className="mt-5 text-2xl font-semibold text-textPrimary">{metric.value}</p>
-                {explanation ? (
-                  <p className={cn("mt-2 text-sm", signedValueClass(explanation))}>{explanation}</p>
-                ) : null}
+                <div
+                  className={cn("flex flex-1 flex-col justify-center", isLeadingSectors && "mt-4")}
+                >
+                  <p
+                    className={cn(
+                      "font-semibold text-textPrimary",
+                      isLeadingSectors ? "text-[1.2rem] leading-tight" : "text-2xl"
+                    )}
+                  >
+                    {metric.value}
+                  </p>
+                  {explanation ? (
+                    <p
+                      className={cn(
+                        "mt-2",
+                        isLeadingSectors ? "text-[0.7rem]" : "text-sm",
+                        signedValueClass(explanation)
+                      )}
+                    >
+                      {explanation}
+                    </p>
+                  ) : null}
+                </div>
               </div>
             );
           })}
