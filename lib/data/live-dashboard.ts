@@ -249,6 +249,11 @@ function todayDateKey(date = new Date()) {
   return formatEtDateKey(date) ?? date.toISOString().slice(0, 10);
 }
 
+function getSelectableEarningsRange(dateKey = todayDateKey()) {
+  const { startDate, endDate } = buildInvestingEconomicCalendarWeekRange(dateKey);
+  return { minDate: addDaysToDateKey(startDate, -7), maxDate: addDaysToDateKey(endDate, 7) };
+}
+
 function formatEarningsCount(count: number) {
   return `${count} ${count === 1 ? "Earning" : "Earnings"}`;
 }
@@ -602,12 +607,19 @@ export async function getNewsCalendarPayload(): Promise<{
   mode: "mock" | "live";
   notices: string[];
 }> {
+  const dateKey = todayDateKey();
+  const earningsRange = getSelectableEarningsRange(dateKey);
   const [newsResult, earningsData, unusualWhalesEarningsResult, economicCalendarResult] =
     await Promise.all([
       fetchUnusualWhalesNewsFeed(100),
       earningsWithLogos(),
-      getCachedUnusualWhalesEarnings({ limit: 250, order: "oi" }),
-      getEconomicCalendarAdjacentWeekEvents(todayDateKey())
+      getCachedUnusualWhalesEarnings({
+        minDate: earningsRange.minDate,
+        maxDate: earningsRange.maxDate,
+        limit: 250,
+        order: "oi"
+      }),
+      getEconomicCalendarAdjacentWeekEvents(dateKey)
     ]);
 
   const fallbackNews = todayMock.featuredNews.map((article) => ({
@@ -631,6 +643,7 @@ export async function getNewsCalendarPayload(): Promise<{
         : earningsData,
       unusualWhalesEarnings: unusualWhalesEarningsResult.events,
       earningsMetadata: unusualWhalesEarningsResult.metadata,
+      earningsMessage: unusualWhalesEarningsResult.message,
       sourceMeta: [
         liveMeta(
           "Unusual Whales News Feed",
