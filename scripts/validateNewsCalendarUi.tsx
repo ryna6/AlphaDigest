@@ -43,7 +43,7 @@ const { NewsCalendarView, buildWeekDays, initialDaySelection, moveWeekSelection 
   require("../components/dashboard/news-calendar/news-calendar-view") as typeof import("../components/dashboard/news-calendar/news-calendar-view");
 const { TodayView } =
   require("../components/dashboard/today/today-view") as typeof import("../components/dashboard/today/today-view");
-const { normalizeUnusualWhalesEarningsRow } =
+const { buildUnusualWhalesEarningsUrl, normalizeUnusualWhalesEarningsRow } =
   require("../lib/data/adapters/unusual-whales-earnings") as typeof import("../lib/data/adapters/unusual-whales-earnings");
 const { IMPORTANT_ECONOMIC_EVENTS, getImportantEconomicEventKey, shouldIncludeEconomicEvent } =
   require("../lib/data/config/included-economic-events") as typeof import("../lib/data/config/included-economic-events");
@@ -260,6 +260,25 @@ const normalized = normalizeUnusualWhalesEarningsRow({
   curr: "50"
 });
 assert(normalized?.impliedMovePct === 9.1, "implied move percentage calculation failed");
+const earningsUrl = buildUnusualWhalesEarningsUrl({
+  minDate: "2026-06-08",
+  maxDate: "2026-06-12"
+});
+const parsedEarningsUrl = new URL(earningsUrl);
+assert(
+  parsedEarningsUrl.searchParams.get("min_date") === "2026-06-08" &&
+    parsedEarningsUrl.searchParams.get("max_date") === "2026-06-12",
+  "Unusual Whales earnings URL should preserve min/max dates"
+);
+assert(
+  parsedEarningsUrl.searchParams.get("min_marketcap") === "5000000000",
+  "Unusual Whales earnings URL should request a $5B minimum market cap"
+);
+assert(
+  parsedEarningsUrl.searchParams.getAll("country_codes[]").includes("US") &&
+    earningsUrl.includes("country_codes%5B%5D=US"),
+  "Unusual Whales earnings URL should request US country codes with array parameter encoding"
+);
 
 assert(IMPORTANT_ECONOMIC_EVENTS.corePpi.eventIds.includes(62), "Core PPI should use event ID 62");
 assert(IMPORTANT_ECONOMIC_EVENTS.ppi.eventIds.includes(238), "PPI should use event ID 238");
@@ -620,6 +639,20 @@ for (const hiddenText of [
 ]) {
   assert(!markup.includes(hiddenText), `${hiddenText} should not be rendered in the earnings UI`);
 }
+assert(
+  markup.includes("Put/Call Ratio") && markup.includes("0.50"),
+  "News & Calendar earnings rows should render put/call ratio values"
+);
+assert(
+  markup.includes(
+    "&lt; 0.5 = Very Call-Heavy\n0.5–0.8 = Bullish\n0.8–1.2 = Neutral\n1.2–1.8 = Put-Heavy\n&gt; 1.8 = Extremely Put-Heavy."
+  ),
+  "Put/Call Ratio tooltip should preserve one line per interpretation range"
+);
+assert(
+  markup.indexOf("Put/Call Ratio") < markup.indexOf("Implied Move"),
+  "Put/Call Ratio should appear before Implied Move"
+);
 assert(markup.includes("Market headline 12"), "Latest Market News should render 12 headlines");
 assert(
   !markup.includes("Market headline 13"),
@@ -720,6 +753,11 @@ assert(
   emptyTodayMarkup.includes("Today&#x27;s Earnings") &&
     emptyTodayMarkup.includes("No major earnings today."),
   "Today earnings title or empty state punctuation regressed"
+);
+const todayEarningsMarkup = todayMarkup.slice(todayMarkup.indexOf("Today&#x27;s Earnings"));
+assert(
+  todayEarningsMarkup.indexOf("Put/Call Ratio") === -1,
+  "Today tab earnings panel should not render the News & Calendar put/call ratio field"
 );
 assert(
   emptyTodayMarkup.includes("No economic events for today."),

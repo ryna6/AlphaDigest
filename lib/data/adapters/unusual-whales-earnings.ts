@@ -5,6 +5,8 @@ import { createServerSupabaseClient } from "@/lib/db/supabase";
 const UW_EARNINGS_URL = "https://phx.unusualwhales.com/api/companies_earnings/upcoming_earnings_v2";
 const SOURCE = "unusual_whales_earnings";
 const DEFAULT_LIMIT = 250;
+const UW_EARNINGS_MIN_MARKET_CAP = 5_000_000_000;
+const UW_EARNINGS_COUNTRY_CODE = "US";
 const REQUEST_TIMEOUT_MS = 15_000;
 const SERVER_CACHE_TTL_MS = 60_000;
 
@@ -207,6 +209,8 @@ export function buildUnusualWhalesEarningsUrl(range: EarningsRange) {
   url.searchParams.set("max_date", range.maxDate);
   url.searchParams.set("order", "oi");
   url.searchParams.set("order_direction", "desc");
+  url.searchParams.set("min_marketcap", String(UW_EARNINGS_MIN_MARKET_CAP));
+  url.searchParams.append("country_codes[]", UW_EARNINGS_COUNTRY_CODE);
   return url.toString();
 }
 
@@ -250,11 +254,20 @@ export async function fetchUnusualWhalesEarnings(range = defaultEarningsRange())
           await sleep(500 * 2 ** attempt);
           continue;
         }
-        throw new Error(`Unusual Whales earnings request failed with ${response.status}.`);
+        throw new Error(
+          `Unusual Whales earnings request failed with ${response.status} for ${endpoint}.`
+        );
       }
       const payload = (await response.json()) as unknown;
       const rows = extractRows(payload);
       const events = normalizeUnusualWhalesEarningsRows(rows);
+      if (rows.length === 0) {
+        console.warn("uw_earnings_empty_response", {
+          endpoint,
+          min_date: range.minDate,
+          max_date: range.maxDate
+        });
+      }
       return { endpoint, events, rowCount: rows.length };
     } catch (error) {
       lastError = error;
@@ -593,7 +606,9 @@ export async function getCachedUnusualWhalesEarnings(
     .from("unusual_whales_earnings_events")
     .select("*")
     .gte("report_date", minDate)
-    .lte("report_date", maxDate);
+    .lte("report_date", maxDate)
+    .gte("market_cap", UW_EARNINGS_MIN_MARKET_CAP)
+    .eq("country_code", UW_EARNINGS_COUNTRY_CODE);
   if (options.symbol) query = query.eq("symbol", options.symbol.toUpperCase());
   if (options.sp500Only) query = query.eq("is_sp500", true);
   if (options.hasOptions) query = query.eq("has_options", true);
@@ -623,24 +638,13 @@ export async function getCachedUnusualWhalesEarnings(
 
   if (!data?.length) {
     try {
-      const refreshed = await refreshUnusualWhalesEarnings(resolvedRange);
-      const seeded = await fetchUnusualWhalesEarnings(resolvedRange);
-      const events = filterAndSortEvents(seeded.events, options);
-      return {
-        events,
-        metadata: {
-          source: metadataSource(resolvedRange),
-          ok: true,
-          fetchedAt: new Date().toISOString(),
-          changed: refreshed.changed,
-          rowCount: refreshed.rowCount,
-          contentHash: refreshed.contentHash,
-          error: null,
-          meta: { min_date: minDate, max_date: maxDate, auto_seeded: true }
-        },
-        mode: refreshed.persisted ? "supabase" : "live"
-      };
-    } catch {
+      return await getLiveServerEarnings(resolvedRange, options);
+    } catch (error) {
+      console.warn("uw_earnings_empty_supabase_live_fetch_failed", {
+        min_date: minDate,
+        max_date: maxDate,
+        error: error instanceof Error ? error.message : "Unknown earnings fetch error"
+      });
       // Fall through to returning the empty Supabase result plus metadata.
     }
   }

@@ -11,6 +11,7 @@ import type {
 import { PageTitle } from "@/components/dashboard/page-title";
 import { Panel } from "@/components/ui/panel";
 import { SectionHeader } from "@/components/ui/section-header";
+import { InfoTooltip } from "@/components/ui/info-tooltip";
 import { formatEtDateKey, formatEtDateTime, formatEtTime, timestampTitle } from "@/lib/utils/time";
 import { cn } from "@/lib/utils/cn";
 import { getMajorEarningsForDate, groupEarningsBySession } from "@/lib/data/earnings-utils";
@@ -226,6 +227,29 @@ function formatMovePct(value: number | null | undefined) {
     : `${value.toFixed(1)}%`;
 }
 
+function putCallRatio(event: UnusualWhalesEarningsEvent) {
+  const putVolume = event.putVolume;
+  const callVolume = event.callVolume;
+  if (
+    putVolume === null ||
+    callVolume === null ||
+    !Number.isFinite(putVolume) ||
+    !Number.isFinite(callVolume) ||
+    callVolume <= 0
+  ) {
+    return null;
+  }
+  return putVolume / callVolume;
+}
+
+function formatPutCallRatio(event: UnusualWhalesEarningsEvent) {
+  const ratio = putCallRatio(event);
+  return ratio === null || !Number.isFinite(ratio) ? "—" : ratio.toFixed(2);
+}
+
+const PUT_CALL_RATIO_TOOLTIP =
+  "< 0.5 = Very Call-Heavy\n0.5–0.8 = Bullish\n0.8–1.2 = Neutral\n1.2–1.8 = Put-Heavy\n> 1.8 = Extremely Put-Heavy.";
+
 function companyInitials(symbol: string) {
   return symbol.slice(0, 2).toUpperCase();
 }
@@ -259,6 +283,15 @@ function EarningsRow({ event }: { event: UnusualWhalesEarningsEvent }) {
         {event.companyName ? (
           <div className="truncate text-xs text-textMuted">{event.companyName}</div>
         ) : null}
+      </div>
+      <div className="shrink-0 text-right">
+        <div className="inline-flex items-center justify-end gap-1 text-[10px] uppercase tracking-[0.18em] text-textMuted">
+          <span>Put/Call Ratio</span>
+          <InfoTooltip text={PUT_CALL_RATIO_TOOLTIP} />
+        </div>
+        <div className="tabular text-sm font-semibold text-textPrimary">
+          {formatPutCallRatio(event)}
+        </div>
       </div>
       <div className="shrink-0 text-right">
         <div className="text-[10px] uppercase tracking-[0.18em] text-textMuted">Implied Move</div>
@@ -317,6 +350,14 @@ function EarningsCalendar({
       {data.earningsMetadata?.ok === false ? (
         <div className="mb-3 rounded-md border border-red-500/30 bg-red-500/10 px-3 py-2 text-xs text-red-200">
           Earnings data is stale: {data.earningsMetadata.error ?? "last refresh failed"}
+        </div>
+      ) : data.earningsMessage ? (
+        <div className="mb-3 rounded-md border border-amber-400/30 bg-amber-400/10 px-3 py-2 text-xs text-amber-100">
+          {data.earningsMessage}
+        </div>
+      ) : data.unusualWhalesEarnings.length === 0 ? (
+        <div className="mb-3 rounded-md border border-amber-400/30 bg-amber-400/10 px-3 py-2 text-xs text-amber-100">
+          No earnings rows were returned for the fetched calendar range.
         </div>
       ) : null}
       <div className="space-y-5">
