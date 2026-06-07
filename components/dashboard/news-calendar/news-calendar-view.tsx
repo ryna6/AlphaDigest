@@ -23,7 +23,7 @@ export type DaySelection = {
   weekOffset: WeekOffset;
   selectedDate: string;
   selectedWeekday: number;
-  days: Array<{ date: string; label: string; weekday: number }>;
+  days: Array<{ date: string; weekdayLabel: string; dateLabel: string; weekday: number }>;
 };
 
 function importanceStars(importance: EconomicEvent["importance"], stars?: EconomicEvent["stars"]) {
@@ -71,8 +71,7 @@ function addDaysToDateKey(dateKey: string, days: number) {
 }
 
 function weekdayForDateKey(dateKey: string) {
-  const weekday = new Date(`${dateKey}T12:00:00Z`).getUTCDay();
-  return weekday >= 1 && weekday <= 5 ? weekday : 1;
+  return new Date(`${dateKey}T12:00:00Z`).getUTCDay();
 }
 
 function mondayForDateKey(dateKey: string) {
@@ -81,34 +80,50 @@ function mondayForDateKey(dateKey: string) {
   return addDaysToDateKey(dateKey, -daysFromMonday);
 }
 
+function localDateKey(date: Date) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
 function weekdayLabelForDateKey(dateKey: string) {
   return new Intl.DateTimeFormat("en-US", {
     weekday: "short",
-    month: "short",
+    timeZone: "UTC"
+  }).format(new Date(`${dateKey}T12:00:00Z`));
+}
+
+function calendarDateLabelForDateKey(dateKey: string) {
+  return new Intl.DateTimeFormat("en-US", {
+    month: "long",
     day: "numeric",
     timeZone: "UTC"
   }).format(new Date(`${dateKey}T12:00:00Z`));
 }
 
 export function buildWeekDays(weekOffset: WeekOffset, today = new Date()) {
-  const todayEtDateKey = formatEtDateKey(today) ?? today.toISOString().slice(0, 10);
-  const monday = addDaysToDateKey(mondayForDateKey(todayEtDateKey), weekOffset * 7);
+  const todayKey = localDateKey(today);
+  const monday = addDaysToDateKey(mondayForDateKey(todayKey), weekOffset * 7);
   return Array.from({ length: 5 }, (_, index) => {
     const dayDateKey = addDaysToDateKey(monday, index);
     return {
       date: dayDateKey,
-      label: weekdayLabelForDateKey(dayDateKey),
+      weekdayLabel: weekdayLabelForDateKey(dayDateKey),
+      dateLabel: calendarDateLabelForDateKey(dayDateKey),
       weekday: index + 1
     };
   });
 }
 
 export function initialDaySelection(today = new Date()): DaySelection {
-  const todayEtDateKey = formatEtDateKey(today) ?? today.toISOString().slice(0, 10);
-  const selectedWeekday = weekdayForDateKey(todayEtDateKey);
-  const days = buildWeekDays(0, today);
+  const todayKey = localDateKey(today);
+  const todayWeekday = weekdayForDateKey(todayKey);
+  const selectedWeekday = todayWeekday >= 1 && todayWeekday <= 5 ? todayWeekday : 1;
+  const weekOffset = todayWeekday === 0 || todayWeekday === 6 ? 1 : 0;
+  const days = buildWeekDays(weekOffset, today);
   return {
-    weekOffset: 0,
+    weekOffset,
     selectedWeekday,
     selectedDate: days[selectedWeekday - 1]?.date ?? days[0].date,
     days
@@ -125,6 +140,18 @@ function debugEconomicCalendarSelection(message: string, details: Record<string,
   }
 }
 
+export function moveWeekSelection(selection: DaySelection, direction: -1 | 1) {
+  const nextOffset = Math.max(-1, Math.min(1, selection.weekOffset + direction)) as WeekOffset;
+  const days = buildWeekDays(nextOffset);
+  const selectedDay = direction === 1 ? days[0] : days[4];
+  return {
+    weekOffset: nextOffset,
+    selectedWeekday: selectedDay.weekday,
+    selectedDate: selectedDay.date,
+    days
+  };
+}
+
 function WeekdaySelector({
   selection,
   onChange
@@ -133,15 +160,7 @@ function WeekdaySelector({
   onChange: (next: DaySelection) => void;
 }) {
   const moveWeek = (direction: -1 | 1) => {
-    const nextOffset = Math.max(-1, Math.min(1, selection.weekOffset + direction)) as WeekOffset;
-    const days = buildWeekDays(nextOffset);
-    const selectedDay = days[selection.selectedWeekday - 1] ?? days[0];
-    const nextSelection = {
-      weekOffset: nextOffset,
-      selectedWeekday: selectedDay.weekday,
-      selectedDate: selectedDay.date,
-      days
-    };
+    const nextSelection = moveWeekSelection(selection, direction);
     debugEconomicCalendarSelection("week-change", nextSelection);
     onChange(nextSelection);
   };
@@ -179,7 +198,12 @@ function WeekdaySelector({
                   : "border-borderStrong bg-surfaceSubtle text-textSecondary hover:border-accentBlue/60 hover:text-textPrimary"
               )}
             >
-              {day.label}
+              <span className="block text-[11px] uppercase tracking-[0.16em]">
+                {day.weekdayLabel}
+              </span>
+              <span className="mt-1 block whitespace-nowrap text-[11px] font-medium normal-case tracking-normal text-textMuted sm:text-[10px]">
+                {day.dateLabel}
+              </span>
             </button>
           );
         })}

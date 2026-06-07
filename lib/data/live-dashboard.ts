@@ -265,7 +265,7 @@ function formatEconomicEventCount(count: number) {
 }
 
 function formatImportantEconomicEventCount(count: number) {
-  return `${count} Very Important`;
+  return `${count} Significant`;
 }
 
 function economicImportanceFromStars(
@@ -523,10 +523,7 @@ export async function getTodayPayload(): Promise<{
     ? earningsSnapshotFromUnusualWhales(topTodayEarnings)
     : [];
   const earningsSummary = todayEarningsSummary(todayEarnings);
-  const todayEconomicEvents =
-    economicCalendarResult.mode === "live"
-      ? economicCalendarResult.events
-      : todayMock.economicCalendar;
+  const todayEconomicEvents = economicCalendarResult.events;
   const highlightedEconomicEventCount = todayEconomicEvents.filter(
     (event) => event.isHighlighted || event.eventKey
   ).length;
@@ -628,10 +625,7 @@ export async function getNewsCalendarPayload(): Promise<{
   return {
     payload: {
       news,
-      economicCalendar:
-        economicCalendarResult.mode === "live"
-          ? economicCalendarResult.events
-          : todayMock.economicCalendar,
+      economicCalendar: economicCalendarResult.events,
       earnings: unusualWhalesEarningsResult.events.length
         ? earningsSnapshotFromUnusualWhales(unusualWhalesEarningsResult.events)
         : earningsData,
