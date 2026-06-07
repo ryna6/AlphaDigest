@@ -1,54 +1,106 @@
 # MarketRecap
 
-A professional, Netlify-ready market recap dashboard that answers: **what is happening in markets today, why it matters, where money is moving, and what to look at next.**
+MarketRecap is a dark-mode market intelligence dashboard for quickly answering:
 
-The initial repository prioritizes a polished scaffold, typed server API routes, Netlify deployment readiness, Supabase schema design, and clearly labeled mock data. It does **not** present mock financial data as live market data.
+- What is moving today?
+- Which headlines, earnings, and economic events matter?
+- Where is cross-asset performance strongest or weakest?
+- Which areas need a deeper look before the next market session?
 
-## Tech stack
+The app combines live server-side market/news/calendar fetches with clearly labeled fallback data when an external source or API key is unavailable.
 
-- Next.js App Router
-- TypeScript
-- React
-- Tailwind CSS
-- Zod
-- Recharts-ready chart structure
-- Supabase integration scaffold
-- Netlify Next.js plugin
-- Future-ready Netlify Functions / Scheduled Functions
+## What you can view
 
-## Netlify configuration
+### Today
 
-`netlify.toml` uses:
+A daily briefing page with:
 
-```toml
-[build]
-  command = "npm run build"
-  publish = ".next"
+- Major market stats such as S&P 500, Nasdaq 100, WTI oil, gold, Bitcoin, and VIX.
+- A compact market summary for leading sectors, risk tone, earnings count, and economic-event count.
+- Featured Unusual Whales articles with a separate Top News page.
+- Today's major earnings and economic events.
+- A sector snapshot based on the same market heatmap data used by the Markets tab.
 
-[[plugins]]
-  package = "@netlify/plugin-nextjs"
+### Markets
+
+Cross-asset heatmaps and a market strip for:
+
+- Global markets.
+- U.S. sectors and semiconductors.
+- Major crypto pairs.
+- Macro assets such as gold, silver, oil, natural gas, bonds, credit, and the dollar.
+
+### News & Calendar
+
+A combined events workspace with:
+
+- Latest market headlines.
+- A weekday selector for last week, this week, and next week.
+- Economic calendar events with actual/forecast/previous values and highlighted high-importance releases.
+- Earnings grouped into before-open and after-close sessions.
+- Separate “View All” pages for market news and earnings.
+
+### Flow & Ownership
+
+A currently fixture-backed view for big-money activity concepts:
+
+- Dark pool prints.
+- Whale option trades.
+- Insider trades.
+- Congressional trades.
+- Institutional 13F positioning.
+
+### Economy & Sentiment
+
+A currently fixture-backed macro dashboard for rates, inflation, labor, sentiment, oil/geopolitical risk, and liquidity conditions.
+
+### Ticker Explorer
+
+A placeholder ticker-intelligence area. The explorer page does not perform live lookup yet; direct ticker detail routes are fixture-backed until a live ticker pipeline is added.
+
+### Sources, Methodology, and Settings
+
+Utility pages list intended source coverage and environment variable names. Secret values are never shown in the browser.
+
+## Data sources at a glance
+
+MarketRecap keeps third-party calls server-side where possible. Current active sources include:
+
+- **Finnhub** for quote-driven market metrics and heatmaps when the relevant API keys are configured.
+- **Yahoo Finance public endpoints** for selected fallback quote metrics such as VIX and S&P 500 futures.
+- **Unusual Whales public endpoints/pages** for featured news, headline feed, and earnings calendar data.
+- **Investing.com economic calendar endpoint** for economic events.
+- **Supabase** as an optional durable cache for supported ingestion flows.
+- **Static fallback JSON** for the Unusual Whales earnings calendar when live/server cache paths fail.
+
+Some tabs still use mock/fixture data while provider integrations are built out. The UI and API responses label fallback/mock mode where applicable.
+
+## Run locally
+
+Requirements:
+
+- Node.js 20 or newer.
+- npm.
+
+```bash
+npm install
+npm run dev
 ```
 
-This is the correct Netlify shape for a Next.js App Router project because the Netlify Next.js plugin adapts App Router pages and server-side API routes for Netlify.
+Then open the local Next.js URL shown in your terminal, usually `http://localhost:3000`.
 
-## Deploying to Netlify
+Useful checks:
 
-1. Push the repository to GitHub.
-2. Log in to Netlify.
-3. Create a new site from Git.
-4. Connect the GitHub repository.
-5. Confirm the build command is `npm run build`.
-6. Confirm the publish directory is `.next`.
-7. Add environment variables in **Site configuration → Environment variables**.
-8. Deploy the site.
-9. Verify API routes such as `/api/today`, `/api/markets`, and `/api/sources/status` are working.
-10. Confirm mock/live data status in the UI.
-11. Check source coverage indicators on dashboard panels.
-12. Review Netlify Function logs when future refresh jobs are enabled.
+```bash
+npm run typecheck
+npm run lint
+npm run build
+npm run validate:news-calendar
+```
 
-## Required Netlify environment variables
+## Environment variables
 
-A committed environment example file is not required for this project because production configuration lives in Netlify **Site configuration → Environment variables** and local `.env*` files stay untracked. Configure these values directly in Netlify:
+For the best local or deployed experience, configure only the keys you actually use:
 
 ```text
 NEXT_PUBLIC_APP_NAME=MarketRecap
@@ -63,110 +115,43 @@ FINNHUB_CRYPTO_HEATMAP_API_KEY=
 FINNHUB_MACRO_HEATMAP_API_KEY=
 
 TWELVE_DATA_API_KEY=
+COINGECKO_API_KEY=
 FRED_API_KEY=
 SEC_API_KEY=
 
+SCRAPER_ENABLED=
 HORMUZ_TRACKER_ENABLED=false
 ```
 
-Never expose these server-side keys to the browser: `SUPABASE_SERVICE_ROLE_KEY`, all Finnhub keys, `TWELVE_DATA_API_KEY`, `FRED_API_KEY`, and `SEC_API_KEY`.
+Server-only keys must not be exposed with a `NEXT_PUBLIC_` prefix.
 
-Unusual Whales is intentionally modeled as a website-scraping source with no key or feature flag. CoinGecko is modeled as a no-key crypto source in this scaffold.
+## Deployment
 
-## Finnhub key strategy
+The project is configured for Netlify with:
 
-Finnhub usage is split into four heatmap-specific API keys:
+- Build command: `npm run build`.
+- Publish directory: `.next`.
+- Netlify Next.js plugin.
+- Serverless functions in `netlify/functions/`.
 
-| Heatmap | Environment variable |
-| --- | --- |
-| Global Markets Heatmap | `FINNHUB_GLOBAL_MARKETS_API_KEY` |
-| Sectors Heatmap | `FINNHUB_SECTORS_HEATMAP_API_KEY` |
-| Crypto Heatmap fallback | `FINNHUB_CRYPTO_HEATMAP_API_KEY` |
-| Macro Heatmap | `FINNHUB_MACRO_HEATMAP_API_KEY` |
+Production environment variables should be configured in Netlify site settings. Supabase is optional for the app to render, but it enables durable caches for supported refresh jobs.
 
-`lib/data/adapters/finnhub-key-router.ts` routes feature areas to the appropriate key and returns a clear missing-key message instead of throwing.
+## Caveats
 
-## Oil and commodity data strategy
+- Live providers can fail because of rate limits, upstream shape changes, network errors, or missing API keys.
+- Unusual Whales and Investing.com integrations depend on public endpoint/page shapes and may need maintenance if those providers change their responses.
+- Some dashboard areas are intentionally fixture-backed today, especially Flow & Ownership, Economy & Sentiment, and ticker detail data.
+- Data freshness depends on provider availability, request timing, optional Supabase cache state, and Netlify scheduled-function support.
 
-Oil prices are expected to come from **Finnhub, Twelve Data, FRED where appropriate, or another available/free market data provider**:
+## Technical documentation
 
-- WTI crude oil: configured server-side commodity provider chain
-- Brent crude oil: configured server-side commodity provider chain
-- Oil historical charts: Twelve Data if available
-- Oil macro context: FRED where appropriate
+Developer and Codex-focused documentation lives in [`docs/`](docs/):
 
-See `lib/data/adapters/commodity-prices-adapter.ts` for the adapter strategy.
+- [`docs/architecture.md`](docs/architecture.md)
+- [`docs/features.md`](docs/features.md)
+- [`docs/data-sources.md`](docs/data-sources.md)
+- [`docs/development.md`](docs/development.md)
+- [`docs/deployment.md`](docs/deployment.md)
+- [`docs/codex-guidelines.md`](docs/codex-guidelines.md)
 
-## API routes
-
-All third-party integrations must run server-side. The frontend calls internal routes only:
-
-- `/api/today`
-- `/api/markets`
-- `/api/news-calendar`
-- `/api/flow-ownership`
-- `/api/economy-sentiment`
-- `/api/ticker/[symbol]`
-- `/api/sources/status`
-
-Routes return typed JSON envelopes validated with Zod and include mode, notices, and ET timezone metadata.
-
-## Netlify Functions and future ingestion
-
-Placeholder functions are provided in `netlify/functions/`:
-
-- `refresh-today.ts`
-- `refresh-news.ts`
-- `refresh-markets.ts`
-- `refresh-flow.ts`
-- `refresh-economy.ts`
-- `refresh-ticker.ts`
-- `refresh-sources-status.ts`
-
-Recommended future flow:
-
-```text
-External source
-→ Server-side adapter / Netlify Function
-→ Supabase storage
-→ Dashboard snapshot
-→ Next.js API route
-→ Frontend
-```
-
-## What is mocked vs live
-
-The MVP uses mock fixtures for all financial values, headlines, flow, macro, and ticker pages. Mock mode is intentionally labeled in the UI and API notices. The current live behavior is limited to reading environment-variable presence and routing key status server-side.
-
-## Local development
-
-Local `.env` files are optional and ignored by git. If you need local credentials, create `.env.local` manually with the same Netlify variable names above.
-
-```bash
-npm install
-npm run dev
-```
-
-Then open `http://localhost:3000/overview/today`.
-
-## Quality checks
-
-```bash
-npm run typecheck
-npm run lint
-npm run build
-```
-
-## Supabase schema
-
-The schema proposal lives in:
-
-- `supabase/migrations/0001_initial_schema.sql`
-- `supabase/schema.sql`
-
-It includes raw snapshots, source runs, dashboard snapshots, normalized market data, news, calendars, flow, 13F holdings, macro, sentiment, breadth, and optional Hormuz updates.
-
-
-## Disclaimer
-
-This dashboard is for personal research and market education only. It is not financial advice, investment advice, or a recommendation to buy or sell securities. Data may be delayed, incomplete, inaccurate, or stale.
+Documentation maintenance is required: when behavior, data flow, UI, scripts, APIs, deployment, environment variables, or architecture change, update the relevant docs in the same change.
