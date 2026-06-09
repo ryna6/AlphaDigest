@@ -119,7 +119,7 @@ async function fetchText(url: string, accept: string) {
   const response = await fetch(url, {
     headers: {
       Accept: accept,
-      "User-Agent": "Mozilla/5.0 (compatible; MarketRecapBot/1.0; +https://marketrecap.local)"
+      "User-Agent": "Mozilla/5.0 (compatible; AlphaDigestBot/1.0; +https://alphadigest.local)"
     },
     cache: "no-store"
   }).catch(() => null);

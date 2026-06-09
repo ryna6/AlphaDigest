@@ -1,6 +1,6 @@
 # Architecture
 
-This document describes the current MarketRecap implementation. Treat the codebase as the source of truth and update this file when architecture, routing, data flow, or shared patterns change.
+This document describes the current AlphaDigest implementation. Treat the codebase as the source of truth and update this file when architecture, routing, data flow, or shared patterns change.
 
 ## Stack
 
@@ -52,7 +52,7 @@ supabase/                    Schema and migrations
 | `/sources-methodology`            | Source reference table.                                | Static page-level source list.                               |
 | `/settings`                       | Environment variable name/status helper.               | Static variable list, points users to `/api/sources/status`. |
 
-Navigation items live in `lib/constants/navigation.ts`. The sidebar marks an item active when the current path exactly matches or starts with the item's `href`.
+Navigation items live in `lib/constants/navigation.ts`. The desktop sidebar and mobile horizontal tab bar mark an item active when the current path exactly matches or starts with the item's `href`.
 
 ### Internal API routes
 
@@ -172,7 +172,7 @@ The placeholder functions only return JSON that describes future ingestion flow.
 - Tailwind custom colors and `Space Grotesk` font configuration live in `tailwind.config.ts`.
 - Core visual primitives are intentionally square/compact: `Panel`, `MetricRow`, `DataTable`, `Heatmap`, `SectionHeader`, `InfoTooltip`, `ErrorState`, and `EmptyState`.
 - Large layouts generally use responsive grids with `xl:` breakpoints and mobile-first stacking.
-- The desktop sidebar is hidden below `lg`; mobile navigation is not currently implemented as a separate drawer.
+- The desktop sidebar is sticky at the viewport top, and below `lg` a sticky mobile header exposes the primary tabs in a horizontally scrollable tab bar.
 
 ## Known architecture limitations
 

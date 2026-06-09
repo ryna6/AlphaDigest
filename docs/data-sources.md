@@ -229,8 +229,9 @@ Current behavior:
 2. `fetchInvestingEconomicCalendar(dateKey)` fetches the provider endpoint for that week.
 3. Events are normalized into stable event ids, event date, timestamp/time, actual, forecast, previous, country, star importance, and highlight metadata.
 4. Highlighting is based on included economic-event configuration and star importance.
-5. Today filters events to the current ET date.
-6. News & Calendar preloads adjacent weeks and fetches selected days on demand.
+5. Exclusion patterns remove low-signal or duplicate rows, including exports/imports details, without excluding broader Trade Balance events.
+6. Today filters events to the current ET date.
+7. News & Calendar preloads adjacent weeks and fetches selected days on demand.
 
 Optional Supabase helpers:
 

@@ -309,6 +309,12 @@ assert(
   !shouldIncludeEconomicEvent("Crude Oil Inventories"),
   "crude oil inventory events should be excluded"
 );
+assert(!shouldIncludeEconomicEvent("Exports"), "exports events should be excluded");
+assert(
+  !shouldIncludeEconomicEvent("IMPORTS"),
+  "imports events should be excluded case-insensitively"
+);
+assert(shouldIncludeEconomicEvent("Trade Balance"), "Trade Balance should remain included");
 assert(ECONOMIC_SURPRISE_RULES.cpi === "lower_is_good", "CPI should use lower_is_good");
 assert(ECONOMIC_SURPRISE_RULES.coreCpi === "lower_is_good", "Core CPI should use lower_is_good");
 assert(ECONOMIC_SURPRISE_RULES.ppi === "lower_is_good", "PPI should use lower_is_good");
@@ -393,6 +399,18 @@ for (const dateKey of ["2026-06-01", "2026-06-02", "2026-06-03", "2026-06-04", "
   );
 }
 
+const RealDate = Date;
+class FixedDate extends RealDate {
+  constructor(value?: string | number | Date) {
+    super(value ?? "2026-06-05T16:00:00Z");
+  }
+
+  static now() {
+    return new RealDate("2026-06-05T16:00:00Z").getTime();
+  }
+}
+(globalThis as typeof globalThis & { Date: DateConstructor }).Date = FixedDate as DateConstructor;
+
 const currentWeekDays = buildWeekDays(0, new Date("2026-06-05T16:00:00Z"));
 const previousWeekDays = buildWeekDays(-1, new Date("2026-06-05T16:00:00Z"));
 const nextWeekDays = buildWeekDays(1, new Date("2026-06-05T16:00:00Z"));
@@ -455,6 +473,27 @@ const investingEvents = normalizeInvestingEconomicCalendarPayload(
         importance: "medium",
         country_id: 5,
         currency: "USD"
+      },
+      {
+        event_id: 9991,
+        event_translated: "Exports",
+        importance: "medium",
+        country_id: 5,
+        currency: "USD"
+      },
+      {
+        event_id: 9992,
+        event_translated: "Imports",
+        importance: "medium",
+        country_id: 5,
+        currency: "USD"
+      },
+      {
+        event_id: 9993,
+        event_translated: "Trade Balance",
+        importance: "medium",
+        country_id: 5,
+        currency: "USD"
       }
     ],
     occurrences: [
@@ -479,6 +518,21 @@ const investingEvents = normalizeInvestingEconomicCalendarPayload(
         occurrence_time: "2026-06-05T17:00:00Z",
         actual: 563,
         previous: 562
+      },
+      {
+        event_id: 9991,
+        occurrence_time: "2026-06-05T18:00:00Z",
+        actual: 1.2
+      },
+      {
+        event_id: 9992,
+        occurrence_time: "2026-06-05T18:00:00Z",
+        actual: 2.3
+      },
+      {
+        event_id: 9993,
+        occurrence_time: "2026-06-05T18:00:00Z",
+        actual: -50.1
       }
     ]
   },
@@ -505,18 +559,14 @@ assert(
   !investingEvents.some((event) => /Rig Count/.test(event.eventName)),
   "Investing.com normalization should apply excluded event patterns"
 );
-
-const RealDate = Date;
-class FixedDate extends RealDate {
-  constructor(value?: string | number | Date) {
-    super(value ?? "2026-06-05T16:00:00Z");
-  }
-
-  static now() {
-    return new RealDate("2026-06-05T16:00:00Z").getTime();
-  }
-}
-(globalThis as typeof globalThis & { Date: DateConstructor }).Date = FixedDate as DateConstructor;
+assert(
+  !investingEvents.some((event) => /^(Exports|Imports)$/i.test(event.eventName)),
+  "Investing.com normalization should exclude exports/imports details"
+);
+assert(
+  investingEvents.some((event) => event.eventName === "Trade Balance"),
+  "Investing.com normalization should retain Trade Balance"
+);
 
 const markup = renderToStaticMarkup(<NewsCalendarView data={payload} />);
 const earningsCalendarIndex = markup.indexOf("Earnings Calendar");
@@ -750,9 +800,8 @@ const emptyTodayMarkup = renderToStaticMarkup(
   <TodayView data={{ ...todayData, earnings: [], economicCalendar: [] }} />
 );
 assert(
-  emptyTodayMarkup.includes("Today&#x27;s Earnings") &&
-    emptyTodayMarkup.includes("No major earnings today."),
-  "Today earnings title or empty state punctuation regressed"
+  emptyTodayMarkup.includes("Today&#x27;s Earnings") && emptyTodayMarkup.includes("No earnings"),
+  "Today earnings title or empty state text regressed"
 );
 const todayEarningsMarkup = todayMarkup.slice(todayMarkup.indexOf("Today&#x27;s Earnings"));
 assert(
@@ -762,6 +811,10 @@ assert(
 assert(
   emptyTodayMarkup.includes("No economic events for today."),
   "Today Economic Events empty state text regressed"
+);
+assert(
+  !emptyTodayMarkup.includes("0 Significant"),
+  "Today Economic Events should not show zero significant text when empty"
 );
 
 console.log("News & Calendar UI validation passed.");

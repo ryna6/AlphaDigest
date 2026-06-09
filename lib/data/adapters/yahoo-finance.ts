@@ -136,7 +136,7 @@ async function fetchJson(url: string, timeoutMs = 12_000, attempts = 2): Promise
       const response = await fetch(url, {
         cache: "no-store",
         signal: controller.signal,
-        headers: { "User-Agent": "MarketRecap/1.0" }
+        headers: { "User-Agent": "AlphaDigest/1.0" }
       });
 
       if (!response.ok) {

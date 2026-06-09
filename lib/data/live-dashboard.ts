@@ -270,7 +270,7 @@ function formatEconomicEventCount(count: number) {
 }
 
 function formatImportantEconomicEventCount(count: number) {
-  return `${count} Significant`;
+  return count > 0 ? `${count} Significant` : undefined;
 }
 
 function economicImportanceFromStars(

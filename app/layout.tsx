@@ -3,7 +3,7 @@ import "./globals.css";
 import { DashboardShell } from "@/components/shell/dashboard-shell";
 
 export const metadata: Metadata = {
-  title: "MarketRecap",
+  title: "AlphaDigest",
   description: "Professional market recap dashboard for daily market intelligence.",
   metadataBase: new URL("https://example.netlify.app"),
   icons: {
