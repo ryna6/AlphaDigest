@@ -1,6 +1,6 @@
-# MarketRecap
+# AlphaDigest
 
-MarketRecap is a dark-mode market intelligence dashboard for quickly answering:
+AlphaDigest is a dark-mode market intelligence dashboard for quickly answering:
 
 - What is moving today?
 - Which headlines, earnings, and economic events matter?
@@ -36,7 +36,7 @@ A combined events workspace with:
 
 - Latest market headlines.
 - A weekday selector for last week, this week, and next week.
-- Economic calendar events with actual/forecast/previous values and highlighted high-importance releases.
+- Economic calendar events with actual/forecast/previous values, highlighted high-importance releases, and exports/imports detail rows filtered out while Trade Balance remains visible.
 - Earnings grouped into before-open and after-close sessions.
 - Separate “View All” pages for market news and earnings.
 
@@ -60,11 +60,11 @@ A placeholder ticker-intelligence area. The explorer page does not perform live 
 
 ### Sources, Methodology, and Settings
 
-Utility pages list intended source coverage and environment variable names. Secret values are never shown in the browser.
+Utility pages list intended source coverage and environment variable names. Secret values are never shown in the browser. The desktop sidebar and mobile primary-tab bar remain available while scrolling.
 
 ## Data sources at a glance
 
-MarketRecap keeps third-party calls server-side where possible. Current active sources include:
+AlphaDigest keeps third-party calls server-side where possible. Current active sources include:
 
 - **Finnhub** for quote-driven market metrics and heatmaps when the relevant API keys are configured.
 - **Yahoo Finance public endpoints** for selected fallback quote metrics such as VIX and S&P 500 futures.
@@ -103,7 +103,7 @@ npm run validate:news-calendar
 For the best local or deployed experience, configure only the keys you actually use:
 
 ```text
-NEXT_PUBLIC_APP_NAME=MarketRecap
+NEXT_PUBLIC_APP_NAME=AlphaDigest
 
 SUPABASE_URL=
 SUPABASE_ANON_KEY=

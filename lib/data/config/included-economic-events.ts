@@ -87,7 +87,9 @@ export const EXCLUDED_ECONOMIC_EVENT_PATTERNS: RegExp[] = [
   /nonfarm\s+productivity/i,
   /unit\s+labor\s+costs/i,
   /retail\s+control/i,
-  /tic\s+net\s+long-?term\s+transactions/i
+  /tic\s+net\s+long-?term\s+transactions/i,
+  /\bexports\b/i,
+  /\bimports\b/i
 ];
 
 const IMPORTANT_ECONOMIC_EVENT_ENTRIES = Object.entries(IMPORTANT_ECONOMIC_EVENTS) as Array<

@@ -1,6 +1,6 @@
 # Deployment
 
-MarketRecap is configured for Netlify deployment with Next.js App Router support.
+AlphaDigest is configured for Netlify deployment with Next.js App Router support.
 
 ## Netlify configuration
 
@@ -51,7 +51,7 @@ Suggested smoke-test paths after deploy:
 Configure values in Netlify site settings. Do not commit real secrets.
 
 ```text
-NEXT_PUBLIC_APP_NAME=MarketRecap
+NEXT_PUBLIC_APP_NAME=AlphaDigest
 SUPABASE_URL=
 SUPABASE_ANON_KEY=
 SUPABASE_SERVICE_ROLE_KEY=

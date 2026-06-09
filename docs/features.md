@@ -5,7 +5,7 @@ This file documents current user-facing features and the files future Codex agen
 ## Navigation and shell
 
 - Shell layout: `app/layout.tsx` wraps every route in `DashboardShell`.
-- Sidebar: `components/shell/app-sidebar.tsx` renders main and utility navigation from `lib/constants/navigation.ts`.
+- Sidebar/mobile tabs: `components/shell/app-sidebar.tsx` renders the sticky desktop sidebar and sticky mobile primary-tab bar from `lib/constants/navigation.ts`.
 - Logo: `components/shell/app-logo.tsx` renders `public/logo.png`.
 - Home redirect: `app/page.tsx` redirects `/` to `/overview/today`.
 
@@ -100,7 +100,7 @@ The main page displays:
 
 - Latest Market News: first 12 items from the Unusual Whales headline feed or fallback news.
 - Weekday selector for last week, current week, and next week.
-- Economic Calendar table for the selected weekday.
+- Economic Calendar table for the selected weekday, excluding duplicate exports/imports trade-detail rows while preserving broader Trade Balance events.
 - Earnings Calendar grouped as Before Open and After Close.
 
 Subpages:
@@ -200,6 +200,6 @@ The page lists environment variable names and labels each as client-safe or serv
 ## Mobile and responsive behavior
 
 - Most page content stacks by default and switches to multi-column layouts at `md`, `lg`, or `xl` breakpoints.
-- The sidebar is hidden below `lg`; there is no current mobile drawer/navigation replacement.
+- The desktop sidebar remains sticky while scrolling and is hidden below `lg`; mobile uses a sticky, horizontally scrollable primary-tab bar instead of a drawer.
 - Tables use compact text and horizontal constraints but are not universally optimized for very narrow screens.
 - Before changing layouts, verify Today, Markets, and News & Calendar because they are the densest pages.

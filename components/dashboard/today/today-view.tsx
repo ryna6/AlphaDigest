@@ -129,7 +129,7 @@ function EarningsPanel({ earnings }: { earnings: EarningsEvent[] }) {
         </div>
       ) : (
         <div className="rounded-none border border-dashed border-borderStrong px-3 py-4 text-center text-xs text-textMuted">
-          No major earnings today.
+          No earnings
         </div>
       )}
     </Panel>

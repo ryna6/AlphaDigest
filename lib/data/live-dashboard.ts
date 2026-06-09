@@ -269,8 +269,11 @@ function formatEconomicEventCount(count: number) {
   return `${count} ${count === 1 ? "Event" : "Events"}`;
 }
 
-function formatImportantEconomicEventCount(count: number) {
-  return `${count} Significant`;
+export function formatImportantEconomicEventCount(
+  significantCount: number,
+  totalEventCount: number
+) {
+  return totalEventCount > 0 ? `${significantCount} Significant` : undefined;
 }
 
 function economicImportanceFromStars(
@@ -558,7 +561,10 @@ export async function getTodayPayload(): Promise<{
         {
           label: "Today's Economic Events",
           value: formatEconomicEventCount(todayEconomicEvents.length),
-          change: formatImportantEconomicEventCount(highlightedEconomicEventCount),
+          change: formatImportantEconomicEventCount(
+            highlightedEconomicEventCount,
+            todayEconomicEvents.length
+          ),
           tone: "neutral"
         }
       ],
