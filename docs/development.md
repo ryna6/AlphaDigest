@@ -87,7 +87,7 @@ If a command fails because of an existing toolchain issue or environment limitat
 Local `.env*` files are intentionally untracked. Configure only what you need.
 
 ```text
-NEXT_PUBLIC_APP_NAME=MarketRecap
+NEXT_PUBLIC_APP_NAME=AlphaDigest
 SUPABASE_URL=
 SUPABASE_ANON_KEY=
 SUPABASE_SERVICE_ROLE_KEY=
@@ -241,7 +241,7 @@ If converting a fixture-backed page to live data, update docs to remove “fixtu
 - Use Tailwind tokens from `tailwind.config.ts` (`page`, `sidebar`, `panel`, `borderStrong`, `textPrimary`, `textSecondary`, `textMuted`, `accentBlue`, `positive`, `negative`, `warning`, `neutral`).
 - Prefer existing UI primitives before creating new containers/tables/cards.
 - Preserve the compact, square, data-dense dashboard style unless product direction changes.
-- Use responsive grids; verify narrow widths because the sidebar disappears below `lg`.
+- Use responsive grids; verify narrow widths because the desktop sidebar is replaced below `lg` by a sticky horizontal primary-tab bar.
 - Do not introduce a new design system without updating `docs/architecture.md` and `docs/features.md`.
 
 ## Code style rules

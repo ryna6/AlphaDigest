@@ -319,7 +319,7 @@ function EarningsGroup({ title, events }: { title: string; events: UnusualWhales
         </div>
       ) : (
         <div className="rounded-xl border border-dashed border-borderStrong px-3 py-4 text-center text-xs text-textMuted">
-          No qualifying earnings.
+          No earnings
         </div>
       )}
     </div>
