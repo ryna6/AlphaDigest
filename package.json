@@ -12,7 +12,7 @@
     "format": "prettier --check .",
     "format:write": "prettier --write .",
     "fetch:uw-earnings": "tsx scripts/fetchUnusualWhalesEarnings.ts",
-    "test": "npm run typecheck",
+    "test": "npm run typecheck && tsx --test test/*.test.ts",
     "validate:news-calendar": "sucrase-node scripts/validateNewsCalendarUi.tsx"
   },
   "dependencies": {

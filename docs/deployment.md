@@ -79,7 +79,7 @@ Current required-vs-optional reality:
 
 Supabase is optional but recommended if durable caches are needed.
 
-Apply migrations from `supabase/migrations/` in order when enabling Supabase-backed cache flows:
+Apply migrations from `supabase/migrations/` in order when enabling Supabase-backed cache flows, including `0004_cboe_put_call_intraday.sql` for intraday put/call storage:
 
 1. `0001_initial_schema.sql`
 2. `0002_unusual_whales_earnings.sql`
@@ -143,6 +143,7 @@ Current caveat: `npm run lint` uses `next lint`; if the installed Next.js versio
 
 ## Data freshness and operational caveats
 
+- `refresh-put-call.ts` is scheduled with `5,35 14-22 * * 1-5` UTC and a runtime `America/New_York` gate so Cboe Total put/call refreshes occur five minutes after expected 30-minute releases across DST.
 - Netlify scheduled functions are not guaranteed to run every minute on all plans/configurations.
 - In-memory server caches reset on cold starts and deployments.
 - Public endpoints can rate-limit or change shape without notice.
