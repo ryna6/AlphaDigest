@@ -5,7 +5,7 @@ import { createServerSupabaseClient } from "@/lib/db/supabase";
 const UW_EARNINGS_URL = "https://phx.unusualwhales.com/api/companies_earnings/upcoming_earnings_v2";
 const SOURCE = "unusual_whales_earnings";
 const DEFAULT_LIMIT = 250;
-const UW_EARNINGS_MIN_MARKET_CAP = 2_000_000_000;
+const UW_EARNINGS_MIN_MARKET_CAP = 4_000_000_000;
 const UW_EARNINGS_COUNTRY_CODE = "US";
 const REQUEST_TIMEOUT_MS = 15_000;
 const SERVER_CACHE_TTL_MS = 60_000;

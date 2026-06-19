@@ -59,6 +59,8 @@ const { todayMock } =
   require("../lib/data/fixtures/mock-dashboard") as typeof import("../lib/data/fixtures/mock-dashboard");
 const { formatImportantEconomicEventCount } =
   require("../lib/data/live-dashboard") as typeof import("../lib/data/live-dashboard");
+const { MAJOR_EARNINGS_MARKET_CAP, filterMajorEarnings } =
+  require("../lib/data/earnings-utils") as typeof import("../lib/data/earnings-utils");
 
 function assert(condition: unknown, message: string) {
   if (!condition) throw new Error(message);
@@ -276,6 +278,46 @@ assert(
   parsedEarningsUrl.searchParams.get("min_marketcap") === "4000000000",
   "Unusual Whales earnings URL should request a $4B minimum market cap"
 );
+assert(MAJOR_EARNINGS_MARKET_CAP === 4_000_000_000, "major earnings threshold should be $4B");
+const marketCapFilterFixtures = [
+  earningsEvent({
+    id: "below",
+    symbol: "BELO",
+    reportDate: "2026-06-05",
+    reportTime: "premarket",
+    marketCap: 3_999_999_999,
+    impliedMovePct: null
+  }),
+  earningsEvent({
+    id: "equal",
+    symbol: "EQAL",
+    reportDate: "2026-06-05",
+    reportTime: "premarket",
+    marketCap: 4_000_000_000,
+    impliedMovePct: null
+  }),
+  earningsEvent({
+    id: "above",
+    symbol: "ABOV",
+    reportDate: "2026-06-05",
+    reportTime: "premarket",
+    marketCap: 4_000_000_001,
+    impliedMovePct: null
+  }),
+  earningsEvent({
+    id: "missing",
+    symbol: "MISS",
+    reportDate: "2026-06-05",
+    reportTime: "premarket",
+    marketCap: null,
+    impliedMovePct: null
+  })
+];
+const filteredMarketCapSymbols = filterMajorEarnings(marketCapFilterFixtures).map((event) => event.symbol);
+assert(
+  filteredMarketCapSymbols.join(",") === "EQAL,ABOV",
+  "major earnings filter should include >= $4B and exclude below, missing, or malformed values"
+);
 assert(
   parsedEarningsUrl.searchParams.getAll("country_codes[]").includes("US") &&
     earningsUrl.includes("country_codes%5B%5D=US"),
@@ -315,6 +357,23 @@ assert(!shouldIncludeEconomicEvent("Exports"), "exports events should be exclude
 assert(
   !shouldIncludeEconomicEvent("IMPORTS"),
   "imports events should be excluded case-insensitively"
+);
+const newlyExcludedEconomicEvents = [
+  "IEA Monthly Report",
+  "FOMC Statement",
+  "FOMC Press Conference",
+  "FOMC Economic Projections",
+  "WASDE Report",
+  "OPEC Monthly Report",
+  "EIA Short-Term Energy Outlook",
+  "Fed Bank Stress Test Results"
+];
+for (const eventName of newlyExcludedEconomicEvents) {
+  assert(!shouldIncludeEconomicEvent(eventName), `${eventName} should be excluded`);
+}
+assert(
+  !shouldIncludeEconomicEvent("eia short term energy outlook"),
+  "economic event exclusions should tolerate minor punctuation variations"
 );
 assert(shouldIncludeEconomicEvent("Trade Balance"), "Trade Balance should remain included");
 assert(
@@ -728,7 +787,13 @@ const todayData: TodayPayload = {
   marketSummary: [
     { label: "Leading Sectors", value: "Tech", change: "+0.82%", tone: "positive" },
     { label: "Risk On / Risk Off", value: "1.10", change: "Risk Off", tone: "neutral" },
-    { label: "Put/Call Ratio", value: "0.91", change: "Neutral", tone: "neutral" },
+    {
+      label: "Put/Call Ratio",
+      value: "0.91",
+      change: "Neutral",
+      changePercent: "latest cached",
+      tone: "neutral"
+    },
     { label: "Today's Earnings", value: "2 Earnings", tone: "neutral" },
     {
       label: "Today's Economic Events",
@@ -787,6 +852,10 @@ assert(
   "Today Market Summary card contents should be vertically centered"
 );
 assert(
+  !todayMarkup.includes("latest cached"),
+  "Today Put/Call Ratio card should not render latest cached freshness text"
+);
+assert(
   todayMarkup.includes("mt-4") &&
     todayMarkup.includes("text-[1.2rem] leading-tight") &&
     todayMarkup.includes("text-[0.7rem]"),
@@ -819,7 +888,7 @@ assert(
   "Today tab earnings panel should not render the News & Calendar put/call ratio field"
 );
 assert(
-  emptyTodayMarkup.includes("No economic events for today."),
+  emptyTodayMarkup.includes("No economic events"),
   "Today Economic Events empty state text regressed"
 );
 assert(
