@@ -178,7 +178,7 @@ function EconomicEventsPanel({ events }: { events: EconomicEvent[] }) {
         </div>
       ) : (
         <div className="rounded-none border border-dashed border-borderStrong px-3 py-4 text-center text-xs text-textMuted">
-          No economic events for today.
+          No economic events
         </div>
       )}
     </Panel>

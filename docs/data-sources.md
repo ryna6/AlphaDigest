@@ -4,17 +4,18 @@ This document records active and placeholder data sources. Accuracy matters: do 
 
 ## Source status summary
 
-| Source/provider                                                                     | Active use today                                                                                      | Files                                                                       |
-| ----------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------- |
-| Finnhub quote API                                                                   | Active for market metrics, heatmaps, VIX/VIX3M, and optional company logos when keys exist.           | `lib/data/live-dashboard.ts`, `lib/data/adapters/finnhub-key-router.ts`     |
-| Yahoo Finance public chart/quote endpoints                                          | Active for selected quote fallbacks such as `^VIX` and `ES=F`; has optional Supabase refresh helpers. | `lib/data/adapters/yahoo-finance.ts`                                        |
-| Unusual Whales featured news page/Next data                                         | Active for Today featured articles and Top News pages.                                                | `lib/data/adapters/unusual-whales-news.ts`, `lib/data/live-dashboard.ts`    |
-| Unusual Whales headline feed PHX endpoint                                           | Active for News & Calendar latest market news.                                                        | `lib/data/adapters/unusual-whales-news.ts`, `lib/data/live-dashboard.ts`    |
-| Unusual Whales earnings PHX endpoint                                                | Active for Today and News & Calendar earnings, with Supabase/live/static fallback flow.               | `lib/data/adapters/unusual-whales-earnings.ts`                              |
-| Investing.com economic calendar endpoint                                            | Active for Today and News & Calendar economic events.                                                 | `lib/data/adapters/investing-economic-calendar.ts`                          |
-| Supabase                                                                            | Optional durable cache for supported refresh helpers.                                                 | `lib/db/supabase.ts`, `supabase/`                                           |
-| Static earnings fallback JSON                                                       | Active fallback when Supabase/live earnings paths are unavailable.                                    | `public/data/unusual-whales/earnings-calendar.json`                         |
-| FRED, Twelve Data, CoinGecko, sec-api.io, Capitol Trades, CBOE, AAII, HormuzTracker | Listed/planned or placeholder only unless future code wires them into live flows.                     | Settings/source pages and fixtures currently reference some of these names. |
+| Source/provider                                                                     | Active use today                                                                                            | Files                                                                         |
+| ----------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------- |
+| Finnhub quote API                                                                   | Active for market metrics, heatmaps, VIX3M (`INDEXCBOE:VIX3M`), and optional company logos when keys exist. | `lib/data/live-dashboard.ts`, `lib/data/adapters/finnhub-key-router.ts`       |
+| Yahoo Finance public chart/quote endpoints                                          | Active for selected quotes such as `^VIX` and `ES=F`; has optional Supabase refresh helpers.                | `lib/data/adapters/yahoo-finance.ts`                                          |
+| Unusual Whales featured news page/Next data                                         | Active for Today featured articles and Top News pages.                                                      | `lib/data/adapters/unusual-whales-news.ts`, `lib/data/live-dashboard.ts`      |
+| Unusual Whales headline feed PHX endpoint                                           | Active for News & Calendar latest market news.                                                              | `lib/data/adapters/unusual-whales-news.ts`, `lib/data/live-dashboard.ts`      |
+| Unusual Whales earnings PHX endpoint                                                | Active for Today and News & Calendar earnings, with Supabase/live/static fallback flow.                     | `lib/data/adapters/unusual-whales-earnings.ts`                                |
+| Investing.com economic calendar endpoint                                            | Active for Today and News & Calendar economic events.                                                       | `lib/data/adapters/investing-economic-calendar.ts`                            |
+| Cboe U.S. Options Market Statistics                                                 | Active server-side parser for intraday Total put/call ratio.                                                | `lib/data/adapters/cboe-put-call.ts`, `netlify/functions/refresh-put-call.ts` |
+| Supabase                                                                            | Optional durable cache for supported refresh helpers, including put/call observations.                      | `lib/db/supabase.ts`, `supabase/`                                             |
+| Static earnings fallback JSON                                                       | Active fallback when Supabase/live earnings paths are unavailable.                                          | `public/data/unusual-whales/earnings-calendar.json`                           |
+| FRED, Twelve Data, CoinGecko, sec-api.io, Capitol Trades, CBOE, AAII, HormuzTracker | Listed/planned or placeholder only unless future code wires them into live flows.                           | Settings/source pages and fixtures currently reference some of these names.   |
 
 ## Environment variables
 
@@ -52,12 +53,12 @@ Files:
 
 Feature-area key mapping:
 
-| Feature area      | Env var                           |
-| ----------------- | --------------------------------- |
-| `global-markets`  | `FINNHUB_GLOBAL_MARKETS_API_KEY`  |
-| `sectors-heatmap` | `FINNHUB_SECTORS_HEATMAP_API_KEY` |
-| `crypto-heatmap`  | `FINNHUB_CRYPTO_HEATMAP_API_KEY`  |
-| `macro-heatmap`   | `FINNHUB_MACRO_HEATMAP_API_KEY`   |
+| Feature area      | Env var                              |
+| ----------------- | ------------------------------------ |
+| `global-markets`  | `FINNHUB_GLOBAL_MARKETS_API_KEY`     |
+| `sectors-heatmap` | `FINNHUB_SECTORS_HEATMAP_API_KEY`    |
+| `crypto-heatmap`  | CoinGecko no-key server-side adapter |
+| `macro-heatmap`   | `FINNHUB_MACRO_HEATMAP_API_KEY`      |
 
 Live quote behavior:
 
@@ -70,7 +71,7 @@ Current quote groups:
 
 - Global: SPY, EWC, IEUR, EWJ, EWT, EWH, EWY, INDA.
 - Sectors: XLK, XLF, XLC, XLY, XLI, XLV, XLP, XLU, XLB, XLE, XLRE, SMH.
-- Crypto: BTCUSD, ETHUSD, SOLUSD, XRPUSD, BNBUSD, TRXUSD, ADAUSD, DOGEUSD, fetched through Binance symbols where configured.
+- Crypto: BTCUSD, ETHUSD, SOLUSD, XRPUSD, BNBUSD, TRXUSD, ADAUSD, DOGEUSD are fetched through CoinGecko as USD quotes with true 24-hour percentage changes. Today Market Overview and the Markets crypto heatmap consume the same normalized server-side dataset with a 60-second in-memory TTL.
 - Macro: GLD, SLV, USO, UNG, SHY, TLT, HYG, UUP.
 
 Company logo behavior:
@@ -285,3 +286,17 @@ Some tables in the schema are forward-looking and are not wired to current UI fl
 - Netlify scheduled function frequency and availability depend on site plan/settings.
 - In-memory caches do not survive deployments or cold starts.
 - Static fallback JSON can become stale; only update it intentionally through the earnings script.
+
+## Cboe Total put/call ratio
+
+`lib/data/adapters/cboe-put-call.ts` fetches Cboe U.S. Options Market Statistics server-side and parses the intraday `Total` row `P/C Ratio` value. It treats the parsed source timestamp as `America/Chicago` first, records `sourceTimezone`, `displayTimezone`, `sourceAsOfCentral`, `asOfEastern`, and `scrapedAt`, then stores those fields when Supabase is configured. The upsert key is `external_id`, derived from the normalized Eastern release instant, so repeated scheduled runs do not create duplicates. Failed parsing logs a server-side error and does not overwrite the most recent valid Supabase record.
+
+`netlify/functions/refresh-put-call.ts` uses the existing Netlify scheduled-function architecture. The cron expression is `5,35 14-21 * * 1-5` UTC, and the function applies an `America/Chicago` runtime gate for the source schedule: 9:05 AM, 9:35 AM, continuing every 30 minutes through 3:35 PM Central, Monday through Friday. AlphaDigest displays the equivalent Eastern schedule as 10:05 AM through 4:35 PM ET. The wide UTC range intentionally spans standard-time and daylight-time market sessions while the IANA timezone gate accounts for DST.
+
+## Risk On / Risk Off
+
+The Today card uses Yahoo Finance `^VIX` from the existing VIX flow and Finnhub `INDEXCBOE:VIX3M` for the 3-month volatility index. The displayed ratio is exactly `VIX3M / VIX`, rounded to two decimals, and is shown only when both source values are finite positive current index levels.
+
+## Crypto quote cache and failure behavior
+
+`lib/data/adapters/coingecko-crypto.ts` centralizes supported crypto quotes through CoinGecko `simple/price` in USD with `include_24hr_change=true`. The server cache TTL is 60 seconds. Provider failures return an unavailable result and empty quote set rather than mock prices; the Markets crypto heatmap therefore does not silently display stale bundled fallback crypto values when live crypto quotes fail.

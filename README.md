@@ -15,7 +15,7 @@ The app combines live server-side market/news/calendar fetches with clearly labe
 
 A daily briefing page with:
 
-- Major market stats such as S&P 500, Nasdaq 100, WTI oil, gold, Bitcoin, and VIX.
+- Major market stats such as S&P 500, Nasdaq 100, WTI oil, gold, Bitcoin from live CoinGecko USD quotes, and VIX.
 - A compact market summary for leading sectors, risk tone, earnings count, and economic-event count.
 - Featured Unusual Whales articles with a separate Top News page.
 - Today's major earnings and economic events.
@@ -27,7 +27,7 @@ Cross-asset heatmaps and a market strip for:
 
 - Global markets.
 - U.S. sectors and semiconductors.
-- Major crypto pairs.
+- Major crypto pairs from a shared server-side CoinGecko quote adapter used by Today and Markets.
 - Macro assets such as gold, silver, oil, natural gas, bonds, credit, and the dollar.
 
 ### News & Calendar
@@ -67,11 +67,13 @@ Utility pages list intended source coverage and environment variable names. Secr
 AlphaDigest keeps third-party calls server-side where possible. Current active sources include:
 
 - **Finnhub** for quote-driven market metrics and heatmaps when the relevant API keys are configured.
-- **Yahoo Finance public endpoints** for selected fallback quote metrics such as VIX and S&P 500 futures.
+- **Yahoo Finance public endpoints** for selected quote metrics such as VIX and S&P 500 futures.
+- **Finnhub quote API** for `INDEXCBOE:VIX3M`, used with Yahoo Finance VIX to compute `VIX3M / VIX`.
+- **Cboe U.S. Options Market Statistics** for the intraday Total put/call ratio, parsed server-side and optionally persisted to Supabase.
 - **Unusual Whales public endpoints/pages** for featured news, headline feed, and earnings calendar data.
 - **Investing.com economic calendar endpoint** for economic events.
 - **Supabase** as an optional durable cache for supported ingestion flows.
-- **Static fallback JSON** for the Unusual Whales earnings calendar when live/server cache paths fail.
+- **Static fallback JSON** for the Unusual Whales earnings calendar when live/server cache paths fail. Market quotes and put/call values do not use synthetic fallback prices.
 
 Some tabs still use mock/fixture data while provider integrations are built out. The UI and API responses label fallback/mock mode where applicable.
 
