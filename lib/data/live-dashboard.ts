@@ -3,6 +3,8 @@ import { getFinnhubKey } from "./adapters/finnhub-key-router";
 import type { YahooMarketQuote } from "./adapters/yahoo-finance";
 import { fetchYahooMarketQuote } from "./adapters/yahoo-finance";
 import { marketsMock, todayMock } from "./fixtures/mock-dashboard";
+import { fetchCryptoQuotes, cryptoAssets } from "./adapters/coingecko-crypto";
+import { getLatestCboePutCallRatio } from "./adapters/cboe-put-call";
 import { formatEtDateKey } from "../utils/time";
 import { getHeatmapIconPath, getMetricIconPath } from "../constants/asset-icons";
 import {
@@ -75,16 +77,7 @@ const quoteSymbols: Record<
     { symbol: "XLRE", label: "Real Estate", weight: 7 },
     { symbol: "SMH", label: "Semiconductors", weight: 12 }
   ],
-  "crypto-heatmap": [
-    { symbol: "BTCUSD", fetchSymbol: "BINANCE:BTCUSDT", label: "Bitcoin", weight: 28 },
-    { symbol: "ETHUSD", fetchSymbol: "BINANCE:ETHUSDT", label: "Ethereum", weight: 22 },
-    { symbol: "SOLUSD", fetchSymbol: "BINANCE:SOLUSDT", label: "Solana", weight: 12 },
-    { symbol: "XRPUSD", fetchSymbol: "BINANCE:XRPUSDT", label: "XRP", weight: 8 },
-    { symbol: "BNBUSD", fetchSymbol: "BINANCE:BNBUSDT", label: "BNB", weight: 8 },
-    { symbol: "TRXUSD", fetchSymbol: "BINANCE:TRXUSDT", label: "TRON", weight: 6 },
-    { symbol: "ADAUSD", fetchSymbol: "BINANCE:ADAUSDT", label: "Cardano", weight: 6 },
-    { symbol: "DOGEUSD", fetchSymbol: "BINANCE:DOGEUSDT", label: "Dogecoin", weight: 6 }
-  ],
+  "crypto-heatmap": cryptoAssets,
   "macro-heatmap": [
     { symbol: "GLD", label: "Gold", weight: 12 },
     { symbol: "SLV", label: "Silver", weight: 8 },
@@ -358,6 +351,19 @@ export async function getEconomicCalendarAdjacentWeekEvents(dateKey = todayDateK
   };
 }
 
+function formatPutCallRatio(value: number | null | undefined) {
+  return typeof value === "number" && Number.isFinite(value) ? value.toFixed(2) : "--";
+}
+
+function putCallValue(response: Awaited<ReturnType<typeof getLatestCboePutCallRatio>>["response"]) {
+  const ratios = response?.ratios;
+  return [
+    `Equity: ${formatPutCallRatio(ratios?.equity)}`,
+    `Index: ${formatPutCallRatio(ratios?.index)}`,
+    `Total: ${formatPutCallRatio(ratios?.total)}`
+  ].join("\n");
+}
+
 function yahooQuoteMetric(quote: YahooMarketQuote | null, label: string): Metric | null {
   if (!quote?.price) return null;
   const change = quote.change ?? 0;
@@ -385,24 +391,38 @@ function unavailableMetric(label: string): Metric {
   };
 }
 
-async function todayMarketOverviewMetrics() {
-  const fallbackMetrics = todayMock.keyStats.slice(0, 6).map((metric) => ({
-    ...metric,
-    iconPath: getMetricIconPath(metric.label)
-  }));
+async function todayMarketOverviewMetrics(
+  cryptoQuotesResult?: Awaited<ReturnType<typeof fetchCryptoQuotes>>
+) {
+  const cryptoResult = cryptoQuotesResult ?? (await fetchCryptoQuotes());
+  const bitcoin = cryptoResult.quotes.find((quote) => quote.symbol === "BTCUSD");
+  const bitcoinMetric: Metric | null = bitcoin
+    ? {
+        label: "Bitcoin",
+        value: formatNumber(bitcoin.price, { maximumFractionDigits: 2 }),
+        change: "24h",
+        changePercent: formatPercent(bitcoin.changePercent24h),
+        iconPath: getMetricIconPath("Bitcoin"),
+        tone: toneFromChange(bitcoin.changePercent24h)
+      }
+    : unavailableMetric("Bitcoin");
 
   const liveMetrics = await Promise.all([
     quoteMetric("global-markets", "SPY", "S&P 500"),
     quoteMetric("global-markets", "QQQ", "Nasdaq 100"),
     quoteMetric("macro-heatmap", "USO", "WTI Oil"),
     quoteMetric("macro-heatmap", "GLD", "Gold"),
-    quoteMetric("crypto-heatmap", "BINANCE:BTCUSDT", "Bitcoin"),
+    Promise.resolve(bitcoinMetric),
     fetchYahooMarketQuote("^VIX").then((quote) => yahooQuoteMetric(quote, "VIX"))
   ]);
 
   return liveMetrics
     .map(
-      (metric, index) => metric ?? (index === 5 ? unavailableMetric("VIX") : fallbackMetrics[index])
+      (metric, index) =>
+        metric ??
+        (index === 5
+          ? unavailableMetric("VIX")
+          : unavailableMetric(["S&P 500", "Nasdaq 100", "WTI Oil", "Gold", "Bitcoin"][index]))
     )
     .filter((metric): metric is Metric => Boolean(metric));
 }
@@ -416,7 +436,26 @@ async function earningsWithLogos() {
   );
 }
 
+async function cryptoHeatmap(
+  cryptoQuotesResult?: Awaited<ReturnType<typeof fetchCryptoQuotes>>
+): Promise<HeatmapTile[] | null> {
+  const result = cryptoQuotesResult ?? (await fetchCryptoQuotes());
+  const rows = result.quotes.map((quote) => {
+    const iconPath = getHeatmapIconPath(quote.symbol);
+    return {
+      symbol: quote.symbol,
+      label: quote.label,
+      value: quote.price,
+      changePercent: quote.changePercent24h,
+      weight: quote.weight,
+      ...(iconPath ? { iconPath } : {})
+    };
+  });
+  return rows.length === cryptoAssets.length ? rows : null;
+}
+
 async function heatmap(featureArea: FinnhubFeatureArea): Promise<HeatmapTile[] | null> {
+  if (featureArea === "crypto-heatmap") return cryptoHeatmap();
   const rows = await Promise.all(
     quoteSymbols[featureArea].map(async (item) => {
       const quote = await fetchFinnhubQuote(featureArea, item.fetchSymbol ?? item.symbol);
@@ -444,10 +483,11 @@ export async function getMarketsPayload(): Promise<{
   notices: string[];
 }> {
   const fallback = marketsMock();
+  const cryptoQuotesResult = await fetchCryptoQuotes();
   const [globalMarkets, sectors, crypto, macro] = await Promise.all([
     heatmap("global-markets"),
     heatmap("sectors-heatmap"),
-    heatmap("crypto-heatmap"),
+    cryptoHeatmap(cryptoQuotesResult),
     heatmap("macro-heatmap")
   ]);
 
@@ -487,7 +527,7 @@ export async function getMarketsPayload(): Promise<{
       heatmaps: {
         globalMarkets: globalMarkets ?? fallback.heatmaps.globalMarkets,
         sectors: sectors ?? fallback.heatmaps.sectors,
-        crypto: crypto ?? fallback.heatmaps.crypto,
+        crypto: crypto ?? [],
         macro: macro ?? fallback.heatmaps.macro
       },
       heatmapKeyMessages: []
@@ -506,10 +546,22 @@ export async function getTodayPayload(): Promise<{
   const leading = [...markets.heatmaps.sectors]
     .sort((a, b) => b.changePercent - a.changePercent)
     .slice(0, 3);
-  const vix = await fetchFinnhubQuote("macro-heatmap", "^VIX");
-  const vix3m = await fetchFinnhubQuote("macro-heatmap", "VIX3M");
-  const riskRatio =
-    vix?.c && vix3m?.c ? (vix3m.c / vix.c).toFixed(2) : todayMock.marketSummary[1].value;
+  const [vix, vix3m, putCallResult, cryptoQuotesResult] = await Promise.all([
+    fetchYahooMarketQuote("^VIX"),
+    fetchYahooMarketQuote("^VIX3M"),
+    getLatestCboePutCallRatio(),
+    fetchCryptoQuotes()
+  ]);
+  const vixValue = vix?.price;
+  const vix3mValue = vix3m?.price;
+  const hasValidRiskInputs =
+    typeof vixValue === "number" &&
+    Number.isFinite(vixValue) &&
+    vixValue > 0 &&
+    typeof vix3mValue === "number" &&
+    Number.isFinite(vix3mValue) &&
+    vix3mValue > 0;
+  const riskRatio = hasValidRiskInputs ? (vix3mValue / vixValue).toFixed(2) : "—";
   const riskRatioValue = Number(riskRatio);
   const riskTone = Number.isFinite(riskRatioValue)
     ? riskRatioValue > 1
@@ -517,12 +569,12 @@ export async function getTodayPayload(): Promise<{
       : riskRatioValue < 1
         ? "risk on"
         : "neutral"
-    : todayMock.marketSummary[1].change;
+    : undefined;
   const [featuredNewsResult, unusualWhalesEarningsResult, todayKeyStats, economicCalendarResult] =
     await Promise.all([
       fetchUnusualWhalesFeaturedNews(50),
       getCachedUnusualWhalesEarnings({ limit: 250, order: "oi" }),
-      todayMarketOverviewMetrics(),
+      todayMarketOverviewMetrics(cryptoQuotesResult),
       getEconomicCalendarEvents(todayDateKey())
     ]);
   const todayEarnings = getMajorEarningsForDate(unusualWhalesEarningsResult.events, todayDateKey());
@@ -549,8 +601,10 @@ export async function getTodayPayload(): Promise<{
         { label: "Risk On / Risk Off", value: riskRatio, change: riskTone, tone: "neutral" },
         {
           label: "Put/Call Ratio",
-          value: todayMock.marketSummary[2].value,
-          change: todayMock.marketSummary[2].change,
+          value: putCallValue(putCallResult.response),
+          change: putCallResult.response?.asOf
+            ? `ET ${new Intl.DateTimeFormat("en-US", { timeZone: "America/New_York", hour: "numeric", minute: "2-digit" }).format(new Date(putCallResult.response.asOf))}`
+            : undefined,
           tone: "neutral"
         },
         {
@@ -592,6 +646,26 @@ export async function getTodayPayload(): Promise<{
           investingEconomicSources().calendar,
           economicCalendarResult.mode === "live" ? "live" : "unavailable",
           economicCalendarResult.message
+        ),
+        liveMeta(
+          "Cboe Options Market Statistics",
+          "https://www.cboe.com/markets/us/options/market-statistics#current",
+          putCallResult.mode,
+          putCallResult.message
+        ),
+        liveMeta(
+          "CoinGecko Crypto Quotes",
+          "https://api.coingecko.com/api/v3/simple/price",
+          cryptoQuotesResult.mode,
+          cryptoQuotesResult.message
+        ),
+        liveMeta(
+          "Yahoo Finance VIX + VIX3M",
+          "https://query1.finance.yahoo.com/v8/finance/chart/%5EVIX3M",
+          hasValidRiskInputs ? "live" : "unavailable",
+          hasValidRiskInputs
+            ? undefined
+            : "Risk ratio requires valid positive Yahoo Finance ^VIX and ^VIX3M values."
         ),
         ...todayMock.sourceMeta.filter(
           (meta) =>

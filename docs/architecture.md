@@ -85,7 +85,7 @@ The main orchestration module is `lib/data/live-dashboard.ts`.
 `getMarketsPayload()`:
 
 1. Starts with `marketsMock()` as a complete fallback.
-2. Attempts Finnhub quote fetches for four heatmap groups: global markets, sectors, crypto, and macro.
+2. Attempts live quote fetches for heatmap groups: Finnhub for global markets, sectors, and macro; CoinGecko for the centralized crypto heatmap dataset.
 3. Attempts strip metrics for SPY, QQQ, IJH, IWM through Finnhub and S&P 500 futures through Yahoo Finance.
 4. Uses fallback tiles/metrics when individual live values fail.
 5. Returns `mode: "mock"` only when no live heatmap or strip data is available.
@@ -95,12 +95,13 @@ The main orchestration module is `lib/data/live-dashboard.ts`.
 `getTodayPayload()`:
 
 1. Calls `getMarketsPayload()` and reuses sector heatmap data to derive leading sectors.
-2. Fetches VIX and VIX3M from Finnhub macro routing to compute a risk-on/risk-off ratio when available.
-3. Fetches featured Unusual Whales articles.
-4. Gets cached/live/fallback Unusual Whales earnings and filters them to today's major earnings.
-5. Fetches today's Investing.com economic calendar events.
-6. Fetches market overview metrics for S&P 500, Nasdaq 100, WTI oil, gold, Bitcoin, and VIX.
-7. Merges live data with `todayMock` fallback fields.
+2. Fetches VIX from the existing Yahoo Finance VIX flow and VIX3M from Yahoo Finance `^VIX3M`, then computes `VIX3M / VIX` only when both positive index levels are available.
+3. Reads the latest Cboe Total put/call observation from Supabase when configured, otherwise performs a server-side Cboe fetch/parse with no synthetic fallback.
+4. Fetches featured Unusual Whales articles.
+5. Gets cached/live/fallback Unusual Whales earnings and filters them to today's major earnings.
+6. Fetches today's Investing.com economic calendar events.
+7. Fetches market overview metrics for S&P 500, Nasdaq 100, WTI oil, gold, Bitcoin, and VIX.
+8. Merges live data with `todayMock` fallback fields.
 
 ### News & Calendar payload
 
@@ -177,6 +178,7 @@ The placeholder functions only return JSON that describes future ingestion flow.
 ## Known architecture limitations
 
 - Several pages remain fixture-backed even though source/methodology pages list future intended providers.
+- `refresh-put-call.ts`: scheduled at `5,35 14-21 * * 1-5` UTC and gated against the source schedule in `America/Chicago` so the Cboe scraper runs only from 9:05 AM through 3:35 PM Central on weekdays, which displays as 10:05 AM through 4:35 PM ET. The wide UTC window covers Eastern standard and daylight time; the runtime gate prevents off-window duplicate work.
 - Many refresh helpers are implemented at the adapter level but are not wired to scheduled Netlify functions.
 - Source pages and settings pages are mostly static references and may drift unless maintained with code changes.
 - The app has no formal unit-test suite beyond typecheck and the custom News & Calendar UI validation script.
