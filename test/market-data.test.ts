@@ -45,9 +45,9 @@ test("Cboe daily parser reads official ratio table as fallback", () => {
     <h1>Cboe Daily Market Statistics</h1>
     <table>
       <tr><th>Ratios</th><th>Value</th></tr>
-      <tr><td>TOTAL PUT/CALL RATIO</td><td>0.91</td></tr>
-      <tr><td>INDEX PUT/CALL RATIO</td><td>1.17</td></tr>
-      <tr><td>EQUITY PUT/CALL RATIO</td><td>0.58</td></tr>
+      <tr><td>TOTAL PUT/CALL RATIO</td><td>0.69</td></tr>
+      <tr><td>INDEX PUT/CALL RATIO</td><td>1.11</td></tr>
+      <tr><td>EQUITY PUT/CALL RATIO</td><td>0.55</td></tr>
     </table>
   `;
   const parsed = parseCboeDailyPutCallFromHtml(html, "2026-06-19T02:30:00.000Z");
