@@ -4,7 +4,8 @@ import test from "node:test";
 import {
   centralTimestampToEasternIso,
   isExpectedCboeFetchWindow,
-  parseCboePutCallFromHtml
+  parseCboePutCallFromHtml,
+  parseCboeDailyPutCallFromHtml
 } from "../lib/data/adapters/cboe-put-call";
 import {
   normalizeCoinGeckoCryptoResponse,
@@ -37,6 +38,22 @@ test("Cboe parser preserves available ratios when one ratio is missing", () => {
 test("Cboe parser returns null when target market-statistics section is missing", () => {
   const parsed = parseCboePutCallFromHtml("<h2>Volume Summary</h2><table></table>");
   assert.equal(parsed, null);
+});
+
+test("Cboe daily parser reads official ratio table as fallback", () => {
+  const html = `
+    <h1>Cboe Daily Market Statistics</h1>
+    <table>
+      <tr><th>Ratios</th><th>Value</th></tr>
+      <tr><td>TOTAL PUT/CALL RATIO</td><td>0.91</td></tr>
+      <tr><td>INDEX PUT/CALL RATIO</td><td>1.17</td></tr>
+      <tr><td>EQUITY PUT/CALL RATIO</td><td>0.58</td></tr>
+    </table>
+  `;
+  const parsed = parseCboeDailyPutCallFromHtml(html, "2026-06-19T02:30:00.000Z");
+  assert.equal(parsed?.freshness, "previous_close");
+  assert.deepEqual(parsed?.ratios, { equity: 0.58, index: 1.17, total: 0.91 });
+  assert.equal(parsed?.value, 0.91);
 });
 
 test("Central to Eastern conversion handles standard time and daylight time", () => {
