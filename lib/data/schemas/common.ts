@@ -9,12 +9,22 @@ export const sourceMetaSchema = z.object({
 });
 export type SourceMeta = z.infer<typeof sourceMetaSchema>;
 
+export const putCallRatiosSchema = z.object({
+  equity: z.number().nullable(),
+  index: z.number().nullable(),
+  total: z.number().nullable()
+});
+export type PutCallRatios = z.infer<typeof putCallRatiosSchema>;
+
 export const metricSchema = z.object({
   label: z.string(),
   value: z.string(),
   change: z.string().optional(),
   changePercent: z.string().optional(),
   iconPath: z.string().optional(),
+  putCallRatios: putCallRatiosSchema.optional(),
+  putCallAsOf: z.string().nullable().optional(),
+  putCallFreshness: z.string().optional(),
   tone: z.enum(["positive", "negative", "neutral", "warning"]).default("neutral")
 });
 export type Metric = z.infer<typeof metricSchema>;

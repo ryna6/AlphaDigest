@@ -2,6 +2,8 @@ import { createServerSupabaseClient } from "@/lib/db/supabase";
 
 export const CBOE_PUT_CALL_SOURCE_URL =
   "https://www.cboe.com/markets/us/options/market-statistics#current";
+export const CBOE_DAILY_PUT_CALL_SOURCE_URL =
+  "https://www.cboe.com/markets/us/options/market-statistics/daily/";
 export const CBOE_SOURCE_TIMEZONE = "America/Chicago";
 export const CBOE_DISPLAY_TIMEZONE = "America/New_York";
 const FRESH_CACHE_MS = 35 * 60 * 1000;
@@ -229,9 +231,86 @@ function firstTimeLabel(text: string) {
   return /(\d{1,2}:\d{2}\s*(?:AM|PM))/i.exec(text)?.[1] ?? null;
 }
 
+
+function ratioKeyFromDailyLabel(value: string): keyof PutCallRatios | null {
+  const normalized = normalizeLabel(value.replace(/put\/?callratio/gi, ""));
+  if (normalized === "total") return "total";
+  if (normalized === "index") return "index";
+  if (normalized === "equity") return "equity";
+  return null;
+}
+
+function parseDailyRatiosFromText(text: string) {
+  const ratios: PutCallRatios = { equity: null, index: null, total: null };
+  const labelsFound: string[] = [];
+  const normalizedText = text.replace(/\s+/g, " ").trim();
+  const patterns: Array<[keyof PutCallRatios, RegExp]> = [
+    ["total", /\bTOTAL\s+PUT\/?CALL\s+RATIO\s+([0-9]+(?:\.[0-9]+)?)/i],
+    ["index", /\bINDEX\s+PUT\/?CALL\s+RATIO\s+([0-9]+(?:\.[0-9]+)?)/i],
+    ["equity", /\bEQUITY\s+PUT\/?CALL\s+RATIO\s+([0-9]+(?:\.[0-9]+)?)/i]
+  ];
+
+  for (const [key, pattern] of patterns) {
+    const match = pattern.exec(normalizedText);
+    if (!match) continue;
+    labelsFound.push(`${key} put/call ratio`);
+    ratios[key] = numberFromText(match[1]);
+  }
+
+  return { ratios, labelsFound };
+}
+
+function parseDailyRatiosFromTable(html: string) {
+  const ratios: PutCallRatios = { equity: null, index: null, total: null };
+  const labelsFound: string[] = [];
+  const rows = Array.from(html.matchAll(/<tr[^>]*>([\s\S]*?)<\/tr>/gi)).map((match) =>
+    cellsFromRow(match[1])
+  );
+
+  for (const cells of rows) {
+    if (cells.length < 2) continue;
+    const key = ratioKeyFromDailyLabel(cells[0]);
+    if (!key) continue;
+    labelsFound.push(cells[0]);
+    ratios[key] = numberFromText(cells[1]);
+  }
+
+  return anyRatio(ratios) ? { ratios, labelsFound } : parseDailyRatiosFromText(cleanText(html));
+}
+
+export function parseCboeDailyPutCallFromHtml(
+  html: string,
+  scrapedAt = new Date().toISOString(),
+  sourceUrl = CBOE_DAILY_PUT_CALL_SOURCE_URL
+): PutCallRatioResponse | null {
+  const { ratios, labelsFound } = parseDailyRatiosFromTable(html);
+  const parsedKeys = presentRatioKeys(ratios);
+  console.log("cboe_put_call_daily_parse", { labelsFound, parsedKeys });
+  if (!anyRatio(ratios)) return null;
+  const asOf = new Date(scrapedAt).toISOString();
+  return {
+    asOf,
+    marketDate: asOf.slice(0, 10),
+    source: "cboe",
+    freshness: "previous_close",
+    ratios,
+    value: ratios.total,
+    raw: {
+      heading: "Cboe Daily Market Statistics",
+      sourceUrl,
+      sourceTimezone: CBOE_SOURCE_TIMEZONE,
+      displayTimezone: CBOE_DISPLAY_TIMEZONE,
+      sourceAsOfCentral: null,
+      asOfEastern: asOf,
+      scrapedAt
+    }
+  };
+}
+
 export function parseCboePutCallFromHtml(
   html: string,
-  scrapedAt = new Date().toISOString()
+  scrapedAt = new Date().toISOString(),
+  sourceUrl = CBOE_PUT_CALL_SOURCE_URL
 ): PutCallRatioResponse | null {
   const section = sectionAfterMarketStatsHeading(html);
   if (!section) {
@@ -267,7 +346,7 @@ export function parseCboePutCallFromHtml(
     value: ratios.total,
     raw: {
       heading: section.heading,
-      sourceUrl: CBOE_PUT_CALL_SOURCE_URL,
+      sourceUrl,
       sourceTimezone: CBOE_SOURCE_TIMEZONE,
       displayTimezone: CBOE_DISPLAY_TIMEZONE,
       sourceAsOfCentral,
@@ -292,6 +371,12 @@ function isFreshCachedResponse(response: PutCallRatioResponse, now = Date.now())
   return Number.isFinite(scrapedAt) && now - scrapedAt <= FRESH_CACHE_MS;
 }
 
+function presentRatioKeys(ratios: PutCallRatios) {
+  return Object.entries(ratios)
+    .filter(([, value]) => typeof value === "number" && Number.isFinite(value))
+    .map(([key]) => key);
+}
+
 function dbRowFromResponse(response: PutCallRatioResponse) {
   return {
     external_id: `cboe-put-call:${response.asOf ?? response.raw?.scrapedAt ?? new Date().toISOString()}`,
@@ -309,7 +394,7 @@ function dbRowFromResponse(response: PutCallRatioResponse) {
     scraped_at: response.raw?.scrapedAt,
     freshness: response.freshness,
     source_name: "Cboe Options Market Statistics",
-    source_url: CBOE_PUT_CALL_SOURCE_URL,
+    source_url: response.raw?.sourceUrl ?? CBOE_PUT_CALL_SOURCE_URL,
     fetched_at: response.raw?.scrapedAt ?? new Date().toISOString(),
     updated_at: new Date().toISOString()
   };
@@ -361,14 +446,24 @@ async function readCachedPutCallRatio(freshness: PutCallFreshness) {
     .from("put_call_observations")
     .select("*")
     .eq("ratio_type", "options")
-    .order("as_of_eastern", { ascending: false })
+    .order("as_of_eastern", { ascending: false, nullsFirst: false })
+    .order("fetched_at", { ascending: false })
     .limit(1)
     .maybeSingle();
   if (error || !data) {
+    console.log("cboe_put_call_cache", { hit: false, freshness, error: error?.message });
     return { response: null, message: error ? error.message : "No cached Cboe put/call rows." };
   }
+  const response = responseFromDbRow(data as Record<string, unknown>, freshness);
+  console.log("cboe_put_call_cache", {
+    hit: true,
+    freshness,
+    presentRatios: presentRatioKeys(response.ratios),
+    asOf: response.asOf,
+    scrapedAt: response.raw?.scrapedAt
+  });
   return {
-    response: responseFromDbRow(data as Record<string, unknown>, freshness),
+    response,
     message: undefined
   };
 }
@@ -383,21 +478,50 @@ async function writeCachedPutCallRatio(response: PutCallRatioResponse) {
 }
 
 export async function fetchCboePutCallRatio() {
-  try {
-    const response = await fetch(CBOE_PUT_CALL_SOURCE_URL, {
-      cache: "no-store",
-      headers: { "user-agent": "AlphaDigest/1.0", accept: "text/html" }
-    });
-    console.log("cboe_put_call_fetch", { ok: response.ok, status: response.status });
-    if (!response.ok) throw new Error(`Cboe responded ${response.status}`);
-    const parsed = parseCboePutCallFromHtml(await response.text());
-    if (!parsed) throw new Error("Unable to parse Cboe Exchange Market Statistics put/call ratios");
-    return { response: parsed, mode: "live" as const };
-  } catch (error) {
-    const message = error instanceof Error ? error.message : "Unknown Cboe put/call fetch error";
-    console.error("cboe_put_call_error", { error: message });
-    return { response: null, mode: "unavailable" as const, message };
+  const attempts = [
+    {
+      url: CBOE_PUT_CALL_SOURCE_URL,
+      parse: parseCboePutCallFromHtml,
+      label: "intraday_exchange_market_statistics"
+    },
+    {
+      url: CBOE_DAILY_PUT_CALL_SOURCE_URL,
+      parse: parseCboeDailyPutCallFromHtml,
+      label: "daily_market_statistics"
+    }
+  ];
+  const messages: string[] = [];
+
+  for (const attempt of attempts) {
+    try {
+      const response = await fetch(attempt.url, {
+        cache: "no-store",
+        headers: { "user-agent": "AlphaDigest/1.0", accept: "text/html" }
+      });
+      console.log("cboe_put_call_fetch", {
+        source: attempt.label,
+        ok: response.ok,
+        status: response.status
+      });
+      if (!response.ok) throw new Error(`Cboe responded ${response.status}`);
+      const scrapedAt = new Date().toISOString();
+      const parsed = attempt.parse(await response.text(), scrapedAt, attempt.url);
+      if (!parsed) throw new Error(`Unable to parse ${attempt.label} put/call ratios`);
+      console.log("cboe_put_call_fetch_success", {
+        source: attempt.label,
+        presentRatios: presentRatioKeys(parsed.ratios),
+        asOf: parsed.asOf,
+        sourceAsOfCentral: parsed.raw?.sourceAsOfCentral
+      });
+      return { response: parsed, mode: "live" as const };
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Unknown Cboe put/call fetch error";
+      messages.push(`${attempt.label}: ${message}`);
+      console.error("cboe_put_call_error", { source: attempt.label, error: message });
+    }
   }
+
+  return { response: null, mode: "unavailable" as const, message: messages.join("; ") };
 }
 
 export async function refreshCboePutCallRatio() {
@@ -423,7 +547,7 @@ export async function refreshCboePutCallRatio() {
 export async function getLatestCboePutCallRatio() {
   const cached = await readCachedPutCallRatio("live_intraday");
   if (cached.response && isFreshCachedResponse(cached.response)) {
-    console.log("cboe_put_call_response", { source: "supabase_cache", freshness: "live_intraday" });
+    console.log("cboe_put_call_response", { source: "supabase_cache", freshness: "live_intraday", presentRatios: presentRatioKeys(cached.response.ratios), asOf: cached.response.asOf });
     return { response: cached.response, mode: "cached" as const, message: undefined };
   }
 
@@ -431,13 +555,13 @@ export async function getLatestCboePutCallRatio() {
   if (live.response) {
     const cache = await writeCachedPutCallRatio(live.response);
     if (cache.error) console.error("cboe_put_call_cache_error", { error: cache.error });
-    console.log("cboe_put_call_response", { source: "cboe", freshness: "live_intraday" });
+    console.log("cboe_put_call_response", { source: "cboe", freshness: "live_intraday", presentRatios: presentRatioKeys(live.response.ratios), asOf: live.response.asOf });
     return { response: live.response, mode: "live" as const, message: undefined };
   }
 
   if (cached.response) {
     const stale = { ...cached.response, freshness: "stale" as const };
-    console.log("cboe_put_call_response", { source: "supabase_cache", freshness: "stale" });
+    console.log("cboe_put_call_response", { source: "supabase_cache", freshness: "stale", presentRatios: presentRatioKeys(stale.ratios), asOf: stale.asOf });
     return { response: stale, mode: "cached" as const, message: live.message };
   }
 

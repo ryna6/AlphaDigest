@@ -355,13 +355,34 @@ function formatPutCallRatio(value: number | null | undefined) {
   return typeof value === "number" && Number.isFinite(value) ? value.toFixed(2) : "--";
 }
 
-function putCallValue(response: Awaited<ReturnType<typeof getLatestCboePutCallRatio>>["response"]) {
+function putCallRatios(response: Awaited<ReturnType<typeof getLatestCboePutCallRatio>>["response"]) {
   const ratios = response?.ratios;
+  return {
+    equity: typeof ratios?.equity === "number" && Number.isFinite(ratios.equity) ? ratios.equity : null,
+    index: typeof ratios?.index === "number" && Number.isFinite(ratios.index) ? ratios.index : null,
+    total:
+      typeof ratios?.total === "number" && Number.isFinite(ratios.total)
+        ? ratios.total
+        : typeof response?.value === "number" && Number.isFinite(response.value)
+          ? response.value
+          : null
+  };
+}
+
+function putCallValue(response: Awaited<ReturnType<typeof getLatestCboePutCallRatio>>["response"]) {
+  const ratios = putCallRatios(response);
   return [
-    `Equity: ${formatPutCallRatio(ratios?.equity)}`,
-    `Index: ${formatPutCallRatio(ratios?.index)}`,
-    `Total: ${formatPutCallRatio(ratios?.total)}`
+    `Equity: ${formatPutCallRatio(ratios.equity)}`,
+    `Index: ${formatPutCallRatio(ratios.index)}`,
+    `Total: ${formatPutCallRatio(ratios.total)}`
   ].join("\n");
+}
+
+function putCallSentiment(total: number | null | undefined) {
+  if (typeof total !== "number" || !Number.isFinite(total)) return "Signal unavailable";
+  if (total > 1.2) return "Bearish";
+  if (total < 0.7) return "Bullish";
+  return "Neutral";
 }
 
 function yahooQuoteMetric(quote: YahooMarketQuote | null, label: string): Metric | null {
@@ -602,9 +623,13 @@ export async function getTodayPayload(): Promise<{
         {
           label: "Put/Call Ratio",
           value: putCallValue(putCallResult.response),
-          change: putCallResult.response?.asOf
-            ? `ET ${new Intl.DateTimeFormat("en-US", { timeZone: "America/New_York", hour: "numeric", minute: "2-digit" }).format(new Date(putCallResult.response.asOf))}`
+          change: putCallSentiment(putCallRatios(putCallResult.response).total),
+          changePercent: putCallResult.response?.asOf
+            ? `${putCallResult.response.freshness === "stale" || putCallResult.response.freshness === "previous_close" ? "Latest cached" : "ET"} ${new Intl.DateTimeFormat("en-US", { timeZone: "America/New_York", hour: "numeric", minute: "2-digit", timeZoneName: "short" }).format(new Date(putCallResult.response.asOf)).replace(/E[DS]T$/, "ET")}`
             : undefined,
+          putCallRatios: putCallRatios(putCallResult.response),
+          putCallAsOf: putCallResult.response?.asOf ?? null,
+          putCallFreshness: putCallResult.response?.freshness,
           tone: "neutral"
         },
         {
