@@ -1,4 +1,5 @@
 import type { FinnhubFeatureArea } from "./adapters/finnhub-key-router";
+import { getFreshDashboardSnapshot, upsertDashboardSnapshot } from "./adapters/dashboard-snapshots";
 import { getFinnhubKey } from "./adapters/finnhub-key-router";
 import type { YahooMarketQuote } from "./adapters/yahoo-finance";
 import { fetchYahooMarketQuote } from "./adapters/yahoo-finance";
@@ -498,7 +499,7 @@ async function heatmap(featureArea: FinnhubFeatureArea): Promise<HeatmapTile[] |
   return valid.length ? valid : null;
 }
 
-export async function getMarketsPayload(): Promise<{
+async function buildMarketsPayload(): Promise<{
   payload: MarketsPayload;
   mode: "mock" | "live";
   notices: string[];
@@ -558,12 +559,12 @@ export async function getMarketsPayload(): Promise<{
   };
 }
 
-export async function getTodayPayload(): Promise<{
+async function buildTodayPayload(): Promise<{
   payload: TodayPayload;
   mode: "mock" | "live";
   notices: string[];
 }> {
-  const { payload: markets, mode } = await getMarketsPayload();
+  const { payload: markets, mode } = await buildMarketsPayload();
   const leading = [...markets.heatmaps.sectors]
     .sort((a, b) => b.changePercent - a.changePercent)
     .slice(0, 3);
@@ -707,7 +708,7 @@ export async function getTodayPayload(): Promise<{
   };
 }
 
-export async function getNewsCalendarPayload(): Promise<{
+async function buildNewsCalendarPayload(): Promise<{
   payload: NewsCalendarPayload;
   mode: "mock" | "live";
   notices: string[];
@@ -776,4 +777,55 @@ export async function getNewsCalendarPayload(): Promise<{
     mode: newsResult.items.length ? "live" : "mock",
     notices: newsResult.message ? [newsResult.message] : []
   };
+}
+
+
+export async function refreshDashboardSnapshot(key: "today:latest" | "markets:latest" | "news-calendar:latest") {
+  const builders = {
+    "today:latest": { ttlSeconds: 15 * 60, build: buildTodayPayload },
+    "markets:latest": { ttlSeconds: 10 * 60, build: buildMarketsPayload },
+    "news-calendar:latest": { ttlSeconds: 45 * 60, build: buildNewsCalendarPayload }
+  } as const;
+  const entry = builders[key];
+  const result = await entry.build();
+  const write = await upsertDashboardSnapshot(key, result.payload, {
+    ttlSeconds: entry.ttlSeconds,
+    mode: result.mode,
+    notices: result.notices,
+    metadata: { refreshedBy: "netlify-function" }
+  });
+  return { ...write, key, mode: result.mode, notices: result.notices };
+}
+
+export async function getMarketsPayload(): Promise<{
+  payload: MarketsPayload;
+  mode: "mock" | "live" | "cached";
+  notices: string[];
+}> {
+  const cached = await getFreshDashboardSnapshot<MarketsPayload>("markets:latest");
+  if (cached.snapshot) return { payload: cached.snapshot.payload, mode: "cached", notices: cached.snapshot.notices };
+  if (cached.message) console.warn("dashboard_snapshot_read", { key: "markets:latest", message: cached.message });
+  return buildMarketsPayload();
+}
+
+export async function getTodayPayload(): Promise<{
+  payload: TodayPayload;
+  mode: "mock" | "live" | "cached";
+  notices: string[];
+}> {
+  const cached = await getFreshDashboardSnapshot<TodayPayload>("today:latest");
+  if (cached.snapshot) return { payload: cached.snapshot.payload, mode: "cached", notices: cached.snapshot.notices };
+  if (cached.message) console.warn("dashboard_snapshot_read", { key: "today:latest", message: cached.message });
+  return buildTodayPayload();
+}
+
+export async function getNewsCalendarPayload(): Promise<{
+  payload: NewsCalendarPayload;
+  mode: "mock" | "live" | "cached";
+  notices: string[];
+}> {
+  const cached = await getFreshDashboardSnapshot<NewsCalendarPayload>("news-calendar:latest");
+  if (cached.snapshot) return { payload: cached.snapshot.payload, mode: "cached", notices: cached.snapshot.notices };
+  if (cached.message) console.warn("dashboard_snapshot_read", { key: "news-calendar:latest", message: cached.message });
+  return buildNewsCalendarPayload();
 }

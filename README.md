@@ -156,3 +156,13 @@ Developer and Codex-focused documentation lives in [`docs/`](docs/):
 - [`docs/codex-guidelines.md`](docs/codex-guidelines.md)
 
 Documentation maintenance is required: when behavior, data flow, UI, scripts, APIs, deployment, environment variables, or architecture change, update the relevant docs in the same change.
+
+## Supabase-first dashboard cache
+
+AlphaDigest remains a serverless web deployment: GitHub stores code, Netlify hosts the Next.js frontend and scheduled/serverless functions, and Supabase Cloud hosts Postgres. The active dashboard tabs now prefer frontend-ready Supabase `dashboard_snapshots` rows before live provider calls:
+
+- `today:latest` for Today.
+- `markets:latest` for Markets.
+- `news-calendar:latest` for News & Calendar.
+
+Netlify scheduled functions refresh those snapshots ahead of user navigation. If Supabase is not configured or a snapshot is missing/stale, the existing live provider and fixture/static fallback paths still render the app.

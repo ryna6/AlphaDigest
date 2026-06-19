@@ -262,3 +262,7 @@ Before finishing a docs-impacting change, verify:
 4. Data sources, env vars, scripts, APIs, serverless functions, and deployment settings match code.
 5. Internal links in docs work.
 6. Unsupported/future features are labeled as fixture-backed, placeholder, planned, or not active.
+
+## Local snapshot-cache behavior
+
+Local development does not require Supabase. When `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` are missing, dashboard payload functions log a snapshot-cache miss and keep using the existing live/mock fallback builders. To test the production-like path locally, configure those server-only variables, run the Netlify refresh functions or call `refreshDashboardSnapshot()`, then inspect `/api/cache/status`.
