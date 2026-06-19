@@ -14,6 +14,34 @@ import { InfoTooltip } from "@/components/ui/info-tooltip";
 import { cn } from "@/lib/utils/cn";
 import { formatEtDateTime, formatEtTime, timestampTitle } from "@/lib/utils/time";
 
+const putCallInfoText =
+  "This metric compares the trading volume (or open interest) of put options to call options.\n\nWhen the ratio >1.2, it suggests traders are buying significantly more puts than calls, reflecting a more bearish or risk-off market sentiment. When the ratio < 0.7, it suggests traders are buying more calls than puts, reflecting a more bullish or risk-on market sentiment.";
+
+function formatPutCallRatio(value: number | null | undefined) {
+  return typeof value === "number" && Number.isFinite(value) ? value.toFixed(2) : "--";
+}
+
+function putCallLines(metric: Metric) {
+  if (metric.putCallRatios) {
+    console.log("today_put_call_card", {
+      hasRatios: true,
+      presentRatios: Object.entries(metric.putCallRatios)
+        .filter(([, value]) => typeof value === "number" && Number.isFinite(value))
+        .map(([key]) => key),
+      asOf: metric.putCallAsOf,
+      freshness: metric.putCallFreshness
+    });
+    return [
+      `Equity: ${formatPutCallRatio(metric.putCallRatios.equity)}`,
+      `Index: ${formatPutCallRatio(metric.putCallRatios.index)}`,
+      `Total: ${formatPutCallRatio(metric.putCallRatios.total)}`
+    ];
+  }
+
+  console.log("today_put_call_card", { hasRatios: false, asOf: metric.putCallAsOf });
+  return metric.value.split("\n");
+}
+
 function signedValueClass(value?: string) {
   if (!value) return "text-textSecondary";
   if (/^-|\s-/.test(value)) return "text-negative";
@@ -229,13 +257,14 @@ export function TodayView({ data }: { data: TodayPayload }) {
                       }
                     />
                   ) : null}
+                  {isPutCallRatio ? <InfoTooltip text={putCallInfoText} size="compact" /> : null}
                 </div>
                 <div
                   className={cn("flex flex-1 flex-col justify-center", isLeadingSectors && "mt-4")}
                 >
                   {isPutCallRatio ? (
                     <div className="space-y-1 text-sm font-semibold leading-tight text-textPrimary sm:text-base">
-                      {metric.value.split("\n").map((line) => (
+                      {putCallLines(metric).map((line) => (
                         <p key={line}>{line}</p>
                       ))}
                     </div>
@@ -254,11 +283,14 @@ export function TodayView({ data }: { data: TodayPayload }) {
                       className={cn(
                         "mt-2",
                         isLeadingSectors ? "text-[0.7rem]" : "text-sm",
-                        signedValueClass(explanation)
+                        isPutCallRatio ? "text-textSecondary" : signedValueClass(explanation)
                       )}
                     >
                       {explanation}
                     </p>
+                  ) : null}
+                  {isPutCallRatio && metric.changePercent ? (
+                    <p className="mt-1 text-[11px] text-textMuted">{metric.changePercent}</p>
                   ) : null}
                 </div>
               </div>

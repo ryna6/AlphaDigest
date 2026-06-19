@@ -292,6 +292,12 @@ function isFreshCachedResponse(response: PutCallRatioResponse, now = Date.now())
   return Number.isFinite(scrapedAt) && now - scrapedAt <= FRESH_CACHE_MS;
 }
 
+function presentRatioKeys(ratios: PutCallRatios) {
+  return Object.entries(ratios)
+    .filter(([, value]) => typeof value === "number" && Number.isFinite(value))
+    .map(([key]) => key);
+}
+
 function dbRowFromResponse(response: PutCallRatioResponse) {
   return {
     external_id: `cboe-put-call:${response.asOf ?? response.raw?.scrapedAt ?? new Date().toISOString()}`,
@@ -361,14 +367,24 @@ async function readCachedPutCallRatio(freshness: PutCallFreshness) {
     .from("put_call_observations")
     .select("*")
     .eq("ratio_type", "options")
-    .order("as_of_eastern", { ascending: false })
+    .order("as_of_eastern", { ascending: false, nullsFirst: false })
+    .order("fetched_at", { ascending: false })
     .limit(1)
     .maybeSingle();
   if (error || !data) {
+    console.log("cboe_put_call_cache", { hit: false, freshness, error: error?.message });
     return { response: null, message: error ? error.message : "No cached Cboe put/call rows." };
   }
+  const response = responseFromDbRow(data as Record<string, unknown>, freshness);
+  console.log("cboe_put_call_cache", {
+    hit: true,
+    freshness,
+    presentRatios: presentRatioKeys(response.ratios),
+    asOf: response.asOf,
+    scrapedAt: response.raw?.scrapedAt
+  });
   return {
-    response: responseFromDbRow(data as Record<string, unknown>, freshness),
+    response,
     message: undefined
   };
 }
@@ -392,6 +408,11 @@ export async function fetchCboePutCallRatio() {
     if (!response.ok) throw new Error(`Cboe responded ${response.status}`);
     const parsed = parseCboePutCallFromHtml(await response.text());
     if (!parsed) throw new Error("Unable to parse Cboe Exchange Market Statistics put/call ratios");
+    console.log("cboe_put_call_fetch_success", {
+      presentRatios: presentRatioKeys(parsed.ratios),
+      asOf: parsed.asOf,
+      sourceAsOfCentral: parsed.raw?.sourceAsOfCentral
+    });
     return { response: parsed, mode: "live" as const };
   } catch (error) {
     const message = error instanceof Error ? error.message : "Unknown Cboe put/call fetch error";
@@ -423,7 +444,7 @@ export async function refreshCboePutCallRatio() {
 export async function getLatestCboePutCallRatio() {
   const cached = await readCachedPutCallRatio("live_intraday");
   if (cached.response && isFreshCachedResponse(cached.response)) {
-    console.log("cboe_put_call_response", { source: "supabase_cache", freshness: "live_intraday" });
+    console.log("cboe_put_call_response", { source: "supabase_cache", freshness: "live_intraday", presentRatios: presentRatioKeys(cached.response.ratios), asOf: cached.response.asOf });
     return { response: cached.response, mode: "cached" as const, message: undefined };
   }
 
@@ -431,13 +452,13 @@ export async function getLatestCboePutCallRatio() {
   if (live.response) {
     const cache = await writeCachedPutCallRatio(live.response);
     if (cache.error) console.error("cboe_put_call_cache_error", { error: cache.error });
-    console.log("cboe_put_call_response", { source: "cboe", freshness: "live_intraday" });
+    console.log("cboe_put_call_response", { source: "cboe", freshness: "live_intraday", presentRatios: presentRatioKeys(live.response.ratios), asOf: live.response.asOf });
     return { response: live.response, mode: "live" as const, message: undefined };
   }
 
   if (cached.response) {
     const stale = { ...cached.response, freshness: "stale" as const };
-    console.log("cboe_put_call_response", { source: "supabase_cache", freshness: "stale" });
+    console.log("cboe_put_call_response", { source: "supabase_cache", freshness: "stale", presentRatios: presentRatioKeys(stale.ratios), asOf: stale.asOf });
     return { response: stale, mode: "cached" as const, message: live.message };
   }
 
