@@ -1,6 +1,6 @@
 import type { UnusualWhalesEarningsEvent } from "@/lib/data/schemas/dashboard";
 
-export const MAJOR_EARNINGS_MARKET_CAP = 5_000_000_000;
+export const MAJOR_EARNINGS_MARKET_CAP = 4_000_000_000;
 
 type EarningsSession = "premarket" | "postmarket" | "regular" | "unknown";
 
@@ -9,7 +9,7 @@ export function getSelectedDayEarnings(events: UnusualWhalesEarningsEvent[], sel
 }
 
 export function filterMajorEarnings(events: UnusualWhalesEarningsEvent[]) {
-  return events.filter((event) => (event.marketCap ?? 0) > MAJOR_EARNINGS_MARKET_CAP);
+  return events.filter((event) => (event.marketCap ?? 0) >= MAJOR_EARNINGS_MARKET_CAP);
 }
 
 export function sortByMarketCapDesc(events: UnusualWhalesEarningsEvent[]) {

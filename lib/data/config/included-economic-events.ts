@@ -88,6 +88,14 @@ export const EXCLUDED_ECONOMIC_EVENT_PATTERNS: RegExp[] = [
   /unit\s+labor\s+costs/i,
   /retail\s+control/i,
   /tic\s+net\s+long-?term\s+transactions/i,
+  /iea\s+monthly\s+report/i,
+  /fomc\s+statement/i,
+  /fomc\s+press\s+conference/i,
+  /fomc\s+economic\s+projections/i,
+  /wasde\s+report/i,
+  /opec\s+monthly\s+report/i,
+  /eia\s+short[-\s]?term\s+energy\s+outlook/i,
+  /fed\s+bank\s+stress\s+test\s+results/i,
   /\bexports\b/i,
   /\bimports\b/i
 ];

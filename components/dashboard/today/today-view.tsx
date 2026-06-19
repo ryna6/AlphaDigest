@@ -309,9 +309,6 @@ export function TodayView({ data }: { data: TodayPayload }) {
                       {explanation}
                     </p>
                   ) : null}
-                  {isPutCallRatio && metric.changePercent ? (
-                    <p className="mt-1 text-[11px] text-textMuted">{metric.changePercent}</p>
-                  ) : null}
                 </div>
               </div>
             );
