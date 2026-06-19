@@ -266,15 +266,16 @@ export function TodayView({ data }: { data: TodayPayload }) {
                       text={
                         "This metric compares the 3-month expected volatility (VIX3M) to the current VIX.\n\nWhen the ratio > 1, it means traders expect higher volatility in the future, which can reflects a more risk-off market. When the ratio < 1, near-term fear is higher, which can suggest conditions is shifting towards a more risk-on market."
                       }
+                      placement="right"
                     />
                   ) : null}
-                  {isPutCallRatio ? <InfoTooltip text={putCallInfoText} /> : null}
+                  {isPutCallRatio ? <InfoTooltip text={putCallInfoText} placement="right" /> : null}
                 </div>
                 <div
                   className={cn("flex flex-1 flex-col justify-center", isLeadingSectors && "mt-4")}
                 >
                   {isPutCallRatio ? (
-                    <div className="space-y-1 text-base font-semibold leading-tight text-textPrimary">
+                    <div className="mt-3 space-y-1 text-base font-semibold leading-tight text-textPrimary">
                       {(() => {
                         const [indexLine, equityLine, totalLine] = putCallLines(metric);
                         return (
