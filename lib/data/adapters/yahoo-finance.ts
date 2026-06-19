@@ -337,7 +337,7 @@ export async function refreshYahooMarketQuotes(symbols = MARKET_QUOTE_SYMBOLS) {
       changed: null,
       contentHash,
       error: message,
-      persisted: true
+      persisted: false
     });
   }
 }

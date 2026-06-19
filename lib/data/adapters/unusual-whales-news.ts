@@ -607,7 +607,7 @@ export async function refreshUnusualWhalesNewsFeed(limit = 100) {
       changed: null,
       contentHash,
       error: message,
-      persisted: true
+      persisted: false
     });
   }
 }
@@ -689,7 +689,7 @@ export async function refreshUnusualWhalesFeaturedArticles(limit = 50) {
       changed: null,
       contentHash,
       error: message,
-      persisted: true
+      persisted: false
     });
   }
 }

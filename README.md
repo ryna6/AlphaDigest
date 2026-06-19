@@ -170,3 +170,9 @@ Netlify scheduled functions refresh those snapshots ahead of user navigation. If
 ### Cache repair and verification
 
 Apply all Supabase migrations through `0006_source_cache_tables.sql` before relying on scheduled refreshes. The source refresh functions now upsert rows for news feed, featured articles, economic events, market quotes, earnings, and put/call data; dashboard refresh functions write `today:latest`, `markets:latest`, and `news-calendar:latest`. Use `/api/cache/status` after deploy to confirm row counts, latest metadata errors, missing snapshot keys, and snapshot freshness.
+
+### Production Supabase cache schema repair
+
+Netlify deploys do not automatically apply Supabase SQL migrations unless a separate migration pipeline is configured. If scheduled refresh logs show PostgREST schema-cache errors such as missing `investing_economic_events.source_url`, `unusual_whales_featured_articles.created_at_source`, `unusual_whales_news_feed.event_time`, `put_call_observations`, or `dashboard_snapshots`, run `supabase/manual/apply-cache-schema-fix.sql` in the Supabase SQL Editor. The SQL is idempotent, reloads the PostgREST schema cache with `notify pgrst, 'reload schema'`, and aligns production with the Netlify refresh adapters.
+
+After applying it, manually run `refresh-economic-events`, `refresh-featured-articles`, `refresh-news-feed`, `refresh-news`, `refresh-today`, `refresh-put-call`, and `refresh-markets` in Netlify. Then open `/api/cache/status` to confirm row counts, expected columns, current metadata, and snapshot keys `today:latest`, `markets:latest`, and `news-calendar:latest`.
