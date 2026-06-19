@@ -580,7 +580,7 @@ export async function refreshInvestingEconomicEvents(dateKeys = defaultEconomicR
       changed,
       contentHash,
       upserted,
-      persisted: true,
+      persisted: false,
       meta: { dates: uniqueDateKeys }
     });
   } catch (error) {
@@ -601,7 +601,7 @@ export async function refreshInvestingEconomicEvents(dateKeys = defaultEconomicR
       changed: null,
       contentHash,
       error: message,
-      persisted: true,
+      persisted: false,
       meta: { dates: uniqueDateKeys }
     });
   }

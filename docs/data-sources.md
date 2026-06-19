@@ -327,3 +327,18 @@ Active source refresh functions:
 | `refresh-economic-events` | `investing_economic_events` | `5 11,15,21 * * 1-5` |
 | `refresh-market-quotes` | `market_quotes` | `*/15 14-22 * * 1-5` |
 | `refresh-put-call` | `put_call_observations` | `5,35 14-21 * * 1-5` plus runtime market-window gate |
+
+## Cache schema expectation map
+
+| Table | Writers | Upsert conflict | Required notable columns | Production action |
+| --- | --- | --- | --- | --- |
+| `data_refresh_metadata` | refresh adapters and dashboard snapshot writer | `source` | `source`, `ok`, `fetched_at`, `changed`, `row_count`, `content_hash`, `error`, `meta` | created by existing migrations; status endpoint reports latest errors. |
+| `investing_economic_events` | `refreshInvestingEconomicEvents()` / `refresh-economic-events` / `refresh-today` | `id` | includes `source_url`, `event_time`, `content_hash`, `fetched_at`, `updated_at` | `0007_fix_cache_schema_mismatches.sql` and manual SQL repair missing `source_url`. |
+| `market_quotes` | Yahoo market quote refresh and `refresh-markets` | `id` | quote fields plus `source`, `symbol`, `market_time`, `content_hash` | existing source cache table; used before `markets:latest` snapshot. |
+| `unusual_whales_earnings_events` | earnings refresh | `id` | earnings fields plus `content_hash`, `fetched_at`, `updated_at` | existing migrations. |
+| `unusual_whales_featured_articles` | featured/news/today refreshes | `id` | includes `created_at_source`, `published_at`, `source_url`, `content_hash` | `0007_fix_cache_schema_mismatches.sql` and manual SQL repair missing `created_at_source`. |
+| `unusual_whales_news_feed` | news feed/news refreshes | `id` | includes `event_time`, `source_url`, `content_hash` | `0007_fix_cache_schema_mismatches.sql` and manual SQL repair missing `event_time`. |
+| `put_call_observations` | Cboe put/call adapter and `refresh-put-call` | `external_id` | `ratio_type`, `value`, `equity_ratio`, `index_ratio`, `total_ratio`, `market_date`, `as_of_eastern`, source timestamps | `0007_fix_cache_schema_mismatches.sql` and manual SQL create the table if missing. |
+| `dashboard_snapshots` | `refreshDashboardSnapshot()` / dashboard refresh functions | `key` | `key`, `payload`, `mode`, `notices`, `generated_at`, `expires_at`, `source_hash`, `metadata` | manual SQL creates/repairs and reloads schema cache. |
+
+`refresh-news` is scheduled once in code (`*/30 * * * *`) and no duplicate schedule exists in `netlify.toml`; rapid repeated production runs are therefore most consistent with manual repeated execution unless Netlify itself retried failed invocations.

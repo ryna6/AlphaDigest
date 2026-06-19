@@ -211,3 +211,7 @@ Today, Markets, and News & Calendar now prefer frontend-ready Supabase dashboard
 ### Cache fallback behavior
 
 If a fresh dashboard snapshot exists, Today, Markets, and News & Calendar return it without external provider calls. If the snapshot is stale or missing, the server uses existing live/fallback builders and attempts to write a fresh snapshot; if live fallback throws and a stale snapshot exists, the stale payload is returned with a notice instead of a blank page.
+
+### Snapshot-first dashboard loading
+
+Today, Markets, and News & Calendar use fresh Supabase `dashboard_snapshots` before external provider calls. If a fresh snapshot exists, tab APIs return the cached payload quickly. If no fresh snapshot exists, server-side live/fallback behavior remains available; stale snapshots are used only as a safety net when live fallback fails. Cache health and missing schema issues are visible at `/api/cache/status`.

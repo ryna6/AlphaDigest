@@ -200,3 +200,11 @@ After applying migrations, trigger these Netlify functions from the deployed sit
 - `/.netlify/functions/refresh-news`
 
 Then check `/api/cache/status`. Expected healthy output includes non-zero row counts for active source tables, current `data_refresh_metadata.fetched_at` timestamps, and non-missing snapshot keys `today:latest`, `markets:latest`, and `news-calendar:latest`.
+
+## Manual Supabase cache schema repair
+
+GitHub/Netlify deployments only deploy application code; they do not apply Supabase migrations unless a migration pipeline has been explicitly added. For immediate production repair, paste `supabase/manual/apply-cache-schema-fix.sql` into the Supabase SQL Editor. It is safe to re-run, creates or repairs the durable cache tables used by Netlify functions, and sends `notify pgrst, 'reload schema'` so PostgREST sees new columns.
+
+After the SQL succeeds, run these Netlify functions manually: `refresh-economic-events`, `refresh-featured-articles`, `refresh-news-feed`, `refresh-news`, `refresh-today`, `refresh-put-call`, and `refresh-markets`. Healthy logs should show source `rowsUpserted > 0` for non-empty provider responses, `snapshotPersisted: true` for dashboard refreshes, and `ok: true` without missing table/column errors. Supabase should then contain rows in `investing_economic_events`, `unusual_whales_featured_articles`, `unusual_whales_news_feed`, `put_call_observations`, and `dashboard_snapshots` rows for `today:latest`, `markets:latest`, and `news-calendar:latest`.
+
+Use `/api/cache/status` for non-secret diagnostics: configured Supabase status, expected/missing tables and columns, row counts, latest metadata errors, snapshot timestamps, freshness, payload sizes, and missing expected snapshot keys.
