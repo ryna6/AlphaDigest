@@ -47,22 +47,6 @@ export default function SourcesMethodologyPage() {
           ))}
         </div>
       </Panel>
-      <Panel className="mt-4">
-        <SectionHeader title="Netlify Deployment & Data Pipeline" />
-        <p className="text-sm leading-6 text-textSecondary">
-          External sources feed server-side adapters, scraper jobs, or Netlify Scheduled Functions,
-          then Supabase raw snapshots and normalized tables, then dashboard snapshots, then internal
-          Next.js API routes consumed by the frontend. The browser never receives secret API keys.
-        </p>
-      </Panel>
-      <Panel className="mt-4">
-        <SectionHeader title="Disclaimer" />
-        <p className="text-sm leading-6 text-warning">
-          This dashboard is for personal research and market education only. It is not financial
-          advice, investment advice, or a recommendation to buy or sell securities. Data may be
-          delayed, incomplete, inaccurate, or stale.
-        </p>
-      </Panel>
     </>
   );
 }
