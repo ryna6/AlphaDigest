@@ -37,8 +37,8 @@ The Today page displays:
 - Page title and key market stats.
 - Market Summary cards:
   - Leading Sectors from the Markets sector heatmap.
-  - Risk On / Risk Off from VIX3M divided by VIX when Finnhub macro quotes are available.
-  - Put/Call Ratio from the fixture fallback.
+  - Risk On / Risk Off from live VIX3M divided by live VIX when both valid positive values are available.
+  - Put/Call Ratio from the Cboe Exchange Market Statistics section, displaying Equity, Index, and Total ratios with Eastern release time.
   - Today's Earnings count from the Unusual Whales earnings flow.
   - Today's Economic Events count from the Investing.com calendar flow.
 - Featured Unusual Whales articles with title, tags, timestamp, and excerpt.

@@ -23,11 +23,13 @@ type YahooQuoteResult = Record<string, unknown>;
 
 const yahooLabels: Record<string, string> = {
   "^VIX": "VIX",
+  "^VIX3M": "VIX3M",
   "ES=F": "S&P 500 Futures"
 };
 
 const chartSymbols: Record<string, string> = {
   "^VIX": "%5EVIX",
+  "^VIX3M": "%5EVIX3M",
   "ES=F": "ES=F"
 };
 
@@ -185,7 +187,7 @@ async function fetchYahooQuoteFallback(symbol: string): Promise<YahooMarketQuote
 }
 
 export async function fetchYahooMarketQuote(
-  symbol: "^VIX" | "ES=F"
+  symbol: "^VIX" | "^VIX3M" | "ES=F"
 ): Promise<YahooMarketQuote | null> {
   const chartQuote = await fetchYahooChartQuote(symbol);
   if (chartQuote) return chartQuote;
@@ -197,7 +199,7 @@ import { payloadContentHash, sourceResult, updateRefreshMetadata } from "./supab
 import { stableHash } from "./unusual-whales-earnings";
 
 const MARKET_QUOTES_METADATA_SOURCE = "yahoo_market_quotes";
-const MARKET_QUOTE_SYMBOLS: Array<"^VIX" | "ES=F"> = ["^VIX", "ES=F"];
+const MARKET_QUOTE_SYMBOLS: Array<"^VIX" | "^VIX3M" | "ES=F"> = ["^VIX", "^VIX3M", "ES=F"];
 
 type CachedMarketQuotesResult = {
   quotes: YahooMarketQuote[];
@@ -365,7 +367,7 @@ export async function getCachedYahooMarketQuotes(
   };
 }
 
-export async function getCachedYahooMarketQuote(symbol: "^VIX" | "ES=F") {
+export async function getCachedYahooMarketQuote(symbol: "^VIX" | "^VIX3M" | "ES=F") {
   const result = await getCachedYahooMarketQuotes([symbol]);
   return result.quotes.find((quote) => quote.symbol === symbol) ?? null;
 }

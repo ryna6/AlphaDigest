@@ -178,7 +178,7 @@ function EconomicEventsPanel({ events }: { events: EconomicEvent[] }) {
         </div>
       ) : (
         <div className="rounded-none border border-dashed border-borderStrong px-3 py-4 text-center text-xs text-textMuted">
-          No economic events for today.
+          No economic events
         </div>
       )}
     </Panel>
@@ -210,6 +210,7 @@ export function TodayView({ data }: { data: TodayPayload }) {
             const isRiskOnRiskOff =
               metric.label === "Risk On Risk Off" || metric.label === "Risk On / Risk Off";
             const isLeadingSectors = metric.label === "Leading Sectors";
+            const isPutCallRatio = metric.label === "Put/Call Ratio";
             const displayLabel = isRiskOnRiskOff ? "Risk On / Risk Off" : metric.label;
 
             return (
@@ -232,14 +233,22 @@ export function TodayView({ data }: { data: TodayPayload }) {
                 <div
                   className={cn("flex flex-1 flex-col justify-center", isLeadingSectors && "mt-4")}
                 >
-                  <p
-                    className={cn(
-                      "font-semibold text-textPrimary",
-                      isLeadingSectors ? "text-[1.2rem] leading-tight" : "text-2xl"
-                    )}
-                  >
-                    {metric.value}
-                  </p>
+                  {isPutCallRatio ? (
+                    <div className="space-y-1 text-sm font-semibold leading-tight text-textPrimary sm:text-base">
+                      {metric.value.split("\n").map((line) => (
+                        <p key={line}>{line}</p>
+                      ))}
+                    </div>
+                  ) : (
+                    <p
+                      className={cn(
+                        "font-semibold text-textPrimary",
+                        isLeadingSectors ? "text-[1.2rem] leading-tight" : "text-2xl"
+                      )}
+                    >
+                      {metric.value}
+                    </p>
+                  )}
                   {explanation ? (
                     <p
                       className={cn(

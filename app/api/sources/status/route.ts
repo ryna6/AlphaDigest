@@ -9,10 +9,8 @@ const secretEnvVars = [
   "SUPABASE_SERVICE_ROLE_KEY",
   "FINNHUB_GLOBAL_MARKETS_API_KEY",
   "FINNHUB_SECTORS_HEATMAP_API_KEY",
-  "FINNHUB_CRYPTO_HEATMAP_API_KEY",
   "FINNHUB_MACRO_HEATMAP_API_KEY",
   "TWELVE_DATA_API_KEY",
-  "COINGECKO_API_KEY",
   "FRED_API_KEY",
   "SEC_API_KEY"
 ];
@@ -46,7 +44,7 @@ export function GET() {
       {
         source: "CoinGecko",
         configured: true,
-        message: "Primary crypto source; optional key is read server-side when configured."
+        message: "Primary crypto source; no app-level API key is required."
       }
     ]
   });
