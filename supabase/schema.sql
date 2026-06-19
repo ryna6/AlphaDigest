@@ -365,3 +365,18 @@ alter table market_quotes add column if not exists content_hash text;
 alter table market_quotes add column if not exists fetched_at timestamptz;
 alter table market_quotes add column if not exists updated_at timestamptz not null default now();
 create unique index if not exists idx_market_quotes_id on market_quotes (id);
+
+-- Frontend-ready Supabase-first dashboard cache. Additive migrations normalize older snapshot_key/as_of drafts.
+create table if not exists public.dashboard_snapshots (
+  key text primary key,
+  payload jsonb not null,
+  mode text,
+  notices jsonb default '[]'::jsonb,
+  generated_at timestamptz not null default now(),
+  expires_at timestamptz,
+  source_hash text,
+  metadata jsonb default '{}'::jsonb
+);
+create unique index if not exists dashboard_snapshots_key_uidx on public.dashboard_snapshots (key);
+create index if not exists dashboard_snapshots_expires_at_idx on public.dashboard_snapshots (expires_at);
+create index if not exists dashboard_snapshots_generated_at_idx on public.dashboard_snapshots (generated_at desc);

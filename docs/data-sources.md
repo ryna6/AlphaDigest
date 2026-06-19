@@ -300,3 +300,15 @@ The Today card uses Yahoo Finance `^VIX` from the existing VIX flow and Yahoo Fi
 ## Crypto quote cache and failure behavior
 
 `lib/data/adapters/coingecko-crypto.ts` centralizes supported crypto quotes through CoinGecko `simple/price` in USD with `include_24hr_change=true`. The server cache TTL is 60 seconds. Provider failures return an unavailable result and empty quote set rather than mock prices; the Markets crypto heatmap therefore does not silently display stale bundled fallback crypto values when live crypto quotes fail.
+
+## Dashboard snapshot cache
+
+The active tab APIs now prefer Supabase `dashboard_snapshots` before provider-specific live fetches. The snapshot layer is intentionally separate from normalized source tables:
+
+| Snapshot key | Producer | Consumer | Fallback |
+| --- | --- | --- | --- |
+| `today:latest` | `netlify/functions/refresh-today.ts` | `getTodayPayload()` and `/api/today` | Existing live Today builder, then mock/static fallbacks already present in adapters |
+| `markets:latest` | `netlify/functions/refresh-markets.ts` | `getMarketsPayload()` and `/api/markets` | Existing market quote/crypto/live builder, then mock market fixture |
+| `news-calendar:latest` | `netlify/functions/refresh-news.ts` | `getNewsCalendarPayload()` and `/api/news-calendar` | Existing UW news, UW earnings, Investing calendar, and fixture fallback behavior |
+
+Source-specific cache status remains mixed: Unusual Whales earnings and Cboe put/call are active Supabase-backed flows; Unusual Whales news/articles, Yahoo quotes, and Investing economic events have adapter-level Supabase helpers but are only dashboard-fast after the scheduled snapshot job writes the combined payload. Generic `refresh-flow`, `refresh-economy`, `refresh-ticker`, and `refresh-sources-status` remain placeholders until implemented.

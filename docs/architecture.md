@@ -182,3 +182,16 @@ The placeholder functions only return JSON that describes future ingestion flow.
 - Many refresh helpers are implemented at the adapter level but are not wired to scheduled Netlify functions.
 - Source pages and settings pages are mostly static references and may drift unless maintained with code changes.
 - The app has no formal unit-test suite beyond typecheck and the custom News & Calendar UI validation script.
+
+## Supabase-first dashboard snapshots
+
+AlphaDigest remains fully web-hosted/serverless: GitHub stores code, Netlify hosts the Next.js app and runs scheduled/serverless functions, and Supabase Cloud hosts Postgres. The active dashboard tab payloads now use `dashboard_snapshots` as the primary read path before live provider calls.
+
+- `/api/today`, `/overview/today`, and top-news detail routes call `getTodayPayload()`, which first reads `today:latest` from Supabase when configured and fresh.
+- `/api/markets` and `/markets` call `getMarketsPayload()`, which first reads `markets:latest`.
+- `/api/news-calendar` and the News & Calendar pages call `getNewsCalendarPayload()`, which first reads `news-calendar:latest`.
+- If Supabase is missing, the snapshot is absent/stale, or the snapshot read fails, the existing live/fixture fallback builders still run. This preserves local development and prevents blank pages.
+- Netlify scheduled functions `refresh-today`, `refresh-markets`, and `refresh-news` build the same frontend-ready payloads server-side and upsert them into Supabase.
+- Browser/client components do not write to Supabase. The service role key is only consumed by server-only code through `createServerSupabaseClient()`.
+
+`dashboard_snapshots` stores compact, frontend-ready JSON keyed by values such as `today:latest`, `markets:latest`, and `news-calendar:latest`. Normalized source tables remain useful where adapters already write them, but dashboard tabs should not need to wait on each source during normal navigation.
