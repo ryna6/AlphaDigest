@@ -185,3 +185,18 @@ Smoke tests after deploy:
 3. Trigger the refresh functions manually or wait for schedules.
 4. Confirm `dashboard_snapshots` has `today:latest`, `markets:latest`, and `news-calendar:latest` rows.
 5. Confirm the tab APIs respond quickly and report cached mode while snapshots are fresh.
+
+### Manual refresh function URLs
+
+After applying migrations, trigger these Netlify functions from the deployed site when validating Supabase cache health:
+
+- `/.netlify/functions/fetch-uw-earnings`
+- `/.netlify/functions/refresh-news-feed`
+- `/.netlify/functions/refresh-featured-articles`
+- `/.netlify/functions/refresh-economic-events`
+- `/.netlify/functions/refresh-market-quotes`
+- `/.netlify/functions/refresh-today`
+- `/.netlify/functions/refresh-markets`
+- `/.netlify/functions/refresh-news`
+
+Then check `/api/cache/status`. Expected healthy output includes non-zero row counts for active source tables, current `data_refresh_metadata.fetched_at` timestamps, and non-missing snapshot keys `today:latest`, `markets:latest`, and `news-calendar:latest`.

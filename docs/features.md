@@ -207,3 +207,7 @@ The page lists environment variable names and labels each as client-safe or serv
 ## Faster tab switching with cached snapshots
 
 Today, Markets, and News & Calendar now prefer frontend-ready Supabase dashboard snapshots. When scheduled refreshes are healthy, switching tabs reads compact cached payloads instead of waiting for every external provider. If snapshots are stale or unavailable, the existing live/fallback behavior still renders the same UI shape.
+
+### Cache fallback behavior
+
+If a fresh dashboard snapshot exists, Today, Markets, and News & Calendar return it without external provider calls. If the snapshot is stale or missing, the server uses existing live/fallback builders and attempts to write a fresh snapshot; if live fallback throws and a stale snapshot exists, the stale payload is returned with a notice instead of a blank page.

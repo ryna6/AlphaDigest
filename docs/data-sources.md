@@ -312,3 +312,18 @@ The active tab APIs now prefer Supabase `dashboard_snapshots` before provider-sp
 | `news-calendar:latest` | `netlify/functions/refresh-news.ts` | `getNewsCalendarPayload()` and `/api/news-calendar` | Existing UW news, UW earnings, Investing calendar, and fixture fallback behavior |
 
 Source-specific cache status remains mixed: Unusual Whales earnings and Cboe put/call are active Supabase-backed flows; Unusual Whales news/articles, Yahoo quotes, and Investing economic events have adapter-level Supabase helpers but are only dashboard-fast after the scheduled snapshot job writes the combined payload. Generic `refresh-flow`, `refresh-economy`, `refresh-ticker`, and `refresh-sources-status` remain placeholders until implemented.
+
+## Source table refresh corrections
+
+The production failure mode was metadata drift: `data_refresh_metadata` could report a successful fetch while the corresponding source table was empty. Source refresh helpers now upsert non-empty fetched rows on each successful refresh and report `ok: false` when Supabase persistence is unavailable or fails. Apply `0006_source_cache_tables.sql` so the deployed schema includes `unusual_whales_news_feed`, `unusual_whales_featured_articles.created_at_source`, `investing_economic_events`, and `market_quotes`.
+
+Active source refresh functions:
+
+| Function | Table | Schedule |
+| --- | --- | --- |
+| `fetch-uw-earnings` | `unusual_whales_earnings_events` | `* * * * *` |
+| `refresh-news-feed` | `unusual_whales_news_feed` | `10,40 * * * *` |
+| `refresh-featured-articles` | `unusual_whales_featured_articles` | `20,50 * * * *` |
+| `refresh-economic-events` | `investing_economic_events` | `5 11,15,21 * * 1-5` |
+| `refresh-market-quotes` | `market_quotes` | `*/15 14-22 * * 1-5` |
+| `refresh-put-call` | `put_call_observations` | `5,35 14-21 * * 1-5` plus runtime market-window gate |

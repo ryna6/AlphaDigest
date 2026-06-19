@@ -195,3 +195,15 @@ AlphaDigest remains fully web-hosted/serverless: GitHub stores code, Netlify hos
 - Browser/client components do not write to Supabase. The service role key is only consumed by server-only code through `createServerSupabaseClient()`.
 
 `dashboard_snapshots` stores compact, frontend-ready JSON keyed by values such as `today:latest`, `markets:latest`, and `news-calendar:latest`. Normalized source tables remain useful where adapters already write them, but dashboard tabs should not need to wait on each source during normal navigation.
+
+### Failure-focused cache corrections
+
+The source-specific cache tables are now backed by an additive migration, not only by `supabase/schema.sql`. Scheduled source refreshes are separated from dashboard snapshot refreshes so Netlify can populate normalized rows before users navigate:
+
+- `refresh-news-feed` writes `unusual_whales_news_feed`.
+- `refresh-featured-articles` writes `unusual_whales_featured_articles`, including the required `created_at_source` column.
+- `refresh-economic-events` writes `investing_economic_events`.
+- `refresh-market-quotes` writes `market_quotes`.
+- `refresh-today`, `refresh-markets`, and `refresh-news` also write `dashboard_snapshots` keys used by the active tabs.
+
+Source refresh helpers upsert fetched rows even when content hashes match existing metadata. This prevents a false-success state where metadata says rows were fetched but production tables are empty after a migration, truncate, or failed earlier write.

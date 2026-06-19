@@ -1,5 +1,5 @@
 import type { FinnhubFeatureArea } from "./adapters/finnhub-key-router";
-import { getFreshDashboardSnapshot, upsertDashboardSnapshot } from "./adapters/dashboard-snapshots";
+import { getSnapshotOrNull, isSnapshotFresh, upsertDashboardSnapshot } from "./adapters/dashboard-snapshots";
 import { getFinnhubKey } from "./adapters/finnhub-key-router";
 import type { YahooMarketQuote } from "./adapters/yahoo-finance";
 import { fetchYahooMarketQuote } from "./adapters/yahoo-finance";
@@ -797,15 +797,50 @@ export async function refreshDashboardSnapshot(key: "today:latest" | "markets:la
   return { ...write, key, mode: result.mode, notices: result.notices };
 }
 
+async function getSnapshotFirstPayload<T>(
+  key: "today:latest" | "markets:latest" | "news-calendar:latest",
+  build: () => Promise<{ payload: T; mode: "mock" | "live"; notices: string[] }>,
+  ttlSeconds: number
+): Promise<{ payload: T; mode: "mock" | "live" | "cached"; notices: string[] }> {
+  const cached = await getSnapshotOrNull<T>(key);
+  if (cached.snapshot && isSnapshotFresh(cached.snapshot)) {
+    return { payload: cached.snapshot.payload, mode: "cached", notices: cached.snapshot.notices };
+  }
+  if (cached.message) console.warn("dashboard_snapshot_read", { key, message: cached.message });
+
+  try {
+    const live = await build();
+    const write = await upsertDashboardSnapshot(key, live.payload, {
+      ttlSeconds,
+      mode: live.mode,
+      notices: live.notices,
+      metadata: { refreshedBy: "server-fallback" }
+    });
+    if (!write.ok) console.warn("dashboard_snapshot_fallback_write_failed", { key, error: write.error });
+    return live;
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Unknown dashboard live fallback error";
+    console.error("dashboard_snapshot_live_fallback_failed", { key, error: message });
+    if (cached.snapshot) {
+      return {
+        payload: cached.snapshot.payload,
+        mode: "cached",
+        notices: [
+          ...cached.snapshot.notices,
+          `Showing stale cached ${key} because live refresh failed: ${message}`
+        ]
+      };
+    }
+    throw error;
+  }
+}
+
 export async function getMarketsPayload(): Promise<{
   payload: MarketsPayload;
   mode: "mock" | "live" | "cached";
   notices: string[];
 }> {
-  const cached = await getFreshDashboardSnapshot<MarketsPayload>("markets:latest");
-  if (cached.snapshot) return { payload: cached.snapshot.payload, mode: "cached", notices: cached.snapshot.notices };
-  if (cached.message) console.warn("dashboard_snapshot_read", { key: "markets:latest", message: cached.message });
-  return buildMarketsPayload();
+  return getSnapshotFirstPayload("markets:latest", buildMarketsPayload, 10 * 60);
 }
 
 export async function getTodayPayload(): Promise<{
@@ -813,10 +848,7 @@ export async function getTodayPayload(): Promise<{
   mode: "mock" | "live" | "cached";
   notices: string[];
 }> {
-  const cached = await getFreshDashboardSnapshot<TodayPayload>("today:latest");
-  if (cached.snapshot) return { payload: cached.snapshot.payload, mode: "cached", notices: cached.snapshot.notices };
-  if (cached.message) console.warn("dashboard_snapshot_read", { key: "today:latest", message: cached.message });
-  return buildTodayPayload();
+  return getSnapshotFirstPayload("today:latest", buildTodayPayload, 15 * 60);
 }
 
 export async function getNewsCalendarPayload(): Promise<{
@@ -824,8 +856,5 @@ export async function getNewsCalendarPayload(): Promise<{
   mode: "mock" | "live" | "cached";
   notices: string[];
 }> {
-  const cached = await getFreshDashboardSnapshot<NewsCalendarPayload>("news-calendar:latest");
-  if (cached.snapshot) return { payload: cached.snapshot.payload, mode: "cached", notices: cached.snapshot.notices };
-  if (cached.message) console.warn("dashboard_snapshot_read", { key: "news-calendar:latest", message: cached.message });
-  return buildNewsCalendarPayload();
+  return getSnapshotFirstPayload("news-calendar:latest", buildNewsCalendarPayload, 45 * 60);
 }

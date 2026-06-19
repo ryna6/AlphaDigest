@@ -542,7 +542,7 @@ export async function refreshInvestingEconomicEvents(dateKeys = defaultEconomicR
 
   if (!supabase.ok)
     return sourceResult({
-      ok: true,
+      ok: false,
       count: rows.length,
       changed: true,
       contentHash,
@@ -559,7 +559,7 @@ export async function refreshInvestingEconomicEvents(dateKeys = defaultEconomicR
       .maybeSingle();
     const changed = metadata?.content_hash !== contentHash;
     let upserted = 0;
-    if (rows.length && changed) {
+    if (rows.length) {
       const { error } = await supabase.client
         .from("investing_economic_events")
         .upsert(rows, { onConflict: "id" });

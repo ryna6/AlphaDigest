@@ -266,3 +266,7 @@ Before finishing a docs-impacting change, verify:
 ## Local snapshot-cache behavior
 
 Local development does not require Supabase. When `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` are missing, dashboard payload functions log a snapshot-cache miss and keep using the existing live/mock fallback builders. To test the production-like path locally, configure those server-only variables, run the Netlify refresh functions or call `refreshDashboardSnapshot()`, then inspect `/api/cache/status`.
+
+### Local cache debugging
+
+Use `/api/cache/status` to detect false-success cache states. A healthy local or deployed Supabase-backed run should show row counts that agree with recent metadata; if metadata has a positive `row_count` but a source table count is zero, run the matching refresh function and inspect its `ok`, `persisted`, `upserted`, and `error` fields.
