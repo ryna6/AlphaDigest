@@ -160,3 +160,43 @@ When changing deployment behavior:
 3. Update smoke-test instructions if route/function names change.
 4. Document any new scheduler, cron, queue, or Supabase requirement.
 5. Run `npm run build` at minimum.
+
+## Supabase-first dashboard cache deployment
+
+Required Netlify environment variables for durable dashboard snapshots:
+
+- `SUPABASE_URL`
+- `SUPABASE_SERVICE_ROLE_KEY` (server-only; never expose as `NEXT_PUBLIC_`)
+- Provider keys/cookies already required by the live adapters, such as Finnhub and Unusual Whales credentials where applicable.
+
+Apply Supabase migrations in order, including `0005_dashboard_snapshots_cache.sql`. The app can still render without Supabase, but `/api/today`, `/api/markets`, and `/api/news-calendar` will use live fallback paths instead of the fast durable snapshot path.
+
+Scheduled functions:
+
+- `refresh-markets`: `*/10 14-22 * * 1-5` UTC.
+- `refresh-today`: `*/15 12-23 * * 1-5` UTC.
+- `refresh-news`: `*/30 * * * *` UTC.
+- Existing `fetch-uw-earnings` and `refresh-put-call` remain source-specific refresh jobs.
+
+Smoke tests after deploy:
+
+1. Visit `/api/sources/status` to confirm server env detection.
+2. Visit `/api/cache/status` to inspect non-secret Supabase configuration, snapshot freshness, table counts, and metadata.
+3. Trigger the refresh functions manually or wait for schedules.
+4. Confirm `dashboard_snapshots` has `today:latest`, `markets:latest`, and `news-calendar:latest` rows.
+5. Confirm the tab APIs respond quickly and report cached mode while snapshots are fresh.
+
+### Manual refresh function URLs
+
+After applying migrations, trigger these Netlify functions from the deployed site when validating Supabase cache health:
+
+- `/.netlify/functions/fetch-uw-earnings`
+- `/.netlify/functions/refresh-news-feed`
+- `/.netlify/functions/refresh-featured-articles`
+- `/.netlify/functions/refresh-economic-events`
+- `/.netlify/functions/refresh-market-quotes`
+- `/.netlify/functions/refresh-today`
+- `/.netlify/functions/refresh-markets`
+- `/.netlify/functions/refresh-news`
+
+Then check `/api/cache/status`. Expected healthy output includes non-zero row counts for active source tables, current `data_refresh_metadata.fetched_at` timestamps, and non-missing snapshot keys `today:latest`, `markets:latest`, and `news-calendar:latest`.

@@ -551,7 +551,7 @@ export async function refreshUnusualWhalesNewsFeed(limit = 100) {
 
   if (!supabase.ok)
     return sourceResult({
-      ok: true,
+      ok: false,
       count: rows.length,
       changed: true,
       contentHash,
@@ -567,7 +567,7 @@ export async function refreshUnusualWhalesNewsFeed(limit = 100) {
       .maybeSingle();
     const changed = metadata?.content_hash !== contentHash;
     let upserted = 0;
-    if (rows.length && changed) {
+    if (rows.length) {
       const { error } = await supabase.client
         .from("unusual_whales_news_feed")
         .upsert(rows, { onConflict: "id" });
@@ -632,7 +632,7 @@ export async function refreshUnusualWhalesFeaturedArticles(limit = 50) {
 
   if (!supabase.ok)
     return sourceResult({
-      ok: true,
+      ok: false,
       count: rows.length,
       changed: true,
       contentHash,
@@ -648,7 +648,7 @@ export async function refreshUnusualWhalesFeaturedArticles(limit = 50) {
       .maybeSingle();
     const changed = metadata?.content_hash !== contentHash;
     let upserted = 0;
-    if (rows.length && changed) {
+    if (rows.length) {
       const { error } = await supabase.client
         .from("unusual_whales_featured_articles")
         .upsert(rows, { onConflict: "id" });

@@ -182,3 +182,28 @@ The placeholder functions only return JSON that describes future ingestion flow.
 - Many refresh helpers are implemented at the adapter level but are not wired to scheduled Netlify functions.
 - Source pages and settings pages are mostly static references and may drift unless maintained with code changes.
 - The app has no formal unit-test suite beyond typecheck and the custom News & Calendar UI validation script.
+
+## Supabase-first dashboard snapshots
+
+AlphaDigest remains fully web-hosted/serverless: GitHub stores code, Netlify hosts the Next.js app and runs scheduled/serverless functions, and Supabase Cloud hosts Postgres. The active dashboard tab payloads now use `dashboard_snapshots` as the primary read path before live provider calls.
+
+- `/api/today`, `/overview/today`, and top-news detail routes call `getTodayPayload()`, which first reads `today:latest` from Supabase when configured and fresh.
+- `/api/markets` and `/markets` call `getMarketsPayload()`, which first reads `markets:latest`.
+- `/api/news-calendar` and the News & Calendar pages call `getNewsCalendarPayload()`, which first reads `news-calendar:latest`.
+- If Supabase is missing, the snapshot is absent/stale, or the snapshot read fails, the existing live/fixture fallback builders still run. This preserves local development and prevents blank pages.
+- Netlify scheduled functions `refresh-today`, `refresh-markets`, and `refresh-news` build the same frontend-ready payloads server-side and upsert them into Supabase.
+- Browser/client components do not write to Supabase. The service role key is only consumed by server-only code through `createServerSupabaseClient()`.
+
+`dashboard_snapshots` stores compact, frontend-ready JSON keyed by values such as `today:latest`, `markets:latest`, and `news-calendar:latest`. Normalized source tables remain useful where adapters already write them, but dashboard tabs should not need to wait on each source during normal navigation.
+
+### Failure-focused cache corrections
+
+The source-specific cache tables are now backed by an additive migration, not only by `supabase/schema.sql`. Scheduled source refreshes are separated from dashboard snapshot refreshes so Netlify can populate normalized rows before users navigate:
+
+- `refresh-news-feed` writes `unusual_whales_news_feed`.
+- `refresh-featured-articles` writes `unusual_whales_featured_articles`, including the required `created_at_source` column.
+- `refresh-economic-events` writes `investing_economic_events`.
+- `refresh-market-quotes` writes `market_quotes`.
+- `refresh-today`, `refresh-markets`, and `refresh-news` also write `dashboard_snapshots` keys used by the active tabs.
+
+Source refresh helpers upsert fetched rows even when content hashes match existing metadata. This prevents a false-success state where metadata says rows were fetched but production tables are empty after a migration, truncate, or failed earlier write.
