@@ -10,12 +10,24 @@ import { PageTitle } from "@/components/dashboard/page-title";
 import { Panel } from "@/components/ui/panel";
 import { SectionHeader } from "@/components/ui/section-header";
 import { MetricRow } from "@/components/ui/metric-row";
-import { InfoTooltip } from "@/components/ui/info-tooltip";
 import { cn } from "@/lib/utils/cn";
 import { formatEtDateTime, formatEtTime, timestampTitle } from "@/lib/utils/time";
 
 const putCallInfoText =
   "This metric compares the trading volume (or open interest) of put options to call options.\n\nWhen the ratio > 1.2, it suggests traders are buying significantly more puts than calls, reflecting a more bearish sentiment. When the ratio < 0.7, it suggests traders are buying more calls than puts, reflecting a more bullish sentiment.";
+
+const riskToneInfoText =
+  "This metric compares the 3-month expected volatility (VIX3M) to the current VIX.\n\nWhen the VIX3M/VIX ratio > 1, traders expect higher volatility in the future, which can reflect a more risk-off market. When the ratio < 1, near-term fear is higher, which can suggest conditions are shifting toward a more risk-on market.";
+
+function VisibleInfoBox({ text }: { text: string }) {
+  return (
+    <div className="mt-3 space-y-2 rounded-none border border-borderStrong/70 bg-surfaceSubtle/60 p-2.5 text-[11px] leading-5 text-textSecondary">
+      {text.split("\n\n").map((paragraph) => (
+        <p key={paragraph}>{paragraph}</p>
+      ))}
+    </div>
+  );
+}
 
 function formatPutCallRatio(value: number | null | undefined) {
   return typeof value === "number" && Number.isFinite(value) ? value.toFixed(2) : "--";
@@ -261,20 +273,18 @@ export function TodayView({ data }: { data: TodayPayload }) {
                   <p className="text-xs font-semibold uppercase tracking-[0.2em] text-textMuted">
                     {displayLabel}
                   </p>
-                  {isRiskOnRiskOff ? (
-                    <InfoTooltip
-                      text={
-                        "This metric compares the 3-month expected volatility (VIX3M) to the current VIX.\n\nWhen the ratio > 1, it means traders expect higher volatility in the future, which can reflects a more risk-off market. When the ratio < 1, near-term fear is higher, which can suggest conditions is shifting towards a more risk-on market."
-                      }
-                    />
-                  ) : null}
-                  {isPutCallRatio ? <InfoTooltip text={putCallInfoText} /> : null}
                 </div>
+                {isPutCallRatio ? <VisibleInfoBox text={putCallInfoText} /> : null}
+                {isRiskOnRiskOff ? <VisibleInfoBox text={riskToneInfoText} /> : null}
                 <div
-                  className={cn("flex flex-1 flex-col justify-center", isLeadingSectors && "mt-4")}
+                  className={cn(
+                    "flex flex-1 flex-col justify-center",
+                    isLeadingSectors && "mt-4",
+                    isPutCallRatio && "pt-3"
+                  )}
                 >
                   {isPutCallRatio ? (
-                    <div className="space-y-1 text-base font-semibold leading-tight text-textPrimary">
+                    <div className="space-y-2 text-base font-semibold leading-tight text-textPrimary">
                       {(() => {
                         const [indexLine, equityLine, totalLine] = putCallLines(metric);
                         return (
