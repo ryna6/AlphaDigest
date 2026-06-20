@@ -208,3 +208,7 @@ GitHub/Netlify deployments only deploy application code; they do not apply Supab
 After the SQL succeeds, run these Netlify functions manually: `refresh-economic-events`, `refresh-featured-articles`, `refresh-news-feed`, `refresh-news`, `refresh-today`, `refresh-put-call`, and `refresh-markets`. Healthy logs should show source `rowsUpserted > 0` for non-empty provider responses, `snapshotPersisted: true` for dashboard refreshes, and `ok: true` without missing table/column errors. Supabase should then contain rows in `investing_economic_events`, `unusual_whales_featured_articles`, `unusual_whales_news_feed`, `put_call_observations`, and `dashboard_snapshots` rows for `today:latest`, `markets:latest`, and `news-calendar:latest`.
 
 Use `/api/cache/status` for non-secret diagnostics: configured Supabase status, expected/missing tables and columns, row counts, latest metadata errors, snapshot timestamps, freshness, payload sizes, and missing expected snapshot keys.
+
+## Deploying Flow cache tables
+
+Netlify deploys do not automatically apply Supabase migrations. Before enabling Flow refresh jobs, paste `supabase/manual/apply-unusual-whales-flow.sql` into the Supabase SQL Editor. Then deploy to Netlify and manually run `refresh-dark-pool`, `refresh-insider-trades`, `refresh-flow`, and optionally `refresh-ownership`. Check Supabase row counts, `dashboard_snapshots` keys `flow:latest` and `ownership:latest`, `/api/cache/status`, `/flow`, `/ownership`, `/flow/insider-trades`, and a sample insider detail page.

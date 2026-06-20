@@ -141,14 +141,69 @@ export const marketsPayloadSchema = z.object({
   sourceMeta: z.array(sourceMetaSchema)
 });
 
+export const darkPoolFlowRowSchema = z.object({
+  externalId: z.string(),
+  executedAt: z.string(),
+  ticker: z.string(),
+  sector: z.string().nullable(),
+  price: z.number().nullable(),
+  premium: z.number().nullable(),
+  volume: z.number().nullable(),
+  fetchedAt: z.string().optional()
+});
+
+export const insiderTradeRowSchema = z.object({
+  externalId: z.string(),
+  ticker: z.string(),
+  sector: z.string().nullable(),
+  amount: z.number(),
+  transactionDate: z.string(),
+  price: z.number().nullable(),
+  ownerName: z.string().nullable(),
+  officerTitle: z.string().nullable(),
+  transactionCode: z.enum(["P", "S"]),
+  sharesOwnedAfter: z.number().nullable(),
+  fetchedAt: z.string().optional()
+});
+
+export const insiderCompanyAggregateSchema = z.object({
+  ticker: z.string(),
+  sector: z.string().nullable(),
+  tradeCount: z.number(),
+  netShares: z.number(),
+  netValue: z.number(),
+  purchaseCount: z.number(),
+  saleCount: z.number()
+});
+
 export const flowPayloadSchema = z.object({
   summary: z.array(metricSchema),
-  darkPool: z.array(z.record(z.string(), z.string())),
+  darkPool: z.array(darkPoolFlowRowSchema),
   whaleTrades: z.array(z.record(z.string(), z.string())),
-  insiderTrades: z.array(z.record(z.string(), z.string())),
+  insiderTrades: z.array(insiderCompanyAggregateSchema),
+  sourceMeta: z.array(sourceMetaSchema),
+  notices: z.array(z.string()).default([])
+});
+
+export const ownershipPayloadSchema = z.object({
   congressionalTrades: z.array(z.record(z.string(), z.string())),
   institutionalPositioning: z.array(z.record(z.string(), z.string())),
-  sourceMeta: z.array(sourceMetaSchema)
+  sourceMeta: z.array(sourceMetaSchema),
+  notices: z.array(z.string()).default([])
+});
+
+export const insiderTradesPayloadSchema = z.object({
+  companies: z.array(insiderCompanyAggregateSchema),
+  sourceMeta: z.array(sourceMetaSchema),
+  notices: z.array(z.string()).default([])
+});
+
+export const insiderTradeDetailPayloadSchema = z.object({
+  ticker: z.string(),
+  aggregate: insiderCompanyAggregateSchema.nullable(),
+  trades: z.array(insiderTradeRowSchema),
+  sourceMeta: z.array(sourceMetaSchema),
+  notices: z.array(z.string()).default([])
 });
 
 export const economyPayloadSchema = z.object({
@@ -193,6 +248,12 @@ export type EconomicEvent = z.infer<typeof eventSchema>;
 export type NewsCalendarPayload = z.infer<typeof newsCalendarPayloadSchema>;
 export type TodayPayload = z.infer<typeof todayPayloadSchema>;
 export type MarketsPayload = z.infer<typeof marketsPayloadSchema>;
+export type DarkPoolFlowRow = z.infer<typeof darkPoolFlowRowSchema>;
+export type InsiderTradeRow = z.infer<typeof insiderTradeRowSchema>;
+export type InsiderCompanyAggregate = z.infer<typeof insiderCompanyAggregateSchema>;
 export type FlowPayload = z.infer<typeof flowPayloadSchema>;
+export type OwnershipPayload = z.infer<typeof ownershipPayloadSchema>;
+export type InsiderTradesPayload = z.infer<typeof insiderTradesPayloadSchema>;
+export type InsiderTradeDetailPayload = z.infer<typeof insiderTradeDetailPayloadSchema>;
 export type EconomyPayload = z.infer<typeof economyPayloadSchema>;
 export type TickerPayload = z.infer<typeof tickerPayloadSchema>;

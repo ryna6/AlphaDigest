@@ -1,2 +1,2 @@
-import { FlowOwnershipView } from "@/components/dashboard/flow-ownership/flow-ownership-view";
-export default function FlowOwnershipPage() { return <FlowOwnershipView />; }
+import { redirect } from "next/navigation";
+export default function FlowOwnershipRedirectPage() { redirect("/flow"); }

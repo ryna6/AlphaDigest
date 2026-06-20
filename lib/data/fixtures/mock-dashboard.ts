@@ -2,6 +2,7 @@ import { getHeatmapIconPath, getMetricIconPath } from "../../constants/asset-ico
 import type {
   EconomyPayload,
   FlowPayload,
+  OwnershipPayload,
   MarketsPayload,
   TickerPayload,
   TodayPayload
@@ -296,19 +297,20 @@ export const marketsMock = (): MarketsPayload => ({
 
 export const flowMock: FlowPayload = {
   summary: [
-    { label: "Most active ticker", value: "NVDA", change: "7D", tone: "positive" },
-    { label: "Largest dark pool print", value: "$84.2M SPY", tone: "neutral" },
+    { label: "Top insider activity", value: "CRM", tone: "neutral" },
     { label: "Highest whale premium", value: "$12.4M TSLA calls", tone: "positive" },
-    { label: "Top 13F accumulation", value: "MSFT", tone: "positive" }
+    { label: "Largest dark pool print", value: "$84.2M SPY", tone: "neutral" }
   ],
   darkPool: [
     {
-      Time: "09:42 ET",
-      Ticker: "SPY",
-      Price: "$533.12",
-      Size: "158K",
-      Notional: "$84.2M",
-      Venue: "TRF"
+      externalId: "mock-spy-2026-06-04",
+      executedAt: "2026-06-04T13:42:00.000Z",
+      ticker: "SPY",
+      sector: "ETF",
+      price: 533.12,
+      premium: 84200000,
+      volume: 158000,
+      fetchedAt: "2026-06-04T14:00:00.000Z"
     }
   ],
   whaleTrades: [
@@ -324,15 +326,24 @@ export const flowMock: FlowPayload = {
   ],
   insiderTrades: [
     {
-      Date: "2026-06-04",
-      Ticker: "CRM",
-      Insider: "Jane Doe",
-      Role: "Director",
-      Side: "Buy",
-      Value: "$450K",
-      Type: "Open market"
+      ticker: "CRM",
+      sector: "Technology",
+      tradeCount: 3,
+      netShares: 25000,
+      netValue: 450000,
+      purchaseCount: 3,
+      saleCount: 0
     }
   ],
+  sourceMeta: [
+    mockMeta("Unusual Whales dark pool cache", "https://phx.unusualwhales.com/api/flow/dark-pool"),
+    mockMeta("Unusual Whales insider trades cache", "https://phx.unusualwhales.com/api/insider_trades/feed"),
+    mockMeta("Whale trades fixture placeholder")
+  ],
+  notices: ["Whale Trades remains fixture-backed until a live endpoint is added."]
+};
+
+export const ownershipMock: OwnershipPayload = {
   congressionalTrades: [
     {
       Published: "2026-06-03",
@@ -357,13 +368,13 @@ export const flowMock: FlowPayload = {
     }
   ],
   sourceMeta: [
-    mockMeta("Unusual Whales flow sources"),
-    mockMeta("Capitol Trades", "https://www.capitoltrades.com/trades?pageSize=96"),
+    mockMeta("Capitol Trades fixture placeholder", "https://www.capitoltrades.com/trades?pageSize=96"),
     mockMeta(
-      "sec-api.io 13F",
+      "sec-api.io 13F fixture placeholder",
       "https://sec-api.io/docs/form-13-f-filings-institutional-holdings-api"
     )
-  ]
+  ],
+  notices: ["Institutional/13F and Congressional sections remain fixture-backed until live providers are added."]
 };
 
 export const economyMock: EconomyPayload = {
