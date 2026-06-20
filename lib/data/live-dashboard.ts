@@ -24,6 +24,7 @@ import { getCachedUnusualWhalesEarnings } from "./adapters/unusual-whales-earnin
 import { readDarkPoolRows } from "./adapters/unusual-whales-dark-pool";
 import { readInsiderTradeRows } from "./adapters/unusual-whales-insider-trades";
 import { aggregateInsiderTrades, topInsiderCompanies } from "./insider-aggregation";
+import { payloadContentHash, updateRefreshMetadata } from "./adapters/supabase-refresh";
 import { createServerSupabaseClient } from "@/lib/db/supabase";
 import {
   getMajorEarningsForDate,
@@ -804,6 +805,17 @@ export async function refreshDashboardSnapshot(key: "today:latest" | "markets:la
     notices: result.notices,
     metadata: { refreshedBy: "netlify-function" }
   });
+  const supabase = createServerSupabaseClient();
+  if (supabase.ok) {
+    await updateRefreshMetadata(supabase.client, key, {
+      ok: write.ok,
+      changed: write.persisted ?? false,
+      rowCount: write.persisted ? 1 : 0,
+      contentHash: payloadContentHash([result.payload]),
+      error: write.error ?? null,
+      meta: { mode: result.mode, notices: result.notices, persisted: write.persisted ?? false, refreshedBy: "netlify-function" }
+    }).catch((error) => console.warn("dashboard_snapshot_metadata_write_failed", { key, error: error instanceof Error ? error.message : String(error) }));
+  }
   return { ...write, key, mode: result.mode, notices: result.notices };
 }
 

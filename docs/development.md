@@ -278,3 +278,7 @@ When Supabase-backed refreshes fetch provider data but fail to persist, check `/
 ## Flow/Ownership development notes
 
 Local development can render Flow and Ownership without Supabase by using fixtures. With `SUPABASE_URL` and server-only `SUPABASE_SERVICE_ROLE_KEY` configured, `/api/flow` reads `flow:latest` first, then `unusual_whales_dark_pool_flows` and `unusual_whales_insider_trades`, then fixtures. Do not call Unusual Whales from client components; use Netlify functions/adapters. Whale Trades, Institutional/13F, and Congressional data are intentionally fixture-backed until endpoints/providers are added.
+
+### Local Flow ingestion checks
+
+When testing with Supabase credentials locally or via Netlify, use `refresh-dark-pool`, `refresh-insider-trades`, and `refresh-flow`, then inspect `/api/cache/status`. The status endpoint includes Flow table counts, latest metadata for `unusual_whales_dark_pool_flows`, `unusual_whales_insider_trades`, and `flow:latest`, dark-pool `emptyReason`, insider duplicate-removal counts, and snapshot freshness. Zero dark-pool rows require checking `emptyReason` and response-path diagnostics; insider duplicate counts should be removed before upsert and should not cause a Postgres `ON CONFLICT DO UPDATE command cannot affect row a second time` error.
