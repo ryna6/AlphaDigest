@@ -207,3 +207,9 @@ The source-specific cache tables are now backed by an additive migration, not on
 - `refresh-today`, `refresh-markets`, and `refresh-news` also write `dashboard_snapshots` keys used by the active tabs.
 
 Source refresh helpers upsert fetched rows even when content hashes match existing metadata. This prevents a false-success state where metadata says rows were fetched but production tables are empty after a migration, truncate, or failed earlier write.
+
+## Supabase durable cache contract
+
+The production architecture remains serverless: GitHub stores code, Netlify hosts the Next.js frontend and scheduled/serverless functions, and Supabase Cloud hosts Postgres. Netlify functions fetch providers and upsert normalized source rows, then dashboard refresh jobs write frontend-ready `dashboard_snapshots`. The browser never receives `SUPABASE_SERVICE_ROLE_KEY`; server code and Netlify functions perform privileged cache writes.
+
+The current cache contract is captured by migrations through `0007_fix_cache_schema_mismatches.sql` and the pasteable production repair file `supabase/manual/apply-cache-schema-fix.sql`. Active write flows include `data_refresh_metadata`, `investing_economic_events`, `market_quotes`, `unusual_whales_earnings_events`, `unusual_whales_featured_articles`, `unusual_whales_news_feed`, `put_call_observations`, and `dashboard_snapshots`. `/api/today`, `/api/markets`, and `/api/news-calendar` read fresh snapshots first, fall back to live server-side providers when needed, and may return stale snapshots only if live fallback fails.

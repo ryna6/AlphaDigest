@@ -270,3 +270,7 @@ Local development does not require Supabase. When `SUPABASE_URL` and `SUPABASE_S
 ### Local cache debugging
 
 Use `/api/cache/status` to detect false-success cache states. A healthy local or deployed Supabase-backed run should show row counts that agree with recent metadata; if metadata has a positive `row_count` but a source table count is zero, run the matching refresh function and inspect its `ok`, `persisted`, `upserted`, and `error` fields.
+
+## Cache status debugging
+
+When Supabase-backed refreshes fetch provider data but fail to persist, check `/api/cache/status`. It returns only non-secret diagnostics: Supabase configured state, table counts, expected/missing schema checks, latest metadata errors, snapshot keys, snapshot freshness, and payload sizes. Missing table/column diagnostics usually mean the repo migration exists but production Supabase has not been patched; run `supabase/manual/apply-cache-schema-fix.sql` in the Supabase SQL Editor, then retry Netlify refresh functions.

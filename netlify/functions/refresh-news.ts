@@ -15,9 +15,12 @@ export default async function handler() {
       refreshUnusualWhalesNewsFeed(100),
       refreshUnusualWhalesFeaturedArticles(50)
     ]);
-    const snapshot = await refreshDashboardSnapshot("news-calendar:latest");
-    const ok = newsFeed.ok && featuredArticles.ok && snapshot.ok;
-    console.log("scheduled_refresh_complete", { job: "refresh-news", newsRows: newsFeed.count, newsUpserted: newsFeed.upserted ?? 0, featuredRows: featuredArticles.count, featuredUpserted: featuredArticles.upserted ?? 0, snapshotKey: snapshot.key, snapshotPersisted: snapshot.persisted, ok });
+    const dependenciesOk = newsFeed.ok && featuredArticles.ok;
+    const snapshot = dependenciesOk
+      ? await refreshDashboardSnapshot("news-calendar:latest")
+      : { key: "news-calendar:latest", ok: false, persisted: false, error: "Skipped snapshot because source upserts failed." };
+    const ok = dependenciesOk && snapshot.ok;
+    console.log("scheduled_refresh_complete", { job: "refresh-news", newsRows: newsFeed.count, newsUpserted: newsFeed.upserted ?? 0, featuredRows: featuredArticles.count, featuredUpserted: featuredArticles.upserted ?? 0, snapshotKey: snapshot.key, snapshotPersisted: snapshot.persisted, ok, error: ok ? null : snapshot.error ?? newsFeed.error ?? featuredArticles.error });
     return json({ job: "refresh-news", startedAt, finishedAt: new Date().toISOString(), ok, newsFeed, featuredArticles, snapshot }, ok ? 200 : 502);
   } catch (error) {
     const message = error instanceof Error ? error.message : "Unknown news/calendar refresh error";
