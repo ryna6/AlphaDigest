@@ -147,7 +147,7 @@ export async function readDarkPoolRows(client: SupabaseClient, limit = 50, ticke
   let query = client
     .from("unusual_whales_dark_pool_flows")
     .select("external_id,executed_at,ticker,sector,price,premium,volume,fetched_at")
-    .order("premium", { ascending: false })
+    .order(ticker ? "executed_at" : "premium", { ascending: false })
     .limit(limit);
   if (ticker) query = query.eq("ticker", ticker.toUpperCase());
   const { data, error } = await query;
