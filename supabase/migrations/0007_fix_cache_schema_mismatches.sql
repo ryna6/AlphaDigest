@@ -1,7 +1,9 @@
 -- Idempotent cache schema repair for Netlify/Supabase refresh functions.
 -- Safe to re-run: uses create table/index if not exists and add column if not exists.
+-- Important: add/repair columns before creating indexes so partially-created
+-- production tables do not fail with "column does not exist".
 
--- Ensure source cache tables exist before adding repair columns.
+-- Ensure source cache tables exist, then normalize partially-created production tables.
 create table if not exists public.unusual_whales_news_feed (
   id text primary key,
   headline text not null,
@@ -20,6 +22,23 @@ create table if not exists public.unusual_whales_news_feed (
   fetched_at timestamptz not null,
   updated_at timestamptz not null default now()
 );
+alter table public.unusual_whales_news_feed add column if not exists id text;
+alter table public.unusual_whales_news_feed add column if not exists headline text;
+alter table public.unusual_whales_news_feed add column if not exists event_time timestamptz;
+alter table public.unusual_whales_news_feed add column if not exists tickers text[] default '{}';
+alter table public.unusual_whales_news_feed add column if not exists why_it_matters text;
+alter table public.unusual_whales_news_feed add column if not exists source_name text;
+alter table public.unusual_whales_news_feed add column if not exists source_url text;
+alter table public.unusual_whales_news_feed add column if not exists publisher text;
+alter table public.unusual_whales_news_feed add column if not exists sentiment text;
+alter table public.unusual_whales_news_feed add column if not exists major boolean;
+alter table public.unusual_whales_news_feed add column if not exists category text;
+alter table public.unusual_whales_news_feed add column if not exists impact text;
+alter table public.unusual_whales_news_feed add column if not exists raw jsonb;
+alter table public.unusual_whales_news_feed add column if not exists content_hash text;
+alter table public.unusual_whales_news_feed add column if not exists fetched_at timestamptz;
+alter table public.unusual_whales_news_feed add column if not exists updated_at timestamptz default now();
+create unique index if not exists idx_uw_news_feed_id on public.unusual_whales_news_feed (id);
 create index if not exists idx_uw_news_feed_event_time on public.unusual_whales_news_feed (event_time desc);
 
 create table if not exists public.unusual_whales_featured_articles (
@@ -39,6 +58,23 @@ create table if not exists public.unusual_whales_featured_articles (
   fetched_at timestamptz not null,
   updated_at timestamptz not null default now()
 );
+alter table public.unusual_whales_featured_articles add column if not exists id text;
+alter table public.unusual_whales_featured_articles add column if not exists slug text;
+alter table public.unusual_whales_featured_articles add column if not exists title text;
+alter table public.unusual_whales_featured_articles add column if not exists published_at timestamptz;
+alter table public.unusual_whales_featured_articles add column if not exists created_at_source timestamptz;
+alter table public.unusual_whales_featured_articles add column if not exists tags text[] default '{}';
+alter table public.unusual_whales_featured_articles add column if not exists image_url text;
+alter table public.unusual_whales_featured_articles add column if not exists excerpt text;
+alter table public.unusual_whales_featured_articles add column if not exists content_text text;
+alter table public.unusual_whales_featured_articles add column if not exists content_html text;
+alter table public.unusual_whales_featured_articles add column if not exists source_url text;
+alter table public.unusual_whales_featured_articles add column if not exists raw jsonb;
+alter table public.unusual_whales_featured_articles add column if not exists content_hash text;
+alter table public.unusual_whales_featured_articles add column if not exists fetched_at timestamptz;
+alter table public.unusual_whales_featured_articles add column if not exists updated_at timestamptz default now();
+create unique index if not exists idx_uw_featured_articles_id on public.unusual_whales_featured_articles (id);
+create unique index if not exists idx_uw_featured_articles_slug_unique on public.unusual_whales_featured_articles (slug);
 create index if not exists idx_uw_featured_articles_published_at on public.unusual_whales_featured_articles (published_at desc nulls last);
 
 create table if not exists public.investing_economic_events (
@@ -64,6 +100,28 @@ create table if not exists public.investing_economic_events (
   fetched_at timestamptz not null,
   updated_at timestamptz not null default now()
 );
+alter table public.investing_economic_events add column if not exists id text;
+alter table public.investing_economic_events add column if not exists event_id text;
+alter table public.investing_economic_events add column if not exists event_key text;
+alter table public.investing_economic_events add column if not exists event_name text;
+alter table public.investing_economic_events add column if not exists event_date date;
+alter table public.investing_economic_events add column if not exists time text;
+alter table public.investing_economic_events add column if not exists event_time timestamptz;
+alter table public.investing_economic_events add column if not exists importance text;
+alter table public.investing_economic_events add column if not exists stars integer;
+alter table public.investing_economic_events add column if not exists actual text;
+alter table public.investing_economic_events add column if not exists forecast text;
+alter table public.investing_economic_events add column if not exists previous text;
+alter table public.investing_economic_events add column if not exists is_highlighted boolean default false;
+alter table public.investing_economic_events add column if not exists highlight_reason text;
+alter table public.investing_economic_events add column if not exists country text;
+alter table public.investing_economic_events add column if not exists source_name text;
+alter table public.investing_economic_events add column if not exists source_url text;
+alter table public.investing_economic_events add column if not exists raw jsonb;
+alter table public.investing_economic_events add column if not exists content_hash text;
+alter table public.investing_economic_events add column if not exists fetched_at timestamptz;
+alter table public.investing_economic_events add column if not exists updated_at timestamptz default now();
+create unique index if not exists idx_investing_economic_events_id on public.investing_economic_events (id);
 create index if not exists idx_investing_economic_events_event_date on public.investing_economic_events (event_date, event_time);
 
 create table if not exists public.market_quotes (
@@ -82,10 +140,22 @@ create table if not exists public.market_quotes (
   fetched_at timestamptz not null,
   updated_at timestamptz not null default now()
 );
+alter table public.market_quotes add column if not exists id text;
+alter table public.market_quotes add column if not exists source text;
+alter table public.market_quotes add column if not exists symbol text;
+alter table public.market_quotes add column if not exists display_symbol text;
+alter table public.market_quotes add column if not exists name text;
+alter table public.market_quotes add column if not exists price numeric;
+alter table public.market_quotes add column if not exists previous_close numeric;
+alter table public.market_quotes add column if not exists change numeric;
+alter table public.market_quotes add column if not exists change_percent numeric;
+alter table public.market_quotes add column if not exists market_time timestamptz;
+alter table public.market_quotes add column if not exists raw jsonb;
+alter table public.market_quotes add column if not exists content_hash text;
+alter table public.market_quotes add column if not exists fetched_at timestamptz;
+alter table public.market_quotes add column if not exists updated_at timestamptz default now();
+create unique index if not exists idx_market_quotes_id on public.market_quotes (id);
 create unique index if not exists idx_market_quotes_symbol_source on public.market_quotes (source, symbol);
-
-alter table public.unusual_whales_featured_articles add column if not exists created_at_source timestamptz;
-
 
 create table if not exists public.dashboard_snapshots (
   key text primary key,
@@ -166,10 +236,6 @@ alter table public.put_call_observations add column if not exists created_at tim
 alter table public.put_call_observations add column if not exists updated_at timestamptz not null default now();
 create unique index if not exists put_call_observations_external_id_key on public.put_call_observations(external_id);
 create index if not exists put_call_observations_ratio_as_of_eastern_idx on public.put_call_observations(ratio_type, as_of_eastern desc);
-
-alter table public.investing_economic_events add column if not exists source_url text;
-alter table public.unusual_whales_featured_articles add column if not exists created_at_source timestamptz;
-alter table public.unusual_whales_news_feed add column if not exists event_time timestamptz;
 
 create or replace function public.set_updated_at()
 returns trigger
