@@ -151,3 +151,11 @@ The Flow tab reads cached Supabase rows/snapshots first and never calls Unusual 
 - Expanded Flow pages and ticker detail pages place Back controls in the `SectionHeader` action slot, matching the same card-header location used by View All links on the main Flow cards.
 - `/flow` bypasses a fresh `flow:latest` snapshot when that snapshot is marked `mock`, rebuilds from Supabase source tables first, and only uses fixture rows when source tables are unavailable or empty. This keeps main Flow Insider Trades and Dark Pool cards aligned with their expanded Supabase-backed pages.
 - Insider trade transaction dates are date-only displays and do not append `ET`; Flow date-time values such as dark-pool execution timestamps still display Eastern Time with an `ET` label.
+
+### Flow UI revision
+
+- `/flow` keeps Flow Summary near the top, then renders Dark Pool, Whale Trades, and Insider Trades as separate full-width rows so Dark Pool and Whale Feed text has desktop room while mobile remains stacked.
+- Flow Summary now uses three responsive mini cards: Dark Pool Signal, Whale Feed Signal, and Insider sentiment. Summary cards link only when a reliable drilldown exists, such as Dark Pool ticker detail, Whale Trades expanded view, or Insider Trades expanded view.
+- Dark Pool timestamps display in Eastern Time as `MM/DD HH:mm` (for example `06/15 16:00`) on the card, expanded page, and ticker detail views.
+- `/flow/dark-pool/[ticker]` is ticker-level: it shows all available same-ticker dark-pool prints from the cache/source rows, sorted by most recent `executed_at` first, with the Back action returning to `/flow/dark-pool`.
+- `Top insider activity` was replaced with `Insider sentiment`. Insider Sentiment uses `purchaseValue / (purchaseValue + saleValue)`, where sale value is absolute sale value. The UI labels ratios `>= 0.55` Bullish, `<= 0.45` Bearish, and the neutral band between those values Neutral, with matching color and an info tooltip.

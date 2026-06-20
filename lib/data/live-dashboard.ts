@@ -28,6 +28,7 @@ import { getCachedUnusualWhalesEarnings } from "./adapters/unusual-whales-earnin
 import { readDarkPoolRows } from "./adapters/unusual-whales-dark-pool";
 import { readInsiderTradeRows } from "./adapters/unusual-whales-insider-trades";
 import { aggregateInsiderTrades, topInsiderCompanies } from "./insider-aggregation";
+import { deriveFlowSummary } from "./flow-summary";
 import { payloadContentHash, updateRefreshMetadata } from "./adapters/supabase-refresh";
 import { createServerSupabaseClient } from "@/lib/db/supabase";
 import {
@@ -935,33 +936,12 @@ export async function buildFlowPayload(): Promise<{
       };
     }
     const insiderTrades = topInsiderCompanies(insiderRows, 5);
-    const largest = darkPool[0];
-    const topInsider = insiderTrades[0];
+    const whaleTrades = flowMock.whaleTrades;
     return {
       payload: {
-        summary: [
-          {
-            label: "Top insider activity",
-            value: topInsider ? `${topInsider.ticker} (${topInsider.tradeCount})` : "—",
-            tone: "neutral"
-          },
-          {
-            label: "Highest whale premium",
-            value:
-              flowMock.summary.find((metric) => metric.label === "Highest whale premium")?.value ??
-              "—",
-            tone: "positive"
-          },
-          {
-            label: "Largest dark pool print",
-            value: largest?.premium
-              ? formatCompactCurrency(largest.premium) + ` ${largest.ticker}`
-              : "—",
-            tone: "neutral"
-          }
-        ],
+        summary: deriveFlowSummary({ darkPool, insiderRows, whaleTrades }),
         darkPool,
-        whaleTrades: flowMock.whaleTrades,
+        whaleTrades,
         insiderTrades,
         sourceMeta: flowMock.sourceMeta,
         notices

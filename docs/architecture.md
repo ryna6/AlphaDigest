@@ -239,3 +239,9 @@ Dashboard-facing Flow date/time rendering uses explicit Eastern Time (`America/N
 ### Flow mock snapshot bypass
 
 The Flow dashboard keeps snapshot-first behavior for real cached payloads, but it no longer lets a fresh mock `flow:latest` snapshot mask real Supabase source rows. If the snapshot mode is `mock`, `getFlowPayload()` rebuilds from `unusual_whales_dark_pool_flows` and `unusual_whales_insider_trades` and persists a replacement snapshot only when the rebuilt payload is live. This preserves fallback behavior without allowing fixture rows to override real cache data.
+
+### Flow route and summary behavior
+
+The Flow page now lays out Flow Summary, Dark Pool, Whale Trades, and Insider Trades as separate card rows. Flow Summary is derived through shared helper logic so refresh snapshots and server loaders can include Dark Pool Signal, Whale Feed Signal, and Insider sentiment fields without duplicating calculations in components.
+
+Dark Pool ticker drilldowns use `/flow/dark-pool/[ticker]` as the primary detail route. The server-side loader queries Supabase/source rows by ticker and sorts ticker detail rows by `executed_at` descending, falling back to fixtures only when cached rows are unavailable. Browser components still do not call Unusual Whales and never receive the Supabase service role key.
