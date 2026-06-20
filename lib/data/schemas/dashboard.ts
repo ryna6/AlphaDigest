@@ -173,7 +173,8 @@ export const insiderCompanyAggregateSchema = z.object({
   netShares: z.number(),
   netValue: z.number(),
   purchaseCount: z.number(),
-  saleCount: z.number()
+  saleCount: z.number(),
+  averageTradePrice: z.number().nullable()
 });
 
 export const flowPayloadSchema = z.object({

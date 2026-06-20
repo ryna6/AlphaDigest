@@ -35,24 +35,24 @@ supabase/                    Schema and migrations
 
 ### User pages
 
-| Route                             | Purpose                                                | Main component/data source                                   |
-| --------------------------------- | ------------------------------------------------------ | ------------------------------------------------------------ |
-| `/`                               | Redirects to Today.                                    | `app/page.tsx` redirects to `/overview/today`.               |
-| `/overview/today`                 | Daily briefing.                                        | `getTodayPayload()` and `TodayView`.                         |
-| `/overview/today/top-news`        | Paginated featured article list.                       | `getTodayPayload()` and `TopNewsListClient`.                 |
-| `/overview/today/top-news/[slug]` | Featured article detail.                               | Today featured article payload.                              |
-| `/markets`                        | Market strip and heatmaps.                             | `getMarketsPayload()` and `MarketsView`.                     |
-| `/news-calendar`                  | Latest news, economic calendar, and earnings calendar. | `getNewsCalendarPayload()` and `NewsCalendarView`.           |
-| `/news-calendar/news`             | Expanded latest-news list.                             | `AllNewsView`.                                               |
-| `/news-calendar/earnings`         | Expanded earnings calendar.                            | `AllEarningsView`.                                           |
+| Route                             | Purpose                                                | Main component/data source                                                 |
+| --------------------------------- | ------------------------------------------------------ | -------------------------------------------------------------------------- |
+| `/`                               | Redirects to Today.                                    | `app/page.tsx` redirects to `/overview/today`.                             |
+| `/overview/today`                 | Daily briefing.                                        | `getTodayPayload()` and `TodayView`.                                       |
+| `/overview/today/top-news`        | Paginated featured article list.                       | `getTodayPayload()` and `TopNewsListClient`.                               |
+| `/overview/today/top-news/[slug]` | Featured article detail.                               | Today featured article payload.                                            |
+| `/markets`                        | Market strip and heatmaps.                             | `getMarketsPayload()` and `MarketsView`.                                   |
+| `/news-calendar`                  | Latest news, economic calendar, and earnings calendar. | `getNewsCalendarPayload()` and `NewsCalendarView`.                         |
+| `/news-calendar/news`             | Expanded latest-news list.                             | `AllNewsView`.                                                             |
+| `/news-calendar/earnings`         | Expanded earnings calendar.                            | `AllEarningsView`.                                                         |
 | `/flow`                           | Flow dashboard.                                        | `getFlowPayload()` reads `flow:latest`, Flow source tables, then fixtures. |
-| `/ownership`                      | Ownership dashboard.                                   | `ownershipMock` fixture / optional `ownership:latest`.       |
-| `/flow-ownership`                 | Legacy redirect.                                       | Redirects to `/flow`.                                        |
-| `/economy-sentiment`              | Economy/sentiment dashboard.                           | `economyMock` fixture.                                       |
-| `/ticker-explorer`                | Symbol lookup entry page.                              | `TickerExplorerView`.                                        |
-| `/ticker/[symbol]`                | Ticker detail page.                                    | `TickerDetailView`, currently fixture-backed.                |
-| `/sources-methodology`            | Source reference table.                                | Static page-level source list.                               |
-| `/settings`                       | Environment variable name/status helper.               | Static variable list, points users to `/api/sources/status`. |
+| `/ownership`                      | Ownership dashboard.                                   | `ownershipMock` fixture / optional `ownership:latest`.                     |
+| `/flow-ownership`                 | Legacy redirect.                                       | Redirects to `/flow`.                                                      |
+| `/economy-sentiment`              | Economy/sentiment dashboard.                           | `economyMock` fixture.                                                     |
+| `/ticker-explorer`                | Symbol lookup entry page.                              | `TickerExplorerView`.                                                      |
+| `/ticker/[symbol]`                | Ticker detail page.                                    | `TickerDetailView`, currently fixture-backed.                              |
+| `/sources-methodology`            | Source reference table.                                | Static page-level source list.                                             |
+| `/settings`                       | Environment variable name/status helper.               | Static variable list, points users to `/api/sources/status`.               |
 
 Navigation items live in `lib/constants/navigation.ts`. The desktop sidebar and mobile horizontal tab bar mark an item active when the current path exactly matches or starts with the item's `href`.
 
@@ -73,11 +73,11 @@ All API responses that use `dashboardJson()` are wrapped with:
 | `/api/news-calendar`                          | Calls `getNewsCalendarPayload()` and validates with `newsCalendarPayloadSchema`.        |
 | `/api/news-calendar/economic?date=YYYY-MM-DD` | Fetches an economic-calendar week for the requested date and returns normalized events. |
 | `/api/uw-earnings`                            | Frontend-safe earnings endpoint around `getCachedUnusualWhalesEarnings()`.              |
-| `/api/flow`                                   | Reads `flow:latest`, source Flow tables, then fixtures.                                  |
+| `/api/flow`                                   | Reads `flow:latest`, source Flow tables, then fixtures.                                 |
 | `/api/ownership`                              | Returns Ownership fixture/snapshot payload.                                             |
 | `/api/flow/insider-trades`                    | Returns top 25 cached insider company aggregates.                                       |
 | `/api/flow/insider-trades/[ticker]`           | Returns cached insider detail rows for one ticker.                                      |
-| `/api/flow-ownership`                         | Legacy redirect to `/api/flow`.                                                        |
+| `/api/flow-ownership`                         | Legacy redirect to `/api/flow`.                                                         |
 | `/api/economy-sentiment`                      | Returns `economyMock`.                                                                  |
 | `/api/ticker/[symbol]`                        | Returns `tickerMock(symbol)`.                                                           |
 | `/api/sources/status`                         | Returns configured/missing booleans for environment variables, never secret values.     |
@@ -229,3 +229,13 @@ Flow reads `flow:latest` first, then source tables `unusual_whales_dark_pool_flo
 ### Flow refresh integrity
 
 Flow ingestion preserves the GitHub + Netlify + Supabase Cloud architecture: Netlify functions fetch Unusual Whales server-side, upsert only normalized fields into Supabase, and frontend/page APIs read `flow:latest` or source tables before fixture fallback. The dark-pool adapter now detects common response shapes (`$`, `data`, `trades`, `results`, `rows`, `items`, `data.rows`, `data.items`, `data.results`, `data.trades`) and records safe diagnostics without logging secrets or full raw payloads. Insider rows are assigned deterministic IDs from provider IDs when available, otherwise from canonical transaction fields, then deduped before `onConflict: "external_id"` upserts. Partial Flow snapshots are allowed only with explicit source status and notices.
+
+### Flow routes and timestamp display
+
+Flow now has expanded section routes for `/flow/dark-pool`, `/flow/whale-trades`, and `/flow/insider-trades`, plus ticker drilldowns for insider trades and dark-pool prints. These pages continue to read through server-side dashboard loaders/API paths backed by Supabase snapshots/source tables and fixture fallback. Dark Pool and Insider Trades data remain server-side cached; Whale Trades remains fixture-backed until a live endpoint is provided.
+
+Dashboard-facing Flow date/time rendering uses explicit Eastern Time (`America/New_York`) helpers and labels values as `ET`. This is a presentation-layer choice only; Supabase timestamp columns continue to store UTC/timestamptz values, and Netlify/platform logs can remain UTC.
+
+### Flow mock snapshot bypass
+
+The Flow dashboard keeps snapshot-first behavior for real cached payloads, but it no longer lets a fresh mock `flow:latest` snapshot mask real Supabase source rows. If the snapshot mode is `mock`, `getFlowPayload()` rebuilds from `unusual_whales_dark_pool_flows` and `unusual_whales_insider_trades` and persists a replacement snapshot only when the rebuilt payload is live. This preserves fallback behavior without allowing fixture rows to override real cache data.
