@@ -16,8 +16,8 @@ const safeKeys = (value: unknown, limit = 20) => isRec(value) ? Object.keys(valu
 export function extractArrayFromUnusualWhalesResponse(json: unknown): { rows: unknown[]; path: string | null; reason?: string } {
   if (Array.isArray(json)) return { rows: json, path: "$" };
   if (!isRec(json)) return { rows: [], path: null, reason: "response_is_not_object_or_array" };
-  const paths: Array<[string, unknown]> = [["data", json.data], ["results", json.results], ["rows", json.rows]];
-  if (isRec(json.data)) paths.push(["data.rows", json.data.rows], ["data.items", json.data.items], ["data.results", json.data.results]);
+  const paths: Array<[string, unknown]> = [["data", json.data], ["trades", json.trades], ["results", json.results], ["rows", json.rows], ["items", json.items]];
+  if (isRec(json.data)) paths.push(["data.rows", json.data.rows], ["data.items", json.data.items], ["data.results", json.data.results], ["data.trades", json.data.trades]);
   for (const [path, value] of paths) {
     if (Array.isArray(value)) return { rows: value, path, reason: value.length ? undefined : "provider_returned_empty_array" };
   }
