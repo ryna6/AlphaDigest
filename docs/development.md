@@ -274,3 +274,7 @@ Use `/api/cache/status` to detect false-success cache states. A healthy local or
 ## Cache status debugging
 
 When Supabase-backed refreshes fetch provider data but fail to persist, check `/api/cache/status`. It returns only non-secret diagnostics: Supabase configured state, table counts, expected/missing schema checks, latest metadata errors, snapshot keys, snapshot freshness, and payload sizes. Missing table/column diagnostics usually mean the repo migration exists but production Supabase has not been patched; run `supabase/manual/apply-cache-schema-fix.sql` in the Supabase SQL Editor, then retry Netlify refresh functions.
+
+## Flow/Ownership development notes
+
+Local development can render Flow and Ownership without Supabase by using fixtures. With `SUPABASE_URL` and server-only `SUPABASE_SERVICE_ROLE_KEY` configured, `/api/flow` reads `flow:latest` first, then `unusual_whales_dark_pool_flows` and `unusual_whales_insider_trades`, then fixtures. Do not call Unusual Whales from client components; use Netlify functions/adapters. Whale Trades, Institutional/13F, and Congressional data are intentionally fixture-backed until endpoints/providers are added.

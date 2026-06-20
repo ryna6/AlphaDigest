@@ -40,15 +40,18 @@ A combined events workspace with:
 - Earnings grouped into before-open and after-close sessions.
 - Separate “View All” pages for market news and earnings.
 
-### Flow & Ownership
+### Flow
 
-A currently fixture-backed view for big-money activity concepts:
+A Supabase-first view for big-money flow concepts:
 
-- Dark pool prints.
-- Whale option trades.
-- Insider trades.
-- Congressional trades.
-- Institutional 13F positioning.
+- Flow Summary.
+- Dark pool prints from server-side Unusual Whales refreshes.
+- Whale option trades, currently fixture-backed until a live endpoint is added.
+- Insider trades from server-side Unusual Whales refreshes, aggregated by company.
+
+### Ownership
+
+A currently fixture-backed ownership view for Institutional/13F positioning and Congressional trades until live providers are added.
 
 ### Economy & Sentiment
 
@@ -141,7 +144,7 @@ Production environment variables should be configured in Netlify site settings. 
 
 - Live providers can fail because of rate limits, upstream shape changes, network errors, or missing API keys.
 - Unusual Whales and Investing.com integrations depend on public endpoint/page shapes and may need maintenance if those providers change their responses.
-- Some dashboard areas are intentionally fixture-backed today, especially Flow & Ownership, Economy & Sentiment, and ticker detail data.
+- Some dashboard areas are intentionally fixture-backed today, especially Whale Trades, Ownership, Economy & Sentiment, and ticker detail data.
 - Data freshness depends on provider availability, request timing, optional Supabase cache state, and Netlify scheduled-function support.
 
 ## Technical documentation
@@ -176,3 +179,11 @@ Apply all Supabase migrations through `0006_source_cache_tables.sql` before rely
 Netlify deploys do not automatically apply Supabase SQL migrations unless a separate migration pipeline is configured. If scheduled refresh logs show PostgREST schema-cache errors such as missing `investing_economic_events.source_url`, `unusual_whales_featured_articles.created_at_source`, `unusual_whales_news_feed.event_time`, `put_call_observations`, or `dashboard_snapshots`, run `supabase/manual/apply-cache-schema-fix.sql` in the Supabase SQL Editor. The SQL is idempotent, reloads the PostgREST schema cache with `notify pgrst, 'reload schema'`, and aligns production with the Netlify refresh adapters.
 
 After applying it, manually run `refresh-economic-events`, `refresh-featured-articles`, `refresh-news-feed`, `refresh-news`, `refresh-today`, `refresh-put-call`, and `refresh-markets` in Netlify. Then open `/api/cache/status` to confirm row counts, expected columns, current metadata, and snapshot keys `today:latest`, `markets:latest`, and `news-calendar:latest`.
+
+### Flow and Ownership split
+
+Flow and Ownership are now separate primary tabs. Flow contains Flow Summary, Dark Pool, Whale Trades, and Insider Trades. Ownership contains Institutional/13F positioning and Congressional Trades. Dark pool and insider trades are fetched server-side from Unusual Whales by Netlify scheduled functions and cached in Supabase; browser components never call Unusual Whales directly and never receive `SUPABASE_SERVICE_ROLE_KEY`.
+
+Dark pool uses the large-print Unusual Whales filter endpoint once daily and retains up to 7 days of rows in `unusual_whales_dark_pool_flows`; the current plan is expected to return roughly two-day delayed data. Insider trades use the provided corporate-insider endpoint once daily, store only normalized transaction fields in `unusual_whales_insider_trades`, and UI/API reads filter to the past 3 months. The Flow insider card shows the top 5 companies, `/flow/insider-trades` shows the top 25, and `/flow/insider-trades/[ticker]` shows individual transactions. Whale Trades, Institutional/13F, and Congressional Trades remain fixture-backed placeholders until live endpoints/providers are added.
+
+Apply `supabase/manual/apply-unusual-whales-flow.sql` in the Supabase SQL Editor before running `refresh-dark-pool`, `refresh-insider-trades`, `refresh-flow`, or `refresh-ownership` in Netlify. `/api/cache/status` reports the new source tables and `flow:latest` / `ownership:latest` snapshots.

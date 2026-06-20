@@ -12,11 +12,13 @@ const EXPECTED_TABLE_COLUMNS = {
   unusual_whales_featured_articles: ["id", "slug", "title", "published_at", "created_at_source", "source_url", "content_hash", "fetched_at", "updated_at"],
   unusual_whales_news_feed: ["id", "headline", "event_time", "source_url", "content_hash", "fetched_at", "updated_at"],
   put_call_observations: ["external_id", "ratio_type", "value", "equity_ratio", "index_ratio", "total_ratio", "market_date", "as_of_eastern", "source_url", "fetched_at", "updated_at"],
+  unusual_whales_dark_pool_flows: ["external_id", "executed_at", "ticker", "sector", "price", "premium", "volume", "fetched_at", "updated_at"],
+  unusual_whales_insider_trades: ["external_id", "ticker", "sector", "amount", "transaction_date", "price", "owner_name", "officer_title", "transaction_code", "shares_owned_after", "fetched_at", "updated_at"],
   dashboard_snapshots: ["key", "payload", "mode", "notices", "generated_at", "expires_at", "source_hash", "metadata"]
 } as const;
 
 const CACHE_TABLES = Object.keys(EXPECTED_TABLE_COLUMNS) as Array<keyof typeof EXPECTED_TABLE_COLUMNS>;
-const EXPECTED_SNAPSHOT_KEYS = ["today:latest", "markets:latest", "news-calendar:latest"];
+const EXPECTED_SNAPSHOT_KEYS = ["today:latest", "markets:latest", "news-calendar:latest", "flow:latest", "ownership:latest"];
 
 async function tableCount(client: any, table: string) {
   const { count, error } = await client.from(table).select("*", { count: "exact", head: true });

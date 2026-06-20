@@ -5,6 +5,7 @@ import {
   Database,
   MapPin,
   ScrollText,
+  Landmark,
   Search,
   Settings
 } from "lucide-react";
@@ -13,7 +14,8 @@ export const mainNavigation = [
   { label: "Today", href: "/overview/today", icon: MapPin },
   { label: "Markets", href: "/markets", icon: BarChart3 },
   { label: "News & Calendar", href: "/news-calendar", icon: CalendarDays },
-  { label: "Flow & Ownership", href: "/flow-ownership", icon: ScrollText },
+  { label: "Flow", href: "/flow", icon: ScrollText },
+  { label: "Ownership", href: "/ownership", icon: Landmark },
   { label: "Economy & Sentiment", href: "/economy-sentiment", icon: Activity },
   { label: "Ticker Explorer", href: "/ticker-explorer", icon: Search }
 ];
