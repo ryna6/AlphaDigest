@@ -286,3 +286,7 @@ When testing with Supabase credentials locally or via Netlify, use `refresh-dark
 ### Flow aggregation helper notes
 
 Use `lib/data/insider-aggregation.ts` for all insider company aggregate views and API payloads. Do not duplicate ticker aggregation in components. The helper filters to the past 3 months, sorts by trade count then absolute net value, and calculates weighted average trade price as `sum(abs(shares) * price) / sum(abs(shares))`. Use `lib/utils/time.ts` Eastern formatting helpers for user-facing Flow timestamps; do not change process timezone or Supabase storage timezone.
+
+### Flow Summary helper
+
+Flow Summary calculations live in `lib/data/flow-summary.ts`. The helper derives the three Flow Summary mini-card payloads and calculates Insider Sentiment as `purchaseValue / saleValue` using the same insider trade rows as the Insider Trades card. Keep the neutral band documented in code (`>= 1.05` Bullish, `<= 0.95` Bearish, otherwise Neutral) and preserve fixture fallback without allowing mock data to overwrite real Supabase source rows.

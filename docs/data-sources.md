@@ -364,3 +364,9 @@ Insider trade rows in `unusual_whales_insider_trades` are aggregated with the sh
 ### Flow snapshot fallback priority
 
 `/flow` treats a fresh `flow:latest` snapshot with `mode = mock` as a fixture snapshot, not as authoritative real data. When that happens, the page rebuilds the Flow payload from Supabase source tables before falling back to fixtures. Fresh non-mock snapshots remain the first choice; Supabase source tables are the next choice; fixture/mock rows are used only when the relevant source data is missing, empty, or unavailable.
+
+### Flow Summary and Dark Pool display details
+
+Flow Summary derives its Dark Pool Print and Insider sentiment from the same Supabase-backed Flow source rows used by the Dark Pool and Insider Trades cards whenever real rows are available; fixture fallback is retained only when live/cache rows are unavailable. Insider Sentiment is calculated as `purchaseValue / saleValue`, with purchase value from positive purchase shares times price and sale value from the absolute value of sale shares times price. Ratios `>= 1.05` display as Bullish, ratios `<= 0.95` display as Bearish, and the band between them displays as Neutral.
+
+Dark Pool source rows remain stored as UTC/timestamptz where applicable in `unusual_whales_dark_pool_flows`. The Flow UI formats dark-pool `executed_at` values only for display in Eastern Time as `MM/DD HH:mm` without an `ET` suffix.

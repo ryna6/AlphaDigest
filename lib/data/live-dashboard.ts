@@ -28,6 +28,7 @@ import { getCachedUnusualWhalesEarnings } from "./adapters/unusual-whales-earnin
 import { readDarkPoolRows } from "./adapters/unusual-whales-dark-pool";
 import { readInsiderTradeRows } from "./adapters/unusual-whales-insider-trades";
 import { aggregateInsiderTrades, topInsiderCompanies } from "./insider-aggregation";
+import { deriveFlowSummary } from "./flow-summary";
 import { payloadContentHash, updateRefreshMetadata } from "./adapters/supabase-refresh";
 import { createServerSupabaseClient } from "@/lib/db/supabase";
 import {
@@ -935,33 +936,12 @@ export async function buildFlowPayload(): Promise<{
       };
     }
     const insiderTrades = topInsiderCompanies(insiderRows, 5);
-    const largest = darkPool[0];
-    const topInsider = insiderTrades[0];
+    const whaleTrades = flowMock.whaleTrades;
     return {
       payload: {
-        summary: [
-          {
-            label: "Top insider activity",
-            value: topInsider ? `${topInsider.ticker} (${topInsider.tradeCount})` : "—",
-            tone: "neutral"
-          },
-          {
-            label: "Highest whale premium",
-            value:
-              flowMock.summary.find((metric) => metric.label === "Highest whale premium")?.value ??
-              "—",
-            tone: "positive"
-          },
-          {
-            label: "Largest dark pool print",
-            value: largest?.premium
-              ? formatCompactCurrency(largest.premium) + ` ${largest.ticker}`
-              : "—",
-            tone: "neutral"
-          }
-        ],
+        summary: deriveFlowSummary({ darkPool, insiderRows, whaleTrades }),
         darkPool,
-        whaleTrades: flowMock.whaleTrades,
+        whaleTrades,
         insiderTrades,
         sourceMeta: flowMock.sourceMeta,
         notices
@@ -1050,8 +1030,12 @@ export async function buildOwnershipPayload(): Promise<{
   return { payload: ownershipMock, mode: "mock", notices: ownershipMock.notices };
 }
 
-function isUsableFlowSnapshotMode(mode: string | null) {
-  return mode !== "mock";
+function hasRevisedFlowSummary(payload: FlowPayload) {
+  return payload.summary.some((metric) => metric.label === "Insider sentiment");
+}
+
+function isUsableFlowSnapshot(snapshot: { mode: string | null; payload: FlowPayload }) {
+  return snapshot.mode !== "mock" && hasRevisedFlowSummary(snapshot.payload);
 }
 
 export async function getFlowPayload(): Promise<{
@@ -1064,7 +1048,7 @@ export async function getFlowPayload(): Promise<{
   if (
     cached.snapshot &&
     isSnapshotFresh(cached.snapshot) &&
-    isUsableFlowSnapshotMode(cached.snapshot.mode)
+    isUsableFlowSnapshot(cached.snapshot)
   ) {
     return { payload: cached.snapshot.payload, mode: "cached", notices: cached.snapshot.notices };
   }
@@ -1074,6 +1058,12 @@ export async function getFlowPayload(): Promise<{
       key,
       generatedAt: cached.snapshot.generatedAt,
       reason: "Flow source tables may contain real rows; rebuilding before using fixture snapshot."
+    });
+  } else if (cached.snapshot && !hasRevisedFlowSummary(cached.snapshot.payload)) {
+    console.warn("dashboard_snapshot_flow_summary_bypassed", {
+      key,
+      generatedAt: cached.snapshot.generatedAt,
+      reason: "Flow snapshot is missing revised Insider sentiment summary fields; rebuilding."
     });
   } else if (cached.message) {
     console.warn("dashboard_snapshot_read", { key, message: cached.message });

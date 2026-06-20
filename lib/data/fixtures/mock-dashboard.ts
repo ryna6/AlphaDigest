@@ -297,9 +297,23 @@ export const marketsMock = (): MarketsPayload => ({
 
 export const flowMock: FlowPayload = {
   summary: [
-    { label: "Top insider activity", value: "CRM", tone: "neutral" },
-    { label: "Highest whale premium", value: "$12.4M TSLA calls", tone: "positive" },
-    { label: "Largest dark pool print", value: "$84.2M SPY", tone: "neutral" }
+    {
+      label: "Insider sentiment",
+      value: "—",
+      subtext: "Neutral",
+      href: "/flow/insider-trades",
+      tone: "neutral",
+      ratio: null,
+      purchaseValue: 0,
+      saleValue: 0
+    },
+    { label: "Dark Pool Print", value: "$84.2M SPY", href: "/flow/dark-pool/SPY", tone: "neutral" },
+    {
+      label: "Whale Feed",
+      value: "$12.4M TSLA calls",
+      href: "/flow/whale-trades",
+      tone: "positive"
+    }
   ],
   darkPool: [
     {
@@ -338,7 +352,10 @@ export const flowMock: FlowPayload = {
   ],
   sourceMeta: [
     mockMeta("Unusual Whales dark pool cache", "https://phx.unusualwhales.com/api/flow/dark-pool"),
-    mockMeta("Unusual Whales insider trades cache", "https://phx.unusualwhales.com/api/insider_trades/feed"),
+    mockMeta(
+      "Unusual Whales insider trades cache",
+      "https://phx.unusualwhales.com/api/insider_trades/feed"
+    ),
     mockMeta("Whale trades fixture placeholder")
   ],
   notices: ["Whale Trades remains fixture-backed until a live endpoint is added."]
@@ -369,13 +386,18 @@ export const ownershipMock: OwnershipPayload = {
     }
   ],
   sourceMeta: [
-    mockMeta("Capitol Trades fixture placeholder", "https://www.capitoltrades.com/trades?pageSize=96"),
+    mockMeta(
+      "Capitol Trades fixture placeholder",
+      "https://www.capitoltrades.com/trades?pageSize=96"
+    ),
     mockMeta(
       "sec-api.io 13F fixture placeholder",
       "https://sec-api.io/docs/form-13-f-filings-institutional-holdings-api"
     )
   ],
-  notices: ["Institutional/13F and Congressional sections remain fixture-backed until live providers are added."]
+  notices: [
+    "Institutional/13F and Congressional sections remain fixture-backed until live providers are added."
+  ]
 };
 
 export const economyMock: EconomyPayload = {

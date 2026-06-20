@@ -11,6 +11,16 @@ const ET_DATE_FORMATTER = new Intl.DateTimeFormat("en-US", {
   timeZone: "America/New_York"
 });
 
+
+const ET_COMPACT_DATE_TIME_FORMATTER = new Intl.DateTimeFormat("en-US", {
+  month: "2-digit",
+  day: "2-digit",
+  hour: "2-digit",
+  minute: "2-digit",
+  hour12: false,
+  timeZone: "America/New_York"
+});
+
 const ET_DATE_KEY_FORMATTER = new Intl.DateTimeFormat("en-CA", {
   year: "numeric",
   month: "2-digit",
@@ -80,4 +90,11 @@ export function timestampTitle(timestamp?: string | number | Date | null): strin
   if (timestamp === null || timestamp === undefined || timestamp === "") return undefined;
   if (timestamp instanceof Date) return timestamp.toISOString();
   return String(timestamp);
+}
+
+export function formatDarkPoolExecutedAt(timestamp?: string | number | Date | null): string {
+  if (timestamp === null || timestamp === undefined || timestamp === "") return "—";
+  const date = timestamp instanceof Date ? timestamp : new Date(timestamp);
+  if (!Number.isFinite(date.getTime())) return String(timestamp);
+  return ET_COMPACT_DATE_TIME_FORMATTER.format(date).replace(",", "");
 }
