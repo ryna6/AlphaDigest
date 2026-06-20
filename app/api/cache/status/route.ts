@@ -36,9 +36,33 @@ async function columnStatus(client: any, table: keyof typeof EXPECTED_TABLE_COLU
 }
 
 async function payloadSize(client: any, key: string) {
-  const { data, error } = await client.from("dashboard_snapshots").select("payload").eq("key", key).maybeSingle();
-  if (error || !data) return { key, payloadBytes: null, error: error?.message };
-  return { key, payloadBytes: Buffer.byteLength(JSON.stringify(data.payload), "utf8") };
+  const { data, error } = await client.from("dashboard_snapshots").select("payload,mode,notices,generated_at,expires_at,metadata").eq("key", key).maybeSingle();
+  if (error || !data) return { key, payloadBytes: null, present: false, error: error?.message };
+  const now = Date.now();
+  const expiresAt = data.expires_at ? Date.parse(data.expires_at) : null;
+  return { key, present: true, payloadBytes: Buffer.byteLength(JSON.stringify(data.payload), "utf8"), mode: data.mode, notices: data.notices ?? [], generatedAt: data.generated_at, expiresAt: data.expires_at, fresh: expiresAt == null ? null : expiresAt > now, metadata: data.metadata ?? null };
+}
+
+function latestMetadataFor(metadata: any[], source: string) {
+  return metadata.find((row) => row.source === source) ?? null;
+}
+
+function flowDiagnostics(counts: any[], metadata: any[], sizes: any[]) {
+  const darkPoolCount = counts.find((row) => row.table === "unusual_whales_dark_pool_flows") ?? null;
+  const insiderCount = counts.find((row) => row.table === "unusual_whales_insider_trades") ?? null;
+  const darkPoolMetadata = latestMetadataFor(metadata, "unusual_whales_dark_pool_flows");
+  const insiderMetadata = latestMetadataFor(metadata, "unusual_whales_insider_trades");
+  const flowSnapshotMetadata = latestMetadataFor(metadata, "flow:latest");
+  const flowSnapshot = sizes.find((row) => row.key === "flow:latest") ?? null;
+  return {
+    tableCounts: { darkPool: darkPoolCount, insiderTrades: insiderCount },
+    metadata: { darkPool: darkPoolMetadata, insiderTrades: insiderMetadata, flowLatest: flowSnapshotMetadata },
+    latestError: darkPoolMetadata?.error ?? insiderMetadata?.error ?? flowSnapshotMetadata?.error ?? null,
+    darkPoolEmptyReason: darkPoolMetadata?.meta?.emptyReason ?? null,
+    insiderDuplicatesRemoved: insiderMetadata?.meta?.duplicatesRemoved ?? null,
+    insiderDuplicateIdsSample: insiderMetadata?.meta?.duplicateIds ?? [],
+    flowLatestSnapshot: flowSnapshot
+  };
 }
 
 export async function GET() {
@@ -77,7 +101,9 @@ export async function GET() {
 
   const missingTables = counts.filter((table) => !table.present).map((table) => table.table);
   const missingColumns = columns.filter((table) => !table.ok).map((table) => ({ table: table.table, missingColumns: table.missingColumns, error: table.error }));
-  const latestMetadataErrors = (metadataResult.data ?? []).filter((row: { ok?: boolean; error?: string | null }) => row.ok === false || row.error);
+  const metadataRows = metadataResult.data ?? [];
+  const latestMetadataErrors = metadataRows.filter((row: { ok?: boolean; error?: string | null }) => row.ok === false || row.error);
+  const flow = flowDiagnostics(counts, metadataRows, sizes);
 
   return NextResponse.json({
     generatedAt,
@@ -91,8 +117,9 @@ export async function GET() {
     tableCounts: counts,
     columnChecks: columns,
     missingColumns,
-    metadata: metadataResult.error ? [] : metadataResult.data,
+    metadata: metadataResult.error ? [] : metadataRows,
     latestMetadataErrors,
+    flow,
     metadataError: metadataResult.error?.message
   });
 }

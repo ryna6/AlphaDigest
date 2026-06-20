@@ -10,26 +10,40 @@ const SOURCE = "unusual_whales_dark_pool_flows";
 type Rec = Record<string, unknown>;
 const isRec = (v: unknown): v is Rec => !!v && typeof v === "object" && !Array.isArray(v);
 const str = (r: Rec, keys: string[]) => keys.map((k) => r[k]).find((v): v is string => typeof v === "string" && !!v.trim())?.trim() ?? null;
-const num = (v: unknown) => typeof v === "number" ? (Number.isFinite(v) ? v : null) : typeof v === "string" && v.trim() ? Number(v.replace(/[$,]/g, "")) || null : null;
-const rowsFrom = (payload: unknown): Rec[] => Array.isArray(payload) ? payload.filter(isRec) : isRec(payload) && Array.isArray(payload.data) ? payload.data.filter(isRec) : [];
+const num = (v: unknown) => typeof v === "number" ? (Number.isFinite(v) ? v : null) : typeof v === "string" && v.trim() ? Number(v.replace(/[$,% ,]/g, "")) || null : null;
+const safeKeys = (value: unknown, limit = 20) => isRec(value) ? Object.keys(value).slice(0, limit) : [];
 
-export function normalizeDarkPoolPayload(payload: unknown, fetchedAt = new Date().toISOString()): DarkPoolFlowRow[] {
-  return rowsFrom(payload).map((r) => {
-    const ticker = str(r, ["ticker", "symbol"])?.toUpperCase();
-    const executedAt = str(r, ["executed_at", "executedAt", "time", "timestamp", "created_at"]);
-    if (!ticker || !executedAt) return null;
-    const row = {
-      externalId: stableHash({ ticker, executedAt, price: num(r.price), premium: num(r.premium), volume: num(r.volume ?? r.size) }),
-      executedAt: new Date(executedAt).toISOString(),
-      ticker,
-      sector: str(r, ["sector"]),
-      price: num(r.price),
-      premium: num(r.premium),
-      volume: num(r.volume ?? r.size),
-      fetchedAt
-    };
-    return row;
+export function extractArrayFromUnusualWhalesResponse(json: unknown): { rows: unknown[]; path: string | null; reason?: string } {
+  if (Array.isArray(json)) return { rows: json, path: "$" };
+  if (!isRec(json)) return { rows: [], path: null, reason: "response_is_not_object_or_array" };
+  const paths: Array<[string, unknown]> = [["data", json.data], ["trades", json.trades], ["results", json.results], ["rows", json.rows], ["items", json.items]];
+  if (isRec(json.data)) paths.push(["data.rows", json.data.rows], ["data.items", json.data.items], ["data.results", json.data.results], ["data.trades", json.data.trades]);
+  for (const [path, value] of paths) {
+    if (Array.isArray(value)) return { rows: value, path, reason: value.length ? undefined : "provider_returned_empty_array" };
+  }
+  const message = str(json, ["error", "message", "detail", "reason"]);
+  return { rows: [], path: null, reason: message ? `provider_message:${message.slice(0, 120)}` : "no_supported_array_path" };
+}
+
+export function normalizeDarkPoolPayload(payload: unknown, fetchedAt = new Date().toISOString()): { rows: DarkPoolFlowRow[]; rawCount: number; skipped: number; skipReasons: Record<string, number>; responsePath: string | null; emptyReason?: string } {
+  const extracted = extractArrayFromUnusualWhalesResponse(payload);
+  const skipReasons: Record<string, number> = {};
+  const skip = (reason: string) => { skipReasons[reason] = (skipReasons[reason] ?? 0) + 1; };
+  const rows = extracted.rows.map((value) => {
+    if (!isRec(value)) { skip("non_object_row"); return null; }
+    const ticker = str(value, ["ticker", "symbol", "underlying_symbol"])?.toUpperCase();
+    const executedAtRaw = str(value, ["executed_at", "executedAt", "timestamp", "time", "created_at"]);
+    if (!ticker) { skip("missing_ticker"); return null; }
+    if (!executedAtRaw) { skip("missing_executed_at"); return null; }
+    const executedAt = new Date(executedAtRaw);
+    if (Number.isNaN(executedAt.getTime())) { skip("invalid_executed_at"); return null; }
+    const price = num(value.price ?? value.spot ?? value.underlying_price);
+    const premium = num(value.premium ?? value.prem ?? value.notional ?? value.value);
+    const volume = num(value.volume ?? value.vol ?? value.size);
+    return { externalId: stableHash({ ticker, executedAt: executedAt.toISOString(), price, premium, volume }), executedAt: executedAt.toISOString(), ticker, sector: str(value, ["sector", "stock_sector"]), price, premium, volume, fetchedAt };
   }).filter(Boolean) as DarkPoolFlowRow[];
+  const emptyReason = extracted.rows.length === 0 ? extracted.reason : rows.length === 0 ? "all_rows_skipped" : undefined;
+  return { rows, rawCount: extracted.rows.length, skipped: extracted.rows.length - rows.length, skipReasons, responsePath: extracted.path, emptyReason };
 }
 
 export async function readDarkPoolRows(client: SupabaseClient, limit = 50) {
@@ -41,13 +55,17 @@ export async function readDarkPoolRows(client: SupabaseClient, limit = 50) {
 export async function refreshDarkPoolFlows() {
   const supabase = createServerSupabaseClient();
   if (!supabase.ok) return sourceResult({ ok: false, count: 0, error: supabase.message });
+  const fetchedAt = new Date().toISOString();
   try {
     const res = await fetch(UW_DARK_POOL_URL, { headers: { accept: "application/json" } });
+    const fetchDiagnostics = { status: res.status, ok: res.ok, contentType: res.headers.get("content-type") };
     if (!res.ok) throw new Error(`Unusual Whales dark pool fetch failed: ${res.status}`);
     const payload = await res.json();
-    const fetched = rowsFrom(payload).length;
-    const rows = normalizeDarkPoolPayload(payload);
-    const dbRows = rows.map((r) => ({ external_id: r.externalId, executed_at: r.executedAt, ticker: r.ticker, sector: r.sector, price: r.price, premium: r.premium, volume: r.volume, fetched_at: r.fetchedAt, updated_at: new Date().toISOString() }));
+    const normalized = normalizeDarkPoolPayload(payload, fetchedAt);
+    const shapeDiagnostics = { ...fetchDiagnostics, topLevelKeys: safeKeys(payload), responseKind: Array.isArray(payload) ? "array" : isRec(payload) ? "object" : typeof payload, responsePath: normalized.responsePath, rawCount: normalized.rawCount, normalized: normalized.rows.length, skipped: normalized.skipped, skipReasons: normalized.skipReasons, firstItemKeys: safeKeys(extractArrayFromUnusualWhalesResponse(payload).rows[0]) };
+    console.log("dark_pool_response_diagnostics", shapeDiagnostics);
+    if (!normalized.responsePath) throw new Error(normalized.emptyReason?.startsWith("provider_message:") ? `Unusual Whales dark pool response did not include rows: ${normalized.emptyReason}` : "Unable to locate dark pool rows in Unusual Whales response");
+    const dbRows = normalized.rows.map((r) => ({ external_id: r.externalId, executed_at: r.executedAt, ticker: r.ticker, sector: r.sector, price: r.price, premium: r.premium, volume: r.volume, fetched_at: r.fetchedAt, updated_at: fetchedAt }));
     if (dbRows.length) {
       const { error } = await supabase.client.from("unusual_whales_dark_pool_flows").upsert(dbRows, { onConflict: "external_id" });
       if (error) throw new Error(`Dark pool upsert failed: ${error.message}`);
@@ -55,9 +73,12 @@ export async function refreshDarkPoolFlows() {
     const cutoff = new Date(Date.now() - 7 * 86400_000).toISOString();
     const { count: pruned, error: pruneError } = await supabase.client.from("unusual_whales_dark_pool_flows").delete({ count: "exact" }).lt("executed_at", cutoff);
     if (pruneError) throw new Error(`Dark pool prune failed: ${pruneError.message}`);
-    const contentHash = payloadContentHash(rows);
-    await updateRefreshMetadata(supabase.client, SOURCE, { ok: true, changed: true, rowCount: rows.length, contentHash, meta: { fetched, normalized: rows.length, upserted: dbRows.length, pruned: pruned ?? 0, retentionDays: 7 } });
-    return sourceResult({ ok: true, count: rows.length, changed: true, contentHash, upserted: dbRows.length, meta: { fetched, normalized: rows.length, pruned: pruned ?? 0 } });
+    const ok = !(normalized.rawCount > 0 && normalized.rows.length === 0);
+    const error = ok ? null : "Dark pool response contained rows, but none had required ticker/executed_at fields";
+    const contentHash = payloadContentHash(normalized.rows);
+    const meta = { fetched: normalized.rawCount, rawCount: normalized.rawCount, normalized: normalized.rows.length, skipped: normalized.skipped, skipReasons: normalized.skipReasons, upserted: dbRows.length, pruned: pruned ?? 0, responsePath: normalized.responsePath, emptyReason: normalized.emptyReason, retentionDays: 7, fetch: fetchDiagnostics };
+    await updateRefreshMetadata(supabase.client, SOURCE, { ok, changed: true, rowCount: normalized.rows.length, contentHash, error, meta });
+    return sourceResult({ ok, count: normalized.rows.length, changed: true, error, contentHash, upserted: dbRows.length, meta });
   } catch (e) {
     const message = e instanceof Error ? e.message : "Unknown dark pool refresh error";
     await updateRefreshMetadata(supabase.client, SOURCE, { ok: false, changed: null, rowCount: 0, error: message }).catch(() => undefined);
