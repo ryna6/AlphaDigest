@@ -133,3 +133,7 @@ Important behavior:
 - Page route: `app/ownership/page.tsx`; API route: `/api/ownership`.
 - Contains Institutional/13F positioning and Congressional Trades.
 - Both sections remain fixture-backed placeholders until live providers/endpoints are added.
+
+#### Flow cache behavior
+
+The Flow tab reads cached Supabase rows/snapshots first and never calls Unusual Whales from browser components. Dark Pool keeps up to 7 days of normalized large-print rows and may show zero fresh rows when the provider is delayed, the plan returns an empty/paywalled response, filters match nothing, or the response shape changes; `/api/cache/status` and Netlify logs expose a safe `emptyReason` instead of treating unexplained zero rows as a silent success. Insider Trades are filtered to the past 3 months, deduped before Supabase upsert, and keyed with stable deterministic IDs. `flow:latest` can be written with notices when one Flow source succeeds and another fails, but refresh logs identify partial snapshots versus fully fresh snapshots.
