@@ -332,7 +332,8 @@ export const flowMock: FlowPayload = {
       netShares: 25000,
       netValue: 450000,
       purchaseCount: 3,
-      saleCount: 0
+      saleCount: 0,
+      averageTradePrice: 18
     }
   ],
   sourceMeta: [

@@ -282,3 +282,7 @@ Local development can render Flow and Ownership without Supabase by using fixtur
 ### Local Flow ingestion checks
 
 When testing with Supabase credentials locally or via Netlify, use `refresh-dark-pool`, `refresh-insider-trades`, and `refresh-flow`, then inspect `/api/cache/status`. The status endpoint includes Flow table counts, latest metadata for `unusual_whales_dark_pool_flows`, `unusual_whales_insider_trades`, and `flow:latest`, dark-pool `emptyReason`, insider duplicate-removal counts, and snapshot freshness. Zero dark-pool rows require checking `emptyReason` and response-path diagnostics; insider duplicate counts should be removed before upsert and should not cause a Postgres `ON CONFLICT DO UPDATE command cannot affect row a second time` error.
+
+### Flow aggregation helper notes
+
+Use `lib/data/insider-aggregation.ts` for all insider company aggregate views and API payloads. Do not duplicate ticker aggregation in components. The helper filters to the past 3 months, sorts by trade count then absolute net value, and calculates weighted average trade price as `sum(abs(shares) * price) / sum(abs(shares))`. Use `lib/utils/time.ts` Eastern formatting helpers for user-facing Flow timestamps; do not change process timezone or Supabase storage timezone.
