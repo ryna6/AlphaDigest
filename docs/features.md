@@ -16,8 +16,8 @@ Current primary tabs:
 3. News & Calendar
 4. Flow
 5. Ownership
-5. Economy & Sentiment
-6. Ticker Explorer
+6. Economy & Sentiment
+7. Ticker Explorer
 
 Current utility tabs:
 
@@ -137,3 +137,17 @@ Important behavior:
 #### Flow cache behavior
 
 The Flow tab reads cached Supabase rows/snapshots first and never calls Unusual Whales from browser components. Dark Pool keeps up to 7 days of normalized large-print rows and may show zero fresh rows when the provider is delayed, the plan returns an empty/paywalled response, filters match nothing, or the response shape changes; `/api/cache/status` and Netlify logs expose a safe `emptyReason` instead of treating unexplained zero rows as a silent success. Insider Trades are filtered to the past 3 months, deduped before Supabase upsert, and keyed with stable deterministic IDs. `flow:latest` can be written with notices when one Flow source succeeds and another fails, but refresh logs identify partial snapshots versus fully fresh snapshots.
+
+### Flow revision details
+
+- `/flow` now exposes View All links for Insider Trades, Dark Pool, and Whale Trades. Expanded section pages use the same Back button pattern as News pages: `/flow/insider-trades`, `/flow/dark-pool`, and `/flow/whale-trades` return to `/flow`, while ticker detail pages return to their parent section.
+- The main Flow Insider Trades card uses the same company aggregate model as `/flow/insider-trades`, limited to the top 5 companies. The expanded Insider Trades page shows the top 25 companies.
+- Insider company aggregates include trades, purchases, sales, weighted average price, net shares, and net value. The average price is weighted by absolute shares: `sum(abs(shares) * price) / sum(abs(shares))`, skipping zero-share or missing-price rows.
+- `/flow/insider-trades/[ticker]` shows individual trades and includes `shares_owned_after` as the far-right column. Aggregate company tables do not display `shares_owned_after`.
+- User-facing Flow timestamps and dates are formatted in Eastern Time (`ET`) via explicit `America/New_York` formatting; Supabase storage remains UTC/timestamptz or date fields as defined by the cache tables.
+
+### Flow follow-up fixes
+
+- Expanded Flow pages and ticker detail pages place Back controls in the `SectionHeader` action slot, matching the same card-header location used by View All links on the main Flow cards.
+- `/flow` bypasses a fresh `flow:latest` snapshot when that snapshot is marked `mock`, rebuilds from Supabase source tables first, and only uses fixture rows when source tables are unavailable or empty. This keeps main Flow Insider Trades and Dark Pool cards aligned with their expanded Supabase-backed pages.
+- Insider trade transaction dates are date-only displays and do not append `ET`; Flow date-time values such as dark-pool execution timestamps still display Eastern Time with an `ET` label.

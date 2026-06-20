@@ -53,6 +53,17 @@ export function formatEtDateKey(timestamp?: string | number | Date | null): stri
   return ET_DATE_KEY_FORMATTER.format(date);
 }
 
+export function formatEtDate(timestamp?: string | number | Date | null): string {
+  if (timestamp === null || timestamp === undefined || timestamp === "") return "—";
+  const value =
+    typeof timestamp === "string" && /^\d{4}-\d{2}-\d{2}$/.test(timestamp)
+      ? `${timestamp}T12:00:00Z`
+      : timestamp;
+  const date = value instanceof Date ? value : new Date(value);
+  if (!Number.isFinite(date.getTime())) return String(timestamp);
+  return ET_DATE_FORMATTER.format(date);
+}
+
 export function formatEtDateTime(timestamp?: string | number | Date | null): string {
   if (timestamp === null || timestamp === undefined || timestamp === "") return "—";
 

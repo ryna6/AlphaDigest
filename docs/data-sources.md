@@ -305,11 +305,11 @@ The Today card uses Yahoo Finance `^VIX` from the existing VIX flow and Yahoo Fi
 
 The active tab APIs now prefer Supabase `dashboard_snapshots` before provider-specific live fetches. The snapshot layer is intentionally separate from normalized source tables:
 
-| Snapshot key | Producer | Consumer | Fallback |
-| --- | --- | --- | --- |
-| `today:latest` | `netlify/functions/refresh-today.ts` | `getTodayPayload()` and `/api/today` | Existing live Today builder, then mock/static fallbacks already present in adapters |
-| `markets:latest` | `netlify/functions/refresh-markets.ts` | `getMarketsPayload()` and `/api/markets` | Existing market quote/crypto/live builder, then mock market fixture |
-| `news-calendar:latest` | `netlify/functions/refresh-news.ts` | `getNewsCalendarPayload()` and `/api/news-calendar` | Existing UW news, UW earnings, Investing calendar, and fixture fallback behavior |
+| Snapshot key           | Producer                               | Consumer                                            | Fallback                                                                            |
+| ---------------------- | -------------------------------------- | --------------------------------------------------- | ----------------------------------------------------------------------------------- |
+| `today:latest`         | `netlify/functions/refresh-today.ts`   | `getTodayPayload()` and `/api/today`                | Existing live Today builder, then mock/static fallbacks already present in adapters |
+| `markets:latest`       | `netlify/functions/refresh-markets.ts` | `getMarketsPayload()` and `/api/markets`            | Existing market quote/crypto/live builder, then mock market fixture                 |
+| `news-calendar:latest` | `netlify/functions/refresh-news.ts`    | `getNewsCalendarPayload()` and `/api/news-calendar` | Existing UW news, UW earnings, Investing calendar, and fixture fallback behavior    |
 
 Source-specific cache status remains mixed: Unusual Whales earnings and Cboe put/call are active Supabase-backed flows; Unusual Whales news/articles, Yahoo quotes, and Investing economic events have adapter-level Supabase helpers but are only dashboard-fast after the scheduled snapshot job writes the combined payload. Generic `refresh-flow`, `refresh-economy`, `refresh-ticker`, and `refresh-sources-status` remain placeholders until implemented.
 
@@ -319,27 +319,27 @@ The production failure mode was metadata drift: `data_refresh_metadata` could re
 
 Active source refresh functions:
 
-| Function | Table | Schedule |
-| --- | --- | --- |
-| `fetch-uw-earnings` | `unusual_whales_earnings_events` | `* * * * *` |
-| `refresh-news-feed` | `unusual_whales_news_feed` | `10,40 * * * *` |
-| `refresh-featured-articles` | `unusual_whales_featured_articles` | `20,50 * * * *` |
-| `refresh-economic-events` | `investing_economic_events` | `5 11,15,21 * * 1-5` |
-| `refresh-market-quotes` | `market_quotes` | `*/15 14-22 * * 1-5` |
-| `refresh-put-call` | `put_call_observations` | `5,35 14-21 * * 1-5` plus runtime market-window gate |
+| Function                    | Table                              | Schedule                                             |
+| --------------------------- | ---------------------------------- | ---------------------------------------------------- |
+| `fetch-uw-earnings`         | `unusual_whales_earnings_events`   | `* * * * *`                                          |
+| `refresh-news-feed`         | `unusual_whales_news_feed`         | `10,40 * * * *`                                      |
+| `refresh-featured-articles` | `unusual_whales_featured_articles` | `20,50 * * * *`                                      |
+| `refresh-economic-events`   | `investing_economic_events`        | `5 11,15,21 * * 1-5`                                 |
+| `refresh-market-quotes`     | `market_quotes`                    | `*/15 14-22 * * 1-5`                                 |
+| `refresh-put-call`          | `put_call_observations`            | `5,35 14-21 * * 1-5` plus runtime market-window gate |
 
 ## Cache schema expectation map
 
-| Table | Writers | Upsert conflict | Required notable columns | Production action |
-| --- | --- | --- | --- | --- |
-| `data_refresh_metadata` | refresh adapters and dashboard snapshot writer | `source` | `source`, `ok`, `fetched_at`, `changed`, `row_count`, `content_hash`, `error`, `meta` | created by existing migrations; status endpoint reports latest errors. |
-| `investing_economic_events` | `refreshInvestingEconomicEvents()` / `refresh-economic-events` / `refresh-today` | `id` | includes `source_url`, `event_time`, `content_hash`, `fetched_at`, `updated_at` | `0007_fix_cache_schema_mismatches.sql` and manual SQL repair missing `source_url`. |
-| `market_quotes` | Yahoo market quote refresh and `refresh-markets` | `id` | quote fields plus `source`, `symbol`, `market_time`, `content_hash` | existing source cache table; used before `markets:latest` snapshot. |
-| `unusual_whales_earnings_events` | earnings refresh | `id` | earnings fields plus `content_hash`, `fetched_at`, `updated_at` | existing migrations. |
-| `unusual_whales_featured_articles` | featured/news/today refreshes | `id` | includes `created_at_source`, `published_at`, `source_url`, `content_hash` | `0007_fix_cache_schema_mismatches.sql` and manual SQL repair missing `created_at_source`. |
-| `unusual_whales_news_feed` | news feed/news refreshes | `id` | includes `event_time`, `source_url`, `content_hash` | `0007_fix_cache_schema_mismatches.sql` and manual SQL repair missing `event_time`. |
-| `put_call_observations` | Cboe put/call adapter and `refresh-put-call` | `external_id` | `ratio_type`, `value`, `equity_ratio`, `index_ratio`, `total_ratio`, `market_date`, `as_of_eastern`, source timestamps | `0007_fix_cache_schema_mismatches.sql` and manual SQL create the table if missing. |
-| `dashboard_snapshots` | `refreshDashboardSnapshot()` / dashboard refresh functions | `key` | `key`, `payload`, `mode`, `notices`, `generated_at`, `expires_at`, `source_hash`, `metadata` | manual SQL creates/repairs and reloads schema cache. |
+| Table                              | Writers                                                                          | Upsert conflict | Required notable columns                                                                                               | Production action                                                                         |
+| ---------------------------------- | -------------------------------------------------------------------------------- | --------------- | ---------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------- |
+| `data_refresh_metadata`            | refresh adapters and dashboard snapshot writer                                   | `source`        | `source`, `ok`, `fetched_at`, `changed`, `row_count`, `content_hash`, `error`, `meta`                                  | created by existing migrations; status endpoint reports latest errors.                    |
+| `investing_economic_events`        | `refreshInvestingEconomicEvents()` / `refresh-economic-events` / `refresh-today` | `id`            | includes `source_url`, `event_time`, `content_hash`, `fetched_at`, `updated_at`                                        | `0007_fix_cache_schema_mismatches.sql` and manual SQL repair missing `source_url`.        |
+| `market_quotes`                    | Yahoo market quote refresh and `refresh-markets`                                 | `id`            | quote fields plus `source`, `symbol`, `market_time`, `content_hash`                                                    | existing source cache table; used before `markets:latest` snapshot.                       |
+| `unusual_whales_earnings_events`   | earnings refresh                                                                 | `id`            | earnings fields plus `content_hash`, `fetched_at`, `updated_at`                                                        | existing migrations.                                                                      |
+| `unusual_whales_featured_articles` | featured/news/today refreshes                                                    | `id`            | includes `created_at_source`, `published_at`, `source_url`, `content_hash`                                             | `0007_fix_cache_schema_mismatches.sql` and manual SQL repair missing `created_at_source`. |
+| `unusual_whales_news_feed`         | news feed/news refreshes                                                         | `id`            | includes `event_time`, `source_url`, `content_hash`                                                                    | `0007_fix_cache_schema_mismatches.sql` and manual SQL repair missing `event_time`.        |
+| `put_call_observations`            | Cboe put/call adapter and `refresh-put-call`                                     | `external_id`   | `ratio_type`, `value`, `equity_ratio`, `index_ratio`, `total_ratio`, `market_date`, `as_of_eastern`, source timestamps | `0007_fix_cache_schema_mismatches.sql` and manual SQL create the table if missing.        |
+| `dashboard_snapshots`              | `refreshDashboardSnapshot()` / dashboard refresh functions                       | `key`           | `key`, `payload`, `mode`, `notices`, `generated_at`, `expires_at`, `source_hash`, `metadata`                           | manual SQL creates/repairs and reloads schema cache.                                      |
 
 `refresh-news` is scheduled once in code (`*/30 * * * *`) and no duplicate schedule exists in `netlify.toml`; rapid repeated production runs are therefore most consistent with manual repeated execution unless Netlify itself retried failed invocations.
 
@@ -354,3 +354,13 @@ Active source refresh functions:
 Unusual Whales Flow data is fetched only from Netlify server-side functions and cached in Supabase. The dark-pool refresh uses the filtered `phx.unusualwhales.com/api/flow/dark-pool` endpoint and stores only `executed_at`, `ticker`, `sector`, `price`, `premium`, `volume`, and internal cache metadata in `unusual_whales_dark_pool_flows`; rows older than 7 days are pruned. A zero-row dark-pool refresh can be legitimate when the provider is delayed, the subscription/plan has no matching rows, filters are too restrictive, or the endpoint shape changes, including the observed `{ trades: [...] }` response wrapper. Refresh metadata and logs now include HTTP status, content type, top-level response keys, detected row path, raw/normalized/skipped/upserted/pruned counts, and `emptyReason` when no rows are stored.
 
 Insider trades are fetched from the provided server-side Unusual Whales insider feed, filtered to the past 3 months by `transaction_date`, normalized so purchases are positive and sales are negative, assigned stable deterministic `external_id` values, deduped by `external_id`, and then upserted into `unusual_whales_insider_trades`. Duplicate-removal counts and a small duplicate ID sample are written to refresh metadata so Supabase `ON CONFLICT` failures can be diagnosed without exposing provider payloads.
+
+### Flow display and aggregation semantics
+
+Flow source ingestion remains server-side through Netlify functions and Supabase. Browser/client components do not call Unusual Whales directly. Dark-pool rows are stored with UTC `executed_at` timestamps in `unusual_whales_dark_pool_flows`, but dashboard tables display `executed_at` in Eastern Time (`ET`) using `America/New_York` formatting.
+
+Insider trade rows in `unusual_whales_insider_trades` are aggregated with the shared `aggregateInsiderTrades()` helper. The helper filters to the past 3 months, groups by ticker, counts total trades/purchases/sales, preserves sector when available, sums signed net shares and signed net value, and sorts by trade count descending with absolute net value as a tie-breaker. Weighted average trade price is calculated as `sum(abs(shares) * price) / sum(abs(shares))`, excluding rows with missing/non-finite price or zero shares. `/flow` displays the top 5 companies from this aggregate; `/flow/insider-trades` displays the top 25. Individual insider detail rows include `shares_owned_after` from Supabase, but aggregate company views intentionally omit it.
+
+### Flow snapshot fallback priority
+
+`/flow` treats a fresh `flow:latest` snapshot with `mode = mock` as a fixture snapshot, not as authoritative real data. When that happens, the page rebuilds the Flow payload from Supabase source tables before falling back to fixtures. Fresh non-mock snapshots remain the first choice; Supabase source tables are the next choice; fixture/mock rows are used only when the relevant source data is missing, empty, or unavailable.
