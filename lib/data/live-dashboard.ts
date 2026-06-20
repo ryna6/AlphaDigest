@@ -3,7 +3,7 @@ import { getSnapshotOrNull, isSnapshotFresh, upsertDashboardSnapshot } from "./a
 import { getFinnhubKey } from "./adapters/finnhub-key-router";
 import type { YahooMarketQuote } from "./adapters/yahoo-finance";
 import { fetchYahooMarketQuote } from "./adapters/yahoo-finance";
-import { marketsMock, todayMock } from "./fixtures/mock-dashboard";
+import { flowMock, marketsMock, ownershipMock, todayMock } from "./fixtures/mock-dashboard";
 import { fetchCryptoQuotes, cryptoAssets } from "./adapters/coingecko-crypto";
 import { getLatestCboePutCallRatio } from "./adapters/cboe-put-call";
 import { formatEtDateKey } from "../utils/time";
@@ -21,6 +21,10 @@ import {
 } from "./adapters/investing-economic-calendar";
 import type { UnusualWhalesEarningsEvent } from "./adapters/unusual-whales-earnings";
 import { getCachedUnusualWhalesEarnings } from "./adapters/unusual-whales-earnings";
+import { readDarkPoolRows } from "./adapters/unusual-whales-dark-pool";
+import { readInsiderTradeRows } from "./adapters/unusual-whales-insider-trades";
+import { aggregateInsiderTrades, topInsiderCompanies } from "./insider-aggregation";
+import { createServerSupabaseClient } from "@/lib/db/supabase";
 import {
   getMajorEarningsForDate,
   groupEarningsBySession,
@@ -32,6 +36,10 @@ import type {
   EarningsEvent,
   MarketsPayload,
   NewsCalendarPayload,
+  FlowPayload,
+  InsiderTradeDetailPayload,
+  InsiderTradesPayload,
+  OwnershipPayload,
   TodayPayload
 } from "./schemas/dashboard";
 
@@ -780,11 +788,13 @@ async function buildNewsCalendarPayload(): Promise<{
 }
 
 
-export async function refreshDashboardSnapshot(key: "today:latest" | "markets:latest" | "news-calendar:latest") {
+export async function refreshDashboardSnapshot(key: "today:latest" | "markets:latest" | "news-calendar:latest" | "flow:latest" | "ownership:latest") {
   const builders = {
     "today:latest": { ttlSeconds: 15 * 60, build: buildTodayPayload },
     "markets:latest": { ttlSeconds: 10 * 60, build: buildMarketsPayload },
-    "news-calendar:latest": { ttlSeconds: 45 * 60, build: buildNewsCalendarPayload }
+    "news-calendar:latest": { ttlSeconds: 45 * 60, build: buildNewsCalendarPayload },
+    "flow:latest": { ttlSeconds: 24 * 60 * 60, build: buildFlowPayload },
+    "ownership:latest": { ttlSeconds: 24 * 60 * 60, build: buildOwnershipPayload }
   } as const;
   const entry = builders[key];
   const result = await entry.build();
@@ -798,7 +808,7 @@ export async function refreshDashboardSnapshot(key: "today:latest" | "markets:la
 }
 
 async function getSnapshotFirstPayload<T>(
-  key: "today:latest" | "markets:latest" | "news-calendar:latest",
+  key: "today:latest" | "markets:latest" | "news-calendar:latest" | "flow:latest" | "ownership:latest",
   build: () => Promise<{ payload: T; mode: "mock" | "live"; notices: string[] }>,
   ttlSeconds: number
 ): Promise<{ payload: T; mode: "mock" | "live" | "cached"; notices: string[] }> {
@@ -857,4 +867,87 @@ export async function getNewsCalendarPayload(): Promise<{
   notices: string[];
 }> {
   return getSnapshotFirstPayload("news-calendar:latest", buildNewsCalendarPayload, 45 * 60);
+}
+
+export async function buildFlowPayload(): Promise<{ payload: FlowPayload; mode: "mock" | "live"; notices: string[] }> {
+  const notices = ["Whale Trades remains fixture-backed until a live provider endpoint is added."];
+  const supabase = createServerSupabaseClient();
+  if (!supabase.ok) {
+    return { payload: flowMock, mode: "mock", notices: [supabase.message, ...notices] };
+  }
+  try {
+    const [darkPool, insiderRows] = await Promise.all([
+      readDarkPoolRows(supabase.client, 25),
+      readInsiderTradeRows(supabase.client, undefined, 500)
+    ]);
+    if (!darkPool.length && !insiderRows.length) {
+      return { payload: flowMock, mode: "mock", notices: ["No cached Flow rows found; using fixture fallback.", ...notices] };
+    }
+    const insiderTrades = topInsiderCompanies(insiderRows, 5);
+    const largest = darkPool[0];
+    const topInsider = insiderTrades[0];
+    return {
+      payload: {
+        summary: [
+          { label: "Largest dark pool print", value: largest?.premium ? formatCompactCurrency(largest.premium) + ` ${largest.ticker}` : "—", tone: "neutral" },
+          { label: "Dark pool rows cached", value: String(darkPool.length), tone: darkPool.length ? "positive" : "warning" },
+          { label: "Top insider activity", value: topInsider ? `${topInsider.ticker} (${topInsider.tradeCount})` : "—", tone: "neutral" },
+          { label: "Insider companies cached", value: String(insiderTrades.length), tone: insiderTrades.length ? "positive" : "warning" }
+        ],
+        darkPool,
+        whaleTrades: flowMock.whaleTrades,
+        insiderTrades,
+        sourceMeta: flowMock.sourceMeta,
+        notices
+      },
+      mode: "live",
+      notices
+    };
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Unknown Flow cache read error";
+    return { payload: flowMock, mode: "mock", notices: [`Flow Supabase cache unavailable: ${message}`, ...notices] };
+  }
+}
+
+export async function buildOwnershipPayload(): Promise<{ payload: OwnershipPayload; mode: "mock" | "live"; notices: string[] }> {
+  return { payload: ownershipMock, mode: "mock", notices: ownershipMock.notices };
+}
+
+export async function getFlowPayload(): Promise<{ payload: FlowPayload; mode: "mock" | "live" | "cached"; notices: string[] }> {
+  return getSnapshotFirstPayload("flow:latest", buildFlowPayload, 24 * 60 * 60);
+}
+
+export async function getOwnershipPayload(): Promise<{ payload: OwnershipPayload; mode: "mock" | "live" | "cached"; notices: string[] }> {
+  return getSnapshotFirstPayload("ownership:latest", buildOwnershipPayload, 24 * 60 * 60);
+}
+
+export async function getInsiderTradesPayload(limit = 25): Promise<{ payload: InsiderTradesPayload; mode: "mock" | "live"; notices: string[] }> {
+  const supabase = createServerSupabaseClient();
+  if (!supabase.ok) return { payload: { companies: flowMock.insiderTrades.slice(0, limit), sourceMeta: flowMock.sourceMeta, notices: [supabase.message] }, mode: "mock", notices: [supabase.message] };
+  try {
+    const rows = await readInsiderTradeRows(supabase.client, undefined, 1000);
+    const companies = aggregateInsiderTrades(rows).slice(0, limit);
+    return { payload: { companies: companies.length ? companies : flowMock.insiderTrades.slice(0, limit), sourceMeta: flowMock.sourceMeta, notices: companies.length ? [] : ["No cached insider rows found; using fixture fallback."] }, mode: companies.length ? "live" : "mock", notices: [] };
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Unknown insider cache read error";
+    return { payload: { companies: flowMock.insiderTrades.slice(0, limit), sourceMeta: flowMock.sourceMeta, notices: [message] }, mode: "mock", notices: [message] };
+  }
+}
+
+export async function getInsiderTradeDetailPayload(ticker: string): Promise<{ payload: InsiderTradeDetailPayload; mode: "mock" | "live"; notices: string[] }> {
+  const symbol = ticker.toUpperCase();
+  const supabase = createServerSupabaseClient();
+  if (!supabase.ok) return { payload: { ticker: symbol, aggregate: flowMock.insiderTrades.find((r) => r.ticker === symbol) ?? null, trades: [], sourceMeta: flowMock.sourceMeta, notices: [supabase.message] }, mode: "mock", notices: [supabase.message] };
+  try {
+    const trades = await readInsiderTradeRows(supabase.client, symbol, 500);
+    const aggregate = aggregateInsiderTrades(trades)[0] ?? null;
+    return { payload: { ticker: symbol, aggregate, trades, sourceMeta: flowMock.sourceMeta, notices: trades.length ? [] : ["No cached insider detail rows found for this ticker."] }, mode: trades.length ? "live" : "mock", notices: [] };
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Unknown insider detail cache read error";
+    return { payload: { ticker: symbol, aggregate: null, trades: [], sourceMeta: flowMock.sourceMeta, notices: [message] }, mode: "mock", notices: [message] };
+  }
+}
+
+function formatCompactCurrency(value: number) {
+  return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", notation: "compact", maximumFractionDigits: 1 }).format(value);
 }

@@ -45,7 +45,9 @@ supabase/                    Schema and migrations
 | `/news-calendar`                  | Latest news, economic calendar, and earnings calendar. | `getNewsCalendarPayload()` and `NewsCalendarView`.           |
 | `/news-calendar/news`             | Expanded latest-news list.                             | `AllNewsView`.                                               |
 | `/news-calendar/earnings`         | Expanded earnings calendar.                            | `AllEarningsView`.                                           |
-| `/flow-ownership`                 | Flow/ownership dashboard.                              | `flowMock` fixture.                                          |
+| `/flow`                           | Flow dashboard.                                        | `getFlowPayload()` reads `flow:latest`, Flow source tables, then fixtures. |
+| `/ownership`                      | Ownership dashboard.                                   | `ownershipMock` fixture / optional `ownership:latest`.       |
+| `/flow-ownership`                 | Legacy redirect.                                       | Redirects to `/flow`.                                        |
 | `/economy-sentiment`              | Economy/sentiment dashboard.                           | `economyMock` fixture.                                       |
 | `/ticker-explorer`                | Symbol lookup entry page.                              | `TickerExplorerView`.                                        |
 | `/ticker/[symbol]`                | Ticker detail page.                                    | `TickerDetailView`, currently fixture-backed.                |
@@ -71,7 +73,11 @@ All API responses that use `dashboardJson()` are wrapped with:
 | `/api/news-calendar`                          | Calls `getNewsCalendarPayload()` and validates with `newsCalendarPayloadSchema`.        |
 | `/api/news-calendar/economic?date=YYYY-MM-DD` | Fetches an economic-calendar week for the requested date and returns normalized events. |
 | `/api/uw-earnings`                            | Frontend-safe earnings endpoint around `getCachedUnusualWhalesEarnings()`.              |
-| `/api/flow-ownership`                         | Returns `flowMock`.                                                                     |
+| `/api/flow`                                   | Reads `flow:latest`, source Flow tables, then fixtures.                                  |
+| `/api/ownership`                              | Returns Ownership fixture/snapshot payload.                                             |
+| `/api/flow/insider-trades`                    | Returns top 25 cached insider company aggregates.                                       |
+| `/api/flow/insider-trades/[ticker]`           | Returns cached insider detail rows for one ticker.                                      |
+| `/api/flow-ownership`                         | Legacy redirect to `/api/flow`.                                                        |
 | `/api/economy-sentiment`                      | Returns `economyMock`.                                                                  |
 | `/api/ticker/[symbol]`                        | Returns `tickerMock(symbol)`.                                                           |
 | `/api/sources/status`                         | Returns configured/missing booleans for environment variables, never secret values.     |
@@ -213,3 +219,9 @@ Source refresh helpers upsert fetched rows even when content hashes match existi
 The production architecture remains serverless: GitHub stores code, Netlify hosts the Next.js frontend and scheduled/serverless functions, and Supabase Cloud hosts Postgres. Netlify functions fetch providers and upsert normalized source rows, then dashboard refresh jobs write frontend-ready `dashboard_snapshots`. The browser never receives `SUPABASE_SERVICE_ROLE_KEY`; server code and Netlify functions perform privileged cache writes.
 
 The current cache contract is captured by migrations through `0007_fix_cache_schema_mismatches.sql` and the pasteable production repair file `supabase/manual/apply-cache-schema-fix.sql`. Active write flows include `data_refresh_metadata`, `investing_economic_events`, `market_quotes`, `unusual_whales_earnings_events`, `unusual_whales_featured_articles`, `unusual_whales_news_feed`, `put_call_observations`, and `dashboard_snapshots`. `/api/today`, `/api/markets`, and `/api/news-calendar` read fresh snapshots first, fall back to live server-side providers when needed, and may return stale snapshots only if live fallback fails.
+
+## Flow/Ownership cache architecture
+
+The former `/flow-ownership` product area is split into `/flow` and `/ownership`; `/flow-ownership` redirects safely to `/flow`. Netlify scheduled functions fetch the provided Unusual Whales dark-pool and insider endpoints server-side, upsert normalized rows into Supabase Cloud, and write `flow:latest` dashboard snapshots. No browser/client component calls Unusual Whales or receives `SUPABASE_SERVICE_ROLE_KEY`.
+
+Flow reads `flow:latest` first, then source tables `unusual_whales_dark_pool_flows` and `unusual_whales_insider_trades`, then fixtures. Ownership may read `ownership:latest`, but its Institutional/13F and Congressional sections remain fixture-backed because no live endpoints were provided. This preserves the GitHub + Netlify + Supabase serverless architecture with no self-hosted services, Docker, production Node server, or always-on backend.

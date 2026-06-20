@@ -245,7 +245,7 @@ The current dashboard fetches the live Investing.com endpoint directly through t
 
 Fixture data lives in `lib/data/fixtures/mock-dashboard.ts` and currently backs:
 
-- Flow & Ownership page and API.
+- Flow reads Supabase cached dark pool and insider tables, then fixtures; Ownership remains fixture-backed for Institutional/13F and Congressional sections.
 - Economy & Sentiment page and API.
 - Ticker Explorer detail page and API.
 - Fallback market/today/news/earnings values when live data is unavailable.
@@ -342,3 +342,9 @@ Active source refresh functions:
 | `dashboard_snapshots` | `refreshDashboardSnapshot()` / dashboard refresh functions | `key` | `key`, `payload`, `mode`, `notices`, `generated_at`, `expires_at`, `source_hash`, `metadata` | manual SQL creates/repairs and reloads schema cache. |
 
 `refresh-news` is scheduled once in code (`*/30 * * * *`) and no duplicate schedule exists in `netlify.toml`; rapid repeated production runs are therefore most consistent with manual repeated execution unless Netlify itself retried failed invocations.
+
+## Unusual Whales Flow sources
+
+- Dark pool: `https://phx.unusualwhales.com/api/flow/dark-pool?...` exactly as configured in `lib/data/adapters/unusual-whales-dark-pool.ts`; fetched server-side once daily by `refresh-dark-pool`, saved to `unusual_whales_dark_pool_flows`, and pruned after 7 days. Stored provider fields are only `executed_at`, `ticker`, `sector`, `price`, `premium`, and `volume` plus minimal metadata.
+- Insider trades: `https://phx.unusualwhales.com/api/insider_trades/feed?...` exactly as configured in `lib/data/adapters/unusual-whales-insider-trades.ts`; fetched server-side once daily by `refresh-insider-trades`, filtered to the past 3 months, with purchase amounts positive and sale amounts negative. Stored provider fields are only ticker, sector, amount, transaction date, price, owner/title, transaction code, and shares owned after plus minimal metadata.
+- Whale Trades remains fixture-backed. Institutional/13F and Congressional remain fixture-backed in Ownership.

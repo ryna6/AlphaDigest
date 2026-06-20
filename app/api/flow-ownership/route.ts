@@ -1,9 +1,3 @@
-import { dashboardJson } from "@/lib/api/response";
-import { flowMock } from "@/lib/data/fixtures/mock-dashboard";
-import { flowPayloadSchema } from "@/lib/data/schemas/dashboard";
-
+import { NextResponse } from "next/server";
 export const dynamic = "force-dynamic";
-
-export function GET() {
-  return dashboardJson({ schema: flowPayloadSchema, payload: flowMock });
-}
+export function GET(request: Request) { return NextResponse.redirect(new URL("/api/flow", request.url)); }
