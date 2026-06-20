@@ -297,9 +297,9 @@ export const marketsMock = (): MarketsPayload => ({
 
 export const flowMock: FlowPayload = {
   summary: [
-    { label: "Top insider activity", value: "CRM", tone: "neutral" },
-    { label: "Highest whale premium", value: "$12.4M TSLA calls", tone: "positive" },
-    { label: "Largest dark pool print", value: "$84.2M SPY", tone: "neutral" }
+    { label: "Dark Pool Signal", value: "$84.2M SPY", href: "/flow/dark-pool/SPY", tone: "neutral" },
+    { label: "Whale Feed Signal", value: "$12.4M TSLA calls", href: "/flow/whale-trades", tone: "positive" },
+    { label: "Insider sentiment", value: "50%", subtext: "Neutral", href: "/flow/insider-trades", tone: "neutral", ratio: 0.5, purchaseValue: 0, saleValue: 0 }
   ],
   darkPool: [
     {

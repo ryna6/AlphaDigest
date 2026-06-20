@@ -3,11 +3,21 @@ import { getFlowPayload } from "@/lib/data/live-dashboard";
 import { PageTitle } from "@/components/dashboard/page-title";
 import { Panel } from "@/components/ui/panel";
 import { SectionHeader } from "@/components/ui/section-header";
-import { MetricRow } from "@/components/ui/metric-row";
+import { InfoTooltip } from "@/components/ui/info-tooltip";
 import { DataTable } from "@/components/ui/data-table";
 import { cn } from "@/lib/utils/cn";
 import { DarkPoolTable } from "./dark-pool-table";
 import { money, signed } from "./flow-formatters";
+
+const INSIDER_SENTIMENT_TOOLTIP =
+  "This metric compares the total value of insider purchases to total insider trading activity.";
+
+const toneClass = {
+  positive: "text-positive",
+  negative: "text-negative",
+  neutral: "text-textSecondary",
+  warning: "text-warning"
+} as const;
 
 const viewAll = (href: string) => (
   <Link
@@ -18,6 +28,61 @@ const viewAll = (href: string) => (
   </Link>
 );
 
+function SummaryCard({ metric }: { metric: any }) {
+  const body = (
+    <div
+      className={cn(
+        "flex min-h-28 flex-col rounded-none border border-borderStrong bg-sidebar p-4",
+        metric.href && "transition hover:border-accentBlue/50 hover:bg-panelHover/60"
+      )}
+    >
+      <div className="flex items-center gap-2">
+        <p className="text-xs font-semibold uppercase tracking-[0.2em] text-textMuted">
+          {metric.label}
+        </p>
+        {metric.label === "Insider sentiment" ? (
+          <InfoTooltip text={INSIDER_SENTIMENT_TOOLTIP} placement="right" />
+        ) : null}
+      </div>
+      <div className="mt-3 flex flex-1 flex-col justify-center">
+        <p
+          className={cn(
+            "text-lg font-semibold tabular",
+            metric.label === "Insider sentiment"
+              ? toneClass[metric.tone as keyof typeof toneClass]
+              : "text-textPrimary"
+          )}
+        >
+          {metric.value}
+        </p>
+        {metric.subtext ? (
+          <p
+            className={cn(
+              "mt-1 text-xs font-medium",
+              toneClass[metric.tone as keyof typeof toneClass]
+            )}
+          >
+            {metric.subtext}
+          </p>
+        ) : null}
+        {metric.change ? (
+          <p className="mt-1 line-clamp-2 text-xs text-textSecondary">{metric.change}</p>
+        ) : null}
+      </div>
+    </div>
+  );
+  return metric.href ? (
+    <Link
+      href={metric.href}
+      className="block focus:outline-none focus:ring-1 focus:ring-accentBlue"
+    >
+      {body}
+    </Link>
+  ) : (
+    body
+  );
+}
+
 export async function FlowView() {
   const { payload } = await getFlowPayload();
   return (
@@ -25,9 +90,11 @@ export async function FlowView() {
       <PageTitle title="Flow" />
       <Panel>
         <SectionHeader title="Flow Summary" />
-        {payload.summary.map((m) => (
-          <MetricRow key={m.label} metric={m} />
-        ))}
+        <div className="grid gap-3 md:grid-cols-3">
+          {payload.summary.map((m) => (
+            <SummaryCard key={m.label} metric={m} />
+          ))}
+        </div>
       </Panel>
       <div className="mt-4 space-y-4">
         <Panel>
@@ -109,24 +176,22 @@ export async function FlowView() {
             </table>
           </div>
         </Panel>
-        <div className="grid gap-4 xl:grid-cols-2">
-          <Panel>
-            <SectionHeader
-              title="Dark Pool"
-              subtitle="Large unusual prints, sorted by premium; delayed data is expected on the current UW plan."
-              action={viewAll("/flow/dark-pool")}
-            />
-            <DarkPoolTable rows={payload.darkPool.slice(0, 5)} />
-          </Panel>
-          <Panel>
-            <SectionHeader
-              title="Whale Trades"
-              subtitle="Fixture-backed placeholder until a live endpoint is added."
-              action={viewAll("/flow/whale-trades")}
-            />
-            <DataTable rows={payload.whaleTrades} />
-          </Panel>
-        </div>
+        <Panel>
+          <SectionHeader
+            title="Dark Pool"
+            subtitle="Large unusual prints, sorted by premium; delayed data is expected on the current UW plan."
+            action={viewAll("/flow/dark-pool")}
+          />
+          <DarkPoolTable rows={payload.darkPool.slice(0, 5)} />
+        </Panel>
+        <Panel>
+          <SectionHeader
+            title="Whale Trades"
+            subtitle="Fixture-backed placeholder until a live endpoint is added."
+            action={viewAll("/flow/whale-trades")}
+          />
+          <DataTable rows={payload.whaleTrades} />
+        </Panel>
       </div>
     </>
   );

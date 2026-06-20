@@ -25,6 +25,11 @@ export const metricSchema = z.object({
   putCallRatios: putCallRatiosSchema.optional(),
   putCallAsOf: z.string().nullable().optional(),
   putCallFreshness: z.string().optional(),
+  href: z.string().optional(),
+  subtext: z.string().optional(),
+  purchaseValue: z.number().optional(),
+  saleValue: z.number().optional(),
+  ratio: z.number().nullable().optional(),
   tone: z.enum(["positive", "negative", "neutral", "warning"]).default("neutral")
 });
 export type Metric = z.infer<typeof metricSchema>;

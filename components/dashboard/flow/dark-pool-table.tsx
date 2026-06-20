@@ -1,6 +1,6 @@
 import Link from "next/link";
 import type { DarkPoolFlowRow } from "@/lib/data/schemas/dashboard";
-import { formatEtDateTime, timestampTitle } from "@/lib/utils/time";
+import { formatDarkPoolExecutedAt, timestampTitle } from "@/lib/utils/time";
 import { money, number } from "./flow-formatters";
 
 export function DarkPoolTable({
@@ -29,7 +29,7 @@ export function DarkPoolTable({
                 className="border-b border-borderStrong/50 px-3 py-2 text-textSecondary"
                 title={timestampTitle(r.executedAt)}
               >
-                {formatEtDateTime(r.executedAt)}
+                {formatDarkPoolExecutedAt(r.executedAt)}
               </td>
               <td className="border-b border-borderStrong/50 px-3 py-2">
                 {linkTickers ? (
