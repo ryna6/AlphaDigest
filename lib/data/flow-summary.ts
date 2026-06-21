@@ -1,4 +1,5 @@
 import type { DarkPoolFlowRow, InsiderTradeRow } from "./schemas/dashboard";
+import { DARK_POOL_RETENTION_DAYS } from "./adapters/unusual-whales-dark-pool";
 import type { Metric } from "./schemas/common";
 // Keep a small neutral band around 50% so rounding noise does not overstate direction.
 const NEUTRAL_LOW = 0.495;
@@ -71,8 +72,9 @@ export function deriveFlowSummary({
       ratio: sentiment.ratio
     },
     {
-      label: "Dark Pool Print",
-      value: largest ? `${money(largest.premium)} ${largest.ticker}` : "—",
+      label: `Largest Dark Pool Print (${DARK_POOL_RETENTION_DAYS}D)`,
+      value: largest ? largest.ticker : "—",
+      subtext: largest ? money(largest.premium) : undefined,
       change: largest?.sector ?? undefined,
       href: largest
         ? `/flow/dark-pool/${largest.ticker}`

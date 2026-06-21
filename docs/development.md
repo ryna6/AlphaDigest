@@ -281,7 +281,7 @@ Local development can render Flow and Ownership without Supabase by using fixtur
 
 ### Local Flow ingestion checks
 
-When testing with Supabase credentials locally or via Netlify, use `refresh-dark-pool`, `refresh-insider-trades`, and `refresh-flow`, then inspect `/api/cache/status`. The status endpoint includes Flow table counts, latest metadata for `unusual_whales_dark_pool_flows`, `unusual_whales_insider_trades`, and `flow:latest`, dark-pool `emptyReason`, insider duplicate-removal counts, and snapshot freshness. Zero dark-pool rows require checking `emptyReason` and response-path diagnostics; insider duplicate counts should be removed before upsert and should not cause a Postgres `ON CONFLICT DO UPDATE command cannot affect row a second time` error.
+When testing with Supabase credentials locally or via Netlify, use `refresh-dark-pool`, `refresh-insider-trades`, and `refresh-flow`, then inspect `/api/cache/status`. The status endpoint includes Flow table counts, latest metadata for `unusual_whales_dark_pool_flows`, `unusual_whales_insider_trades`, and `flow:latest`, dark-pool `emptyReason`, dark-pool retention/window days, insider duplicate-removal counts, insider lookback months, Flow insider rows used, aggregate company counts, and snapshot freshness. Zero dark-pool rows require checking `emptyReason` and response-path diagnostics; insider duplicate counts should be removed before upsert and should not cause a Postgres `ON CONFLICT DO UPDATE command cannot affect row a second time` error.
 
 ### Flow aggregation helper notes
 

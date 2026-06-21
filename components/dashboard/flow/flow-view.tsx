@@ -40,7 +40,7 @@ function SummaryCard({ metric }: { metric: any }) {
     <div
       className={cn(
         "flex h-full min-h-32 flex-col rounded-none border border-borderStrong bg-sidebar p-4",
-        metric.href && "transition hover:border-accentBlue/50 hover:bg-panelHover/60"
+        metric.href && "cursor-pointer transition duration-200 hover:-translate-y-0.5 hover:border-accentBlue/50 hover:bg-panelHover/60 hover:brightness-110"
       )}
     >
       <div className="flex items-center gap-2">
@@ -95,6 +95,8 @@ function SummaryCard({ metric }: { metric: any }) {
 const summaryOrder = [
   "Insider sentiment",
   "Dark Pool Print",
+  "Largest Dark Pool Print (7D)",
+  "Largest Dark Pool Print (30D)",
   "Dark Pool Signal",
   "Whale Feed",
   "Whale Feed Signal"
