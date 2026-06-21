@@ -245,7 +245,7 @@ The current dashboard fetches the live Investing.com endpoint directly through t
 
 Fixture data lives in `lib/data/fixtures/mock-dashboard.ts` and currently backs:
 
-- Flow reads Supabase cached dark pool and insider tables, then fixtures; Ownership remains fixture-backed for Institutional/13F and Congressional sections.
+- Flow reads Supabase cached dark pool, whale feed, and insider tables, then section-level fixtures; Ownership remains fixture-backed for Institutional/13F and Congressional sections.
 - Economy & Sentiment page and API.
 - Ticker Explorer detail page and API.
 - Fallback market/today/news/earnings values when live data is unavailable.
@@ -345,13 +345,13 @@ Active source refresh functions:
 
 ## Unusual Whales Flow sources
 
-- Dark pool: `https://phx.unusualwhales.com/api/flow/dark-pool?...` exactly as configured in `lib/data/adapters/unusual-whales-dark-pool.ts`; fetched server-side once daily by `refresh-dark-pool`, saved to `unusual_whales_dark_pool_flows`, and pruned after 7 days. Stored provider fields are only `executed_at`, `ticker`, `sector`, `price`, `premium`, and `volume` plus minimal metadata.
+- Dark pool: `https://phx.unusualwhales.com/api/flow/dark-pool?...` exactly as configured in `lib/data/adapters/unusual-whales-dark-pool.ts`; fetched server-side once daily by `refresh-dark-pool`, saved to `unusual_whales_dark_pool_flows`, and pruned after 7 days. Stored provider fields are only `executed_at`, `ticker`, `sector`, `price`, `premium`, `size`, `volume`, and `avg30_volume` plus minimal metadata.
 - Insider trades: `https://phx.unusualwhales.com/api/insider_trades/feed?...` exactly as configured in `lib/data/adapters/unusual-whales-insider-trades.ts`; fetched server-side once daily by `refresh-insider-trades` across pages 0 through 3 (up to 2,000 rows), filtered to the past 6 months, with purchase amounts positive and sale amounts negative. Stored provider fields are only ticker, sector, amount, transaction date, price, owner/title, transaction code, and shares owned after plus minimal metadata.
 - Whale Feed is now cached in `unusual_whales_whale_feed`; Institutional/13F and Congressional remain fixture-backed in Ownership.
 
 ### Flow ingestion diagnostics
 
-Unusual Whales Flow data is fetched only from Netlify server-side functions and cached in Supabase. The dark-pool refresh uses the filtered `phx.unusualwhales.com/api/flow/dark-pool` endpoint and stores only `executed_at`, `ticker`, `sector`, `price`, `premium`, `volume`, and internal cache metadata in `unusual_whales_dark_pool_flows`; rows older than 7 days are pruned. A zero-row dark-pool refresh can be legitimate when the provider is delayed, the subscription/plan has no matching rows, filters are too restrictive, or the endpoint shape changes, including the observed `{ trades: [...] }` response wrapper. Refresh metadata and logs now include HTTP status, content type, top-level response keys, detected row path, raw/normalized/skipped/upserted/pruned counts, and `emptyReason` when no rows are stored.
+Unusual Whales Flow data is fetched only from Netlify server-side functions and cached in Supabase. The dark-pool refresh uses the filtered `phx.unusualwhales.com/api/flow/dark-pool` endpoint and stores only `executed_at`, `ticker`, `sector`, `price`, `premium`, `size`, `volume`, `avg30_volume`, and internal cache metadata in `unusual_whales_dark_pool_flows`; rows older than 7 days are pruned. A zero-row dark-pool refresh can be legitimate when the provider is delayed, the subscription/plan has no matching rows, filters are too restrictive, or the endpoint shape changes, including the observed `{ trades: [...] }` response wrapper. Refresh metadata and logs now include HTTP status, content type, top-level response keys, detected row path, raw/normalized/skipped/upserted/pruned counts, and `emptyReason` when no rows are stored.
 
 Insider trades are fetched from the provided server-side Unusual Whales insider feed across up to four pages, filtered to the past 6 months by `transaction_date`, normalized so purchases are positive and sales are negative, assigned stable deterministic `external_id` values, deduped by `external_id`, and then upserted into `unusual_whales_insider_trades`. Duplicate-removal counts and a small duplicate ID sample are written to refresh metadata so Supabase `ON CONFLICT` failures can be diagnosed without exposing provider payloads.
 
@@ -378,8 +378,8 @@ Unusual Whales calls for Flow remain server-side in Netlify functions/adapters; 
 
 Whale Feed replaces the former Whale Trades label in the Flow UI. Netlify runs `refresh-whale-feed` on a conservative weekday schedule (`30 9 * * 1-5` UTC) and calls the Unusual Whales `lit-trades?tab=whale` endpoint server-side only; browser components never call Unusual Whales and never receive `SUPABASE_SERVICE_ROLE_KEY`. Rows are normalized into `unusual_whales_whale_feed` with only `size`, `ticker`, `price`, `nbbo_ask`, `nbbo_bid`, `executed_at`, `premium`, `sector`, `volume`, `avg30_volume`, and internal `external_id`, `side`, `sentiment`, `fetched_at`, `created_at`, `updated_at` fields. The expanded Whale Feed page supports client-side View more in batches of 10 after the server has loaded cached rows.
 
-Dark Pool ingestion now stores `size`, `avg30_volume`, `nbbo_bid`, `nbbo_ask`, `side`, and `sentiment` in addition to existing normalized fields. Flow displays Dark Pool individual trade size from `size`; `volume` is retained as total same-day ticker volume for `% Vol = size / volume`, and `avg30_volume` powers `% 30D Vol = size / avg30_volume`.
+Dark Pool ingestion stores `size` and `avg30_volume` in addition to existing normalized fields, but does not store NBBO, side, or sentiment. Flow displays Dark Pool individual trade size from `size`; `volume` is retained as total same-day ticker volume for `% Vol = size / volume`, and `avg30_volume` powers `% 30D Vol = size / avg30_volume`.
 
-When the provider does not send a direct side, both Dark Pool and Whale Feed use a limited NBBO inference: price at or above `(nbbo_bid + nbbo_ask) / 2` is classified as ask-side/bullish, below midpoint is bid-side/bearish, and missing or invalid NBBO data is unknown. This is only a simple buyer-/seller-leaning inference, not guaranteed trade intent.
+When the Whale Feed provider does not send a direct side, Whale Feed uses a limited NBBO inference: price at or above `(nbbo_bid + nbbo_ask) / 2` is classified as ask-side/bullish, below midpoint is bid-side/bearish, and missing or invalid NBBO data is unknown. This inference is not used for Dark Pool.
 
 Apply `supabase/manual/apply-whale-feed-dark-pool-flow.sql` in production Supabase SQL Editor before running `refresh-whale-feed`, `refresh-dark-pool`, and `refresh-flow`; the SQL is idempotent and reloads the PostgREST schema cache.

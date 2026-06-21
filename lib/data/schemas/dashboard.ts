@@ -154,10 +154,6 @@ export const darkPoolFlowRowSchema = z.object({
   size: z.number().nullable().optional(),
   volume: z.number().nullable(),
   avg30Volume: z.number().nullable().optional(),
-  nbboBid: z.number().nullable().optional(),
-  nbboAsk: z.number().nullable().optional(),
-  side: flowTradeSideSchema.optional(),
-  sentiment: flowTradeSentimentSchema.optional(),
   fetchedAt: z.string().optional()
 });
 
