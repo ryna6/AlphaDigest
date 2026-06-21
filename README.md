@@ -63,7 +63,7 @@ A placeholder ticker-intelligence area. The explorer page does not perform live 
 
 ### Methodology and Status
 
-Utility pages list intended source coverage and environment variable names. Secret values are never shown in the browser. The desktop sidebar and mobile primary-tab bar remain available while scrolling.
+Methodology lists intended source coverage and environment variable names. The Status tab is a server-rendered job monitoring page grouped by dashboard tab. It keeps the table columns to Job, Status, Frequency, Last Run, and Next Run; the Job cell shows both the user-facing component name and the actual Netlify function/job name. Status rows read Supabase refresh metadata where available, calculate the next run from the central status job registry schedules, display all times in Eastern/Toronto time without repeating timezone suffixes in each cell, and keep planned TBD jobs Unknown rather than Healthy. Future automated jobs should be added to `lib/status/jobs.ts`. Secret values are never shown in the browser. The desktop sidebar and mobile primary-tab bar remain available while scrolling.
 
 ## Data sources at a glance
 

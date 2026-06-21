@@ -8,10 +8,10 @@ export const metadata = { title: "Status" };
 export const dynamic = "force-dynamic";
 
 const statusDot: Record<StatusValue, string> = {
-  Healthy: "bg-emerald-400",
-  Warning: "bg-yellow-400",
-  Error: "bg-red-500",
-  Unknown: "bg-slate-400"
+  Healthy: "bg-[#22c55e]",
+  Warning: "bg-[#facc15]",
+  Error: "bg-[#ff5a5f]",
+  Unknown: "bg-[#9ca3af]"
 };
 
 const legend: Array<{ status: StatusValue; description: string }> = [
@@ -29,15 +29,16 @@ export default async function StatusPage() {
       <PageTitle title="Status" subtitle="Job and component health for cached dashboard data." />
       <Panel>
         <SectionHeader title="Component Status" />
-        <div className="mb-4 grid gap-2 text-sm text-textSecondary md:grid-cols-2">
+        <div className="mb-3 flex flex-wrap items-center gap-x-6 gap-y-2 text-sm text-textSecondary">
           {legend.map((item) => (
-            <div key={item.status} className="flex items-center gap-2">
+            <div key={item.status} className="flex items-center gap-2 whitespace-nowrap">
               <span className={`h-2.5 w-2.5 rounded-full ${statusDot[item.status]}`} aria-hidden="true" />
               <span className="font-medium text-textPrimary">{item.status}</span>
-              <span className="ml-2 text-xs text-textSecondary">{item.description}</span>
+              <span className="ml-1 text-xs text-textSecondary">{item.description}</span>
             </div>
           ))}
         </div>
+        <p className="mb-3 text-xs text-textSecondary">All times are shown in Eastern/Toronto time.</p>
         <div className="overflow-x-auto">
           <table className="w-full min-w-[760px] border-collapse text-left text-sm">
             <thead className="border-b border-borderStrong text-xs uppercase tracking-wide text-textSecondary">
@@ -56,13 +57,13 @@ export default async function StatusPage() {
 
                 return (
                   <Fragment key={group}>
-                    <tr className="border-b border-border bg-sidebar/60 text-textPrimary">
+                    <tr className="border-t border-borderStrong bg-sidebar/60 text-textPrimary first:border-t-0">
                       <td colSpan={5} className="py-3 pr-4 font-semibold">
                         {group}
                       </td>
                     </tr>
                     {groupRows.map((row) => (
-                      <tr key={`${row.group}-${row.job}-${row.id}`} className="border-b border-border/70 align-middle last:border-0">
+                      <tr key={`${row.group}-${row.job}-${row.id}`} className="align-middle">
                         <td className="py-3 pl-6 pr-4 text-textPrimary">
                           <span className="block font-medium">{row.job}</span>
                           <span className="block text-xs text-textSecondary">{row.functionName}</span>

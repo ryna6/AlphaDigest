@@ -52,7 +52,11 @@ supabase/                    Schema and migrations
 | `/ticker-explorer`                | Symbol lookup entry page.                              | `TickerExplorerView`.                                                      |
 | `/ticker/[symbol]`                | Ticker detail page.                                    | `TickerDetailView`, currently fixture-backed.                              |
 | `/sources-methodology`            | Source reference table.                                | Static page-level source list.                                             |
-| `/settings`                       | Environment variable name/status helper.               | Static variable list, points users to `/api/sources/status`.               |
+| `/status`                         | Job/component monitoring page.                         | Server-rendered status rows from `lib/status/jobs.ts` and Supabase metadata. |
+| `/settings`                       | Legacy redirect.                                       | Redirects to `/status`.                                                    |
+
+
+The Status page groups automated jobs by dashboard tab and uses `lib/status/jobs.ts` as the central registry for user-facing names, Netlify function/job names, metadata keys, confirmed schedules, and freshness windows. Its visible columns are Job, Status, Frequency, Last Run, and Next Run. Last Run uses Supabase `data_refresh_metadata` or source-table timestamps when available; Next Run is calculated from the registry cron schedule when the automatic schedule is known. Status times are rendered in America/Toronto with a single page-level timezone note rather than per-cell ET/EST/EDT suffixes. TBD rows represent planned or unimplemented jobs and remain Unknown until a real schedule and metadata source exist.
 
 Navigation items live in `lib/constants/navigation.ts`. The desktop sidebar and mobile horizontal tab bar mark an item active when the current path exactly matches or starts with the item's `href`.
 
