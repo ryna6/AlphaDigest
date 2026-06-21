@@ -1,4 +1,5 @@
 import { createServerSupabaseClient } from "@/lib/db/supabase";
+import { payloadContentHash, updateRefreshMetadata } from "./supabase-refresh";
 
 export const CBOE_PUT_CALL_SOURCE_URL =
   "https://www.cboe.com/markets/us/options/market-statistics#current";
@@ -363,7 +364,7 @@ export function isExpectedCboeFetchWindow(now = new Date()) {
     weekday: "short"
   }).format(now);
   if (["Sat", "Sun"].includes(weekday)) return false;
-  return (central.minute === 5 || central.minute === 35) && central.hour >= 9 && central.hour <= 15;
+  return (central.minute === 0 || central.minute === 30) && central.hour >= 9 && central.hour <= 15;
 }
 
 function isFreshCachedResponse(response: PutCallRatioResponse, now = Date.now()) {
@@ -471,9 +472,24 @@ async function readCachedPutCallRatio(freshness: PutCallFreshness) {
 async function writeCachedPutCallRatio(response: PutCallRatioResponse) {
   const supabase = createServerSupabaseClient();
   if (!supabase.ok) return { persisted: false, error: supabase.message };
+  const row = dbRowFromResponse(response);
   const { error } = await supabase.client
     .from("put_call_observations")
-    .upsert(dbRowFromResponse(response), { onConflict: "external_id" });
+    .upsert(row, { onConflict: "external_id" });
+  if (!error) {
+    try {
+      await updateRefreshMetadata(supabase.client, "put_call_observations", {
+        ok: true,
+        changed: true,
+        rowCount: 1,
+        contentHash: payloadContentHash([row]),
+        error: null,
+        meta: { functionName: "refresh-put-call", source: "cboe", asOf: response.asOf ?? null }
+      });
+    } catch (metadataError) {
+      console.error("cboe_put_call_metadata_error", { error: metadataError instanceof Error ? metadataError.message : "Unknown metadata error" });
+    }
+  }
   return { persisted: !error, error: error?.message };
 }
 
@@ -526,7 +542,24 @@ export async function fetchCboePutCallRatio() {
 
 export async function refreshCboePutCallRatio() {
   const result = await fetchCboePutCallRatio();
-  if (!result.response) return { ok: false, upserted: 0, response: null, error: result.message };
+  if (!result.response) {
+    const supabase = createServerSupabaseClient();
+    if (supabase.ok) {
+      try {
+        await updateRefreshMetadata(supabase.client, "put_call_observations", {
+          ok: false,
+          changed: null,
+          rowCount: 0,
+          contentHash: null,
+          error: result.message ?? "Cboe put/call refresh returned no response.",
+          meta: { functionName: "refresh-put-call", source: "cboe" }
+        });
+      } catch (metadataError) {
+        console.error("cboe_put_call_metadata_error", { error: metadataError instanceof Error ? metadataError.message : "Unknown metadata error" });
+      }
+    }
+    return { ok: false, upserted: 0, response: null, error: result.message };
+  }
   const cache = await writeCachedPutCallRatio(result.response);
   console.log("cboe_put_call_refresh", {
     source: result.response.source,

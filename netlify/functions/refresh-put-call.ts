@@ -3,7 +3,7 @@ import {
   refreshCboePutCallRatio
 } from "../../lib/data/adapters/cboe-put-call";
 
-export const config = { schedule: "5,35 14-21 * * 1-5" };
+export const config = { schedule: "0,30 * * * *" };
 
 function json(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), {
@@ -19,7 +19,7 @@ export default async function handler(request: Request) {
     return json({
       ok: true,
       skipped: true,
-      reason: "Outside expected Cboe 30-minute source release fetch windows: 9:05 AM through 3:35 PM America/Chicago / 10:05 AM through 4:35 PM ET."
+      reason: "Outside expected Cboe 30-minute source release fetch windows: on the hour and half-hour from 9:00 AM through 3:30 PM America/Chicago / 10:00 AM through 4:30 PM ET."
     });
   }
   const result = await refreshCboePutCallRatio();

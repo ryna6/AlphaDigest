@@ -29,7 +29,7 @@ export default async function StatusPage() {
       <PageTitle title="Status" subtitle="Job and component health for cached dashboard data." />
       <Panel>
         <SectionHeader title="Component Status" />
-        <div className="mb-3 flex flex-wrap items-center gap-x-6 gap-y-2 text-sm text-textSecondary">
+        <div className="mb-3 flex flex-wrap items-center justify-center gap-x-10 gap-y-3 text-sm text-textSecondary">
           {legend.map((item) => (
             <div key={item.status} className="flex items-center gap-2 whitespace-nowrap">
               <span className={`h-2.5 w-2.5 rounded-full ${statusDot[item.status]}`} aria-hidden="true" />
@@ -45,7 +45,7 @@ export default async function StatusPage() {
               <tr>
                 <th className="py-3 pr-4 font-medium">Job</th>
                 <th className="py-3 px-4 text-center font-medium">Status</th>
-                <th className="py-3 pr-4 font-medium">Endpoint</th>
+                <th className="py-3 pr-4 font-medium">Source</th>
                 <th className="py-3 pr-4 font-medium">Frequency</th>
                 <th className="py-3 pr-4 font-medium">Last Run</th>
                 <th className="py-3 font-medium">Next Run</th>
@@ -75,7 +75,7 @@ export default async function StatusPage() {
                             {row.status}
                           </span>
                         </td>
-                        <td className="py-3 pr-4 text-textSecondary">{row.endpoint}</td>
+                        <td className="py-3 pr-4 text-textSecondary">{row.source}</td>
                         <td className="py-3 pr-4 text-textSecondary">{row.frequency}</td>
                         <td className="py-3 pr-4 text-textSecondary">{row.lastRun}</td>
                         <td className="py-3 text-textSecondary">{row.nextRun}</td>
