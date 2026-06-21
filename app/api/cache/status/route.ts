@@ -59,12 +59,19 @@ function flowDiagnostics(counts: any[], metadata: any[], sizes: any[]) {
     metadata: { darkPool: darkPoolMetadata, insiderTrades: insiderMetadata, flowLatest: flowSnapshotMetadata },
     latestError: darkPoolMetadata?.error ?? insiderMetadata?.error ?? flowSnapshotMetadata?.error ?? null,
     darkPoolEmptyReason: darkPoolMetadata?.meta?.emptyReason ?? null,
+    darkPoolWindowDays: darkPoolMetadata?.meta?.retentionDays ?? flowSnapshot?.metadata?.darkPoolWindowDays ?? null,
+    darkPoolLatestRowCount: darkPoolCount?.count ?? null,
     insiderLookbackMonths: insiderMetadata?.meta?.lookbackMonths ?? null,
     insiderLatestRowCount: insiderCount?.count ?? null,
     insiderLatestMetadata: insiderMetadata ?? null,
     insiderLatestPageCounts: insiderMetadata?.meta?.pageCounts ?? [],
     insiderDuplicatesRemoved: insiderMetadata?.meta?.duplicatesRemoved ?? null,
     insiderDuplicateIdsSample: insiderMetadata?.meta?.duplicateIds ?? [],
+    insiderRowsUsedForFlow: flowSnapshot?.metadata?.insiderRowsUsed ?? flowSnapshot?.metadata?.insiderLatestRowCount ?? null,
+    insiderAggregateCompanyCount: flowSnapshot?.metadata?.insiderCompaniesAggregated ?? null,
+    flowLatestUsesSixMonthInsiderData: flowSnapshot?.metadata?.insiderLookbackMonths === 6 && flowSnapshot?.metadata?.insiderSource === "supabase/source-table",
+    flowLatestGeneratedAt: flowSnapshot?.generatedAt ?? null,
+    flowLatestExpiresAt: flowSnapshot?.expiresAt ?? null,
     flowLatestSnapshot: flowSnapshot
   };
 }

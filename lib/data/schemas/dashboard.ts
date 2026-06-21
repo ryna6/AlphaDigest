@@ -182,6 +182,14 @@ export const flowPayloadSchema = z.object({
   darkPool: z.array(darkPoolFlowRowSchema),
   whaleTrades: z.array(z.record(z.string(), z.string())),
   insiderTrades: z.array(insiderCompanyAggregateSchema),
+  diagnostics: z.object({
+    insiderLookbackMonths: z.number().optional(),
+    insiderRowsUsed: z.number().optional(),
+    insiderCompaniesAggregated: z.number().optional(),
+    insiderSource: z.string().optional(),
+    darkPoolWindowDays: z.number().optional(),
+    darkPoolRowsUsed: z.number().optional()
+  }).optional(),
   sourceMeta: z.array(sourceMetaSchema),
   notices: z.array(z.string()).default([])
 });

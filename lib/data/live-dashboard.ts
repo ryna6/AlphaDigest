@@ -27,7 +27,9 @@ import type { UnusualWhalesEarningsEvent } from "./adapters/unusual-whales-earni
 import { getCachedUnusualWhalesEarnings } from "./adapters/unusual-whales-earnings";
 import { readDarkPoolRows } from "./adapters/unusual-whales-dark-pool";
 import { readInsiderTradeRows } from "./adapters/unusual-whales-insider-trades";
-import { aggregateInsiderTrades, topInsiderCompanies } from "./insider-aggregation";
+import { INSIDER_TRADES_LOOKBACK_MONTHS } from "./insider-window";
+import { DARK_POOL_RETENTION_DAYS } from "./adapters/unusual-whales-dark-pool";
+import { aggregateInsiderTrades } from "./insider-aggregation";
 import { deriveFlowSummary } from "./flow-summary";
 import { payloadContentHash, updateRefreshMetadata } from "./adapters/supabase-refresh";
 import { createServerSupabaseClient } from "@/lib/db/supabase";
@@ -818,7 +820,7 @@ export async function refreshDashboardSnapshot(
     ttlSeconds: entry.ttlSeconds,
     mode: result.mode,
     notices: result.notices,
-    metadata: { refreshedBy: "netlify-function" }
+    metadata: { refreshedBy: "netlify-function", ...(key === "flow:latest" ? (result.payload as FlowPayload).diagnostics ?? {} : {}) }
   });
   const supabase = createServerSupabaseClient();
   if (supabase.ok) {
@@ -832,7 +834,8 @@ export async function refreshDashboardSnapshot(
         mode: result.mode,
         notices: result.notices,
         persisted: write.persisted ?? false,
-        refreshedBy: "netlify-function"
+        refreshedBy: "netlify-function",
+        ...(key === "flow:latest" ? (result.payload as FlowPayload).diagnostics ?? {} : {})
       }
     }).catch((error) =>
       console.warn("dashboard_snapshot_metadata_write_failed", {
@@ -926,7 +929,7 @@ export async function buildFlowPayload(): Promise<{
   try {
     const [darkPool, insiderRows] = await Promise.all([
       readDarkPoolRows(supabase.client, 25),
-      readInsiderTradeRows(supabase.client, undefined, 2000)
+      readInsiderTradeRows(supabase.client)
     ]);
     if (!darkPool.length && !insiderRows.length) {
       return {
@@ -935,7 +938,8 @@ export async function buildFlowPayload(): Promise<{
         notices: ["No cached Flow rows found; using fixture fallback.", ...notices]
       };
     }
-    const insiderTrades = topInsiderCompanies(insiderRows, 5);
+    const insiderCompanies = aggregateInsiderTrades(insiderRows);
+    const insiderTrades = insiderCompanies.slice(0, 5);
     const whaleTrades = flowMock.whaleTrades;
     return {
       payload: {
@@ -943,6 +947,14 @@ export async function buildFlowPayload(): Promise<{
         darkPool,
         whaleTrades,
         insiderTrades,
+        diagnostics: {
+          insiderLookbackMonths: INSIDER_TRADES_LOOKBACK_MONTHS,
+          insiderRowsUsed: insiderRows.length,
+          insiderCompaniesAggregated: insiderCompanies.length,
+          insiderSource: "supabase/source-table",
+          darkPoolWindowDays: DARK_POOL_RETENTION_DAYS,
+          darkPoolRowsUsed: darkPool.length
+        },
         sourceMeta: flowMock.sourceMeta,
         notices
       },
@@ -1034,8 +1046,16 @@ function hasRevisedFlowSummary(payload: FlowPayload) {
   return payload.summary.some((metric) => metric.label === "Insider sentiment");
 }
 
-function isUsableFlowSnapshot(snapshot: { mode: string | null; payload: FlowPayload }) {
-  return snapshot.mode !== "mock" && hasRevisedFlowSummary(snapshot.payload);
+function isUsableFlowSnapshot(snapshot: { mode: string | null; payload: FlowPayload; metadata?: Record<string, unknown> }) {
+  const metadata = snapshot.metadata ?? {};
+  const snapshotRows = typeof metadata.insiderRowsUsed === "number" ? metadata.insiderRowsUsed : snapshot.payload.diagnostics?.insiderRowsUsed;
+  return (
+    snapshot.mode !== "mock" &&
+    hasRevisedFlowSummary(snapshot.payload) &&
+    snapshot.payload.diagnostics?.insiderLookbackMonths === INSIDER_TRADES_LOOKBACK_MONTHS &&
+    snapshot.payload.diagnostics?.insiderSource === "supabase/source-table" &&
+    typeof snapshotRows === "number"
+  );
 }
 
 export async function getFlowPayload(): Promise<{
@@ -1079,7 +1099,8 @@ export async function getFlowPayload(): Promise<{
         notices: live.notices,
         metadata: {
           refreshedBy: "server-fallback",
-          skippedMockSnapshot: cached.snapshot?.mode === "mock"
+          skippedMockSnapshot: cached.snapshot?.mode === "mock",
+          ...live.payload.diagnostics
         }
       });
       if (!write.ok)
@@ -1126,7 +1147,7 @@ export async function getInsiderTradesPayload(
       notices: [supabase.message]
     };
   try {
-    const rows = await readInsiderTradeRows(supabase.client, undefined, 2000);
+    const rows = await readInsiderTradeRows(supabase.client);
     const companies = aggregateInsiderTrades(rows).slice(0, limit);
     return {
       payload: {

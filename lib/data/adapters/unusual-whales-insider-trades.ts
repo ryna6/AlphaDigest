@@ -62,13 +62,34 @@ export function normalizeInsiderTradesPayload(payload: unknown, fetchedAt = new 
   return { rows, fetched: extracted.rows.length, rawCount: extracted.rows.length, normalizedBeforeDateFilter: beforeDate.length, filteredOutOld, normalizedAfterDateFilter: rows.length, skipped, responsePath: extracted.path, emptyReason };
 }
 
-export async function readInsiderTradeRows(client: SupabaseClient, ticker?: string, limit = 500) {
-  const cutoff = cutoffDate();
-  let q = client.from("unusual_whales_insider_trades").select("external_id,ticker,sector,amount,transaction_date,price,owner_name,officer_title,transaction_code,shares_owned_after,fetched_at").gte("transaction_date", cutoff).order("transaction_date", { ascending: false }).limit(limit);
-  if (ticker) q = q.eq("ticker", ticker.toUpperCase());
-  const { data, error } = await q;
-  if (error) throw new Error(error.message);
+const INSIDER_READ_PAGE_SIZE = 1000;
+const INSIDER_MAX_SOURCE_ROWS = 5000;
+
+function mapInsiderRows(data: any[]) {
   return (data ?? []).map((r: any) => ({ externalId: r.external_id, ticker: r.ticker, sector: r.sector, amount: Number(r.amount ?? 0), transactionDate: r.transaction_date, price: r.price == null ? null : Number(r.price), ownerName: r.owner_name, officerTitle: r.officer_title, transactionCode: r.transaction_code, sharesOwnedAfter: r.shares_owned_after == null ? null : Number(r.shares_owned_after), fetchedAt: r.fetched_at })) satisfies InsiderTradeRow[];
+}
+
+export async function readInsiderTradeRows(client: SupabaseClient, ticker?: string, limit = INSIDER_MAX_SOURCE_ROWS) {
+  const cutoff = cutoffDate();
+  const rows: any[] = [];
+  const requestedLimit = Math.max(0, limit);
+
+  for (let from = 0; from < requestedLimit; from += INSIDER_READ_PAGE_SIZE) {
+    const to = Math.min(from + INSIDER_READ_PAGE_SIZE - 1, requestedLimit - 1);
+    let q = client
+      .from("unusual_whales_insider_trades")
+      .select("external_id,ticker,sector,amount,transaction_date,price,owner_name,officer_title,transaction_code,shares_owned_after,fetched_at")
+      .gte("transaction_date", cutoff)
+      .order("transaction_date", { ascending: false })
+      .range(from, to);
+    if (ticker) q = q.eq("ticker", ticker.toUpperCase());
+    const { data, error } = await q;
+    if (error) throw new Error(error.message);
+    rows.push(...(data ?? []));
+    if (!data || data.length < to - from + 1) break;
+  }
+
+  return mapInsiderRows(rows);
 }
 
 function insiderTradesUrlForPage(page: number) {
