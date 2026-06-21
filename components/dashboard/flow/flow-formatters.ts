@@ -1,3 +1,4 @@
+import { formatStockPrice } from "@/lib/utils/formatters";
 export const money = (v: number | null | undefined) =>
   v == null || !Number.isFinite(v)
     ? "—"
@@ -15,3 +16,5 @@ export const number = (v: number | null | undefined) =>
 
 export const signed = (v: number) =>
   `${v >= 0 ? "+" : ""}${new Intl.NumberFormat("en-US", { notation: "compact" }).format(v)}`;
+
+export { formatStockPrice };

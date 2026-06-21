@@ -1,7 +1,7 @@
 import Link from "next/link";
 import type { DarkPoolFlowRow } from "@/lib/data/schemas/dashboard";
 import { formatDarkPoolExecutedAt, timestampTitle } from "@/lib/utils/time";
-import { money, number } from "./flow-formatters";
+import { formatStockPrice, money, number } from "./flow-formatters";
 import { percentOf } from "./flow-trade-formatters";
 
 export function DarkPoolTable({
@@ -45,7 +45,7 @@ export function DarkPoolTable({
                 {r.sector ?? "—"}
               </td>
               <td className="border-b border-borderStrong/50 px-3 py-2 text-textSecondary">
-                {money(r.price)}
+                {formatStockPrice(r.price)}
               </td>
               <td className="border-b border-borderStrong/50 px-3 py-2 text-textSecondary">
                 {money(r.premium)}
