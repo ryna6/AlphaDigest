@@ -4,7 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import type { InsiderCompanyAggregate } from "@/lib/data/schemas/dashboard";
 import { cn } from "@/lib/utils/cn";
-import { money, signed } from "./flow-formatters";
+import { formatStockPrice, money, signed } from "./flow-formatters";
 
 const INITIAL_VISIBLE = 25;
 const MAX_VISIBLE = 50;
@@ -34,7 +34,7 @@ export function InsiderCompaniesViewMore({ companies }: { companies: InsiderComp
                 <td className="border-b border-borderStrong/50 px-3 py-2 text-textSecondary">{r.tradeCount}</td>
                 <td className="border-b border-borderStrong/50 px-3 py-2 text-positive">{r.purchaseCount}</td>
                 <td className="border-b border-borderStrong/50 px-3 py-2 text-negative">{r.saleCount}</td>
-                <td className="border-b border-borderStrong/50 px-3 py-2 text-textSecondary">{money(r.averageTradePrice)}</td>
+                <td className="border-b border-borderStrong/50 px-3 py-2 text-textSecondary">{formatStockPrice(r.averageTradePrice)}</td>
                 <td className={cn("border-b border-borderStrong/50 px-3 py-2", r.netShares < 0 ? "text-negative" : r.netShares > 0 ? "text-positive" : "text-textSecondary")}>{signed(r.netShares)}</td>
                 <td className={cn("border-b border-borderStrong/50 px-3 py-2", r.netValue < 0 ? "text-negative" : r.netValue > 0 ? "text-positive" : "text-textSecondary")}>{money(r.netValue)}</td>
               </tr>
