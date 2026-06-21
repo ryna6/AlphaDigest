@@ -3,7 +3,6 @@ import { createServerSupabaseClient } from "@/lib/db/supabase";
 import type { DarkPoolFlowRow } from "@/lib/data/schemas/dashboard";
 import { stableHash } from "./unusual-whales-earnings";
 import { payloadContentHash, sourceResult, updateRefreshMetadata } from "./supabase-refresh";
-import { inferTradeSideFromNbbo } from "./nbbo-side";
 
 export const UW_DARK_POOL_URL =
   "https://phx.unusualwhales.com/api/flow/dark-pool?tab=dark-pool&limit=250&min_premium=10000000&min_marketcap=5000000000&min_size_avg30d_vol_perc=0.05&min_size_daily_perc=0.15&min_size=250000&min_price=5&order=Prem&hide_index_etf=true&max_marketcap=100000000000&max_size_daily_perc=0.5&max_size_avg30d_vol_perc=0.25";
@@ -27,6 +26,9 @@ const num = (v: unknown) =>
       : null;
 const safeKeys = (value: unknown, limit = 20) =>
   isRec(value) ? Object.keys(value).slice(0, limit) : [];
+
+const canonicalDarkPoolKey = (row: Pick<DarkPoolFlowRow, "ticker" | "executedAt" | "price" | "premium">) =>
+  stableHash({ ticker: row.ticker, executedAt: row.executedAt, price: row.price, premium: row.premium });
 
 export function extractArrayFromUnusualWhalesResponse(json: unknown): {
   rows: unknown[];
@@ -111,22 +113,14 @@ export function normalizeDarkPoolPayload(
       const price = num(value.price ?? value.spot ?? value.underlying_price);
       const premium = num(value.premium ?? value.prem ?? value.notional ?? value.value);
       const volume = num(value.volume ?? value.vol);
-      const size = num(value.size ?? value.trade_size);
-      const avg30Volume = num(value.avg30_volume ?? value.avg_30_day_volume ?? value.avg30Volume);
-      const nbboBid = num(value.nbbo_bid ?? value.nbboBid);
-      const nbboAsk = num(value.nbbo_ask ?? value.nbboAsk);
-      const inferred = inferTradeSideFromNbbo({ price, nbbo_bid: nbboBid, nbbo_ask: nbboAsk });
+      const size = num(value.size ?? value.Size ?? value.trade_size ?? value.total_size);
+      const avg30Volume = num(value.avg30_volume ?? value.avg30Volume ?? value.avg_30_volume ?? value.avg_30_day_volume ?? value.avg30_day_volume);
       return {
-        externalId: stableHash({
+        externalId: canonicalDarkPoolKey({
           ticker,
           executedAt: executedAt.toISOString(),
           price,
-          premium,
-          size,
-          volume,
-          avg30Volume,
-          nbboBid,
-          nbboAsk
+          premium
         }),
         executedAt: executedAt.toISOString(),
         ticker,
@@ -136,10 +130,6 @@ export function normalizeDarkPoolPayload(
         size,
         volume,
         avg30Volume,
-        nbboBid,
-        nbboAsk,
-        side: inferred.side,
-        sentiment: inferred.sentiment,
         fetchedAt
       };
     })
@@ -163,7 +153,7 @@ export function normalizeDarkPoolPayload(
 export async function readDarkPoolRows(client: SupabaseClient, limit = 50, ticker?: string) {
   let query = client
     .from("unusual_whales_dark_pool_flows")
-    .select("external_id,executed_at,ticker,sector,price,premium,size,volume,avg30_volume,nbbo_bid,nbbo_ask,side,sentiment,fetched_at")
+    .select("external_id,executed_at,ticker,sector,price,premium,size,volume,avg30_volume,fetched_at")
     .order(ticker ? "executed_at" : "premium", { ascending: false })
     .limit(limit);
   if (ticker) query = query.eq("ticker", ticker.toUpperCase());
@@ -179,10 +169,6 @@ export async function readDarkPoolRows(client: SupabaseClient, limit = 50, ticke
     size: r.size == null ? null : Number(r.size),
     volume: r.volume == null ? null : Number(r.volume),
     avg30Volume: r.avg30_volume == null ? null : Number(r.avg30_volume),
-    nbboBid: r.nbbo_bid == null ? null : Number(r.nbbo_bid),
-    nbboAsk: r.nbbo_ask == null ? null : Number(r.nbbo_ask),
-    side: r.side ?? "unknown",
-    sentiment: r.sentiment ?? "unknown",
     fetchedAt: r.fetched_at
   })) satisfies DarkPoolFlowRow[];
 }
@@ -210,7 +196,15 @@ export async function refreshDarkPoolFlows() {
       normalized: normalized.rows.length,
       skipped: normalized.skipped,
       skipReasons: normalized.skipReasons,
-      firstItemKeys: safeKeys(extractArrayFromUnusualWhalesResponse(payload).rows[0])
+      firstItemKeys: safeKeys(extractArrayFromUnusualWhalesResponse(payload).rows[0]),
+      rowsWithSize: normalized.rows.filter((row) => row.size != null).length,
+      rowsMissingSize: normalized.rows.filter((row) => row.size == null).length,
+      rowsWithAvg30Volume: normalized.rows.filter((row) => row.avg30Volume != null).length,
+      rowsMissingAvg30Volume: normalized.rows.filter((row) => row.avg30Volume == null).length,
+      missingFieldSamples: normalized.rows
+        .filter((row) => row.size == null || row.avg30Volume == null)
+        .slice(0, 10)
+        .map((row) => ({ ticker: row.ticker, executedAt: row.executedAt, missingSize: row.size == null, missingAvg30Volume: row.avg30Volume == null }))
     };
     console.log("dark_pool_response_diagnostics", shapeDiagnostics);
     if (!normalized.responsePath)
@@ -219,6 +213,34 @@ export async function refreshDarkPoolFlows() {
           ? `Unusual Whales dark pool response did not include rows: ${normalized.emptyReason}`
           : "Unable to locate dark pool rows in Unusual Whales response"
       );
+    let reusedExistingExternalIds = 0;
+    if (normalized.rows.length) {
+      const times = normalized.rows.map((row) => row.executedAt).sort();
+      const { data: existingRows, error: existingError } = await supabase.client
+        .from("unusual_whales_dark_pool_flows")
+        .select("external_id,executed_at,ticker,price,premium")
+        .gte("executed_at", times[0])
+        .lte("executed_at", times[times.length - 1]);
+      if (existingError) throw new Error(`Dark pool existing-row lookup failed: ${existingError.message}`);
+      const existingIdByCanonicalKey = new Map(
+        (existingRows ?? []).map((row: any) => [
+          canonicalDarkPoolKey({
+            ticker: String(row.ticker ?? "").toUpperCase(),
+            executedAt: row.executed_at,
+            price: row.price == null ? null : Number(row.price),
+            premium: row.premium == null ? null : Number(row.premium)
+          }),
+          row.external_id as string
+        ])
+      );
+      for (const row of normalized.rows) {
+        const existingId = existingIdByCanonicalKey.get(canonicalDarkPoolKey(row));
+        if (existingId && existingId !== row.externalId) {
+          row.externalId = existingId;
+          reusedExistingExternalIds += 1;
+        }
+      }
+    }
     const dbRows = normalized.rows.map((r) => ({
       external_id: r.externalId,
       executed_at: r.executedAt,
@@ -229,10 +251,6 @@ export async function refreshDarkPoolFlows() {
       size: r.size,
       volume: r.volume,
       avg30_volume: r.avg30Volume,
-      nbbo_bid: r.nbboBid,
-      nbbo_ask: r.nbboAsk,
-      side: r.side,
-      sentiment: r.sentiment,
       fetched_at: r.fetchedAt,
       updated_at: fetchedAt
     }));
@@ -260,9 +278,15 @@ export async function refreshDarkPoolFlows() {
       skipped: normalized.skipped,
       skipReasons: normalized.skipReasons,
       upserted: dbRows.length,
+      reusedExistingExternalIds,
       pruned: pruned ?? 0,
       responsePath: normalized.responsePath,
       emptyReason: normalized.emptyReason,
+      rowsWithSize: shapeDiagnostics.rowsWithSize,
+      rowsMissingSize: shapeDiagnostics.rowsMissingSize,
+      rowsWithAvg30Volume: shapeDiagnostics.rowsWithAvg30Volume,
+      rowsMissingAvg30Volume: shapeDiagnostics.rowsMissingAvg30Volume,
+      missingFieldSamples: shapeDiagnostics.missingFieldSamples,
       retentionDays: DARK_POOL_RETENTION_DAYS,
       fetch: fetchDiagnostics
     };

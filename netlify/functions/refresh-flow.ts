@@ -10,16 +10,22 @@ export default async function handler() {
   const startedAt = new Date().toISOString();
   console.log("scheduled_refresh_start", { job: "refresh-flow", startedAt, schedule: "45 9 * * * UTC" });
   const [darkPool, insiderTrades, whaleFeed] = await Promise.all([refreshDarkPoolFlows(), refreshInsiderTrades(), refreshWhaleFeed()]);
-  const sourceStatuses = { darkPool: { ok: darkPool.ok, count: darkPool.count, error: darkPool.error, meta: darkPool.meta }, insiderTrades: { ok: insiderTrades.ok, count: insiderTrades.count, error: insiderTrades.error, meta: insiderTrades.meta }, whaleFeed: { ok: whaleFeed.ok, count: whaleFeed.count, error: whaleFeed.error, meta: whaleFeed.meta } };
+  const sourceStatuses = {
+    darkPool: { ok: darkPool.ok, count: darkPool.count, upserted: darkPool.upserted, error: darkPool.error, meta: darkPool.meta },
+    whaleFeed: { ok: whaleFeed.ok, count: whaleFeed.count, upserted: whaleFeed.upserted, sourceRowCount: whaleFeed.count, error: whaleFeed.error, meta: whaleFeed.meta },
+    insiderTrades: { ok: insiderTrades.ok, count: insiderTrades.count, upserted: insiderTrades.upserted, error: insiderTrades.error, meta: insiderTrades.meta }
+  };
   const freshSourceCount = [darkPool, insiderTrades, whaleFeed].filter((source) => source.ok).length;
-  const partial = freshSourceCount > 0 && freshSourceCount < 3;
+  const partialSnapshot = freshSourceCount > 0 && freshSourceCount < 3;
   const snapshot = freshSourceCount > 0 ? await refreshDashboardSnapshot("flow:latest") : { ok: false, key: "flow:latest", persisted: false, error: "No Flow sources refreshed successfully; snapshot not persisted." };
-  const ok = darkPool.ok && insiderTrades.ok && whaleFeed.ok && snapshot.ok;
-  const snapshotFreshness = snapshot.ok && snapshot.persisted ? (partial ? "partial_fresh_sources" : "all_sources_fresh") : "not_persisted";
+  const sectionsIncluded = Object.entries(sourceStatuses).filter(([, status]) => status.ok).map(([section]) => section);
+  const sectionsMissing = Object.entries(sourceStatuses).filter(([, status]) => !status.ok).map(([section]) => section);
+  const ok = snapshot.ok && freshSourceCount > 0;
+  const snapshotFreshness = snapshot.ok && snapshot.persisted ? (partialSnapshot ? "partial_fresh_sources" : "all_sources_fresh") : "not_persisted";
   const notices = [
-    ...(partial ? ["Flow snapshot contains partial fresh data because one source refresh failed or returned unusable data."] : []),
+    ...(partialSnapshot ? ["Flow snapshot contains partial fresh data because one source refresh failed or returned unusable data."] : []),
     ...(!freshSourceCount ? ["No Flow sources refreshed successfully; flow:latest was not rewritten."] : [])
   ];
-  console.log("scheduled_refresh_complete", { job: "refresh-flow", sourceStatuses, partial, snapshotKey: snapshot.key, snapshotPersisted: snapshot.persisted, snapshotFreshness, notices, ok });
-  return json({ job: "refresh-flow", startedAt, finishedAt: new Date().toISOString(), ok, partial, sourceStatuses, darkPool, insiderTrades, whaleFeed, snapshot, snapshotFreshness, notices }, ok ? 200 : 502);
+  console.log("scheduled_refresh_complete", { job: "refresh-flow", sourceStatuses, snapshotPersisted: snapshot.persisted, partialSnapshot, sectionsIncluded, sectionsMissing, snapshotFreshness, notices, ok });
+  return json({ job: "refresh-flow", startedAt, finishedAt: new Date().toISOString(), ok, partialSnapshot, sourceStatuses, darkPool, insiderTrades, whaleFeed, snapshot, snapshotPersisted: snapshot.persisted, sectionsIncluded, sectionsMissing, snapshotFreshness, notices }, ok ? 200 : 502);
 }

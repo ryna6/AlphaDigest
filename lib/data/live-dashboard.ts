@@ -922,58 +922,67 @@ export async function buildFlowPayload(): Promise<{
   mode: "mock" | "live";
   notices: string[];
 }> {
-  const fallbackNotices = ["No cached Whale Feed rows found; using fixture fallback."];
   const supabase = createServerSupabaseClient();
   if (!supabase.ok) {
-    return { payload: flowMock, mode: "mock", notices: [supabase.message, ...fallbackNotices] };
+    return { payload: flowMock, mode: "mock", notices: [supabase.message] };
   }
-  try {
-    const [darkPool, insiderRows, whaleFeed] = await Promise.all([
-      readDarkPoolRows(supabase.client, 25),
-      readInsiderTradeRows(supabase.client),
-      readWhaleFeedRows(supabase.client, 100)
-    ]);
-    if (!darkPool.length && !insiderRows.length && !whaleFeed.length) {
-      return {
-        payload: flowMock,
-        mode: "mock",
-        notices: ["No cached Flow rows found; using fixture fallback."]
-      };
+
+  const notices: string[] = [];
+  const readSection = async <T>(name: string, reader: () => Promise<T[]>): Promise<T[]> => {
+    try {
+      return await reader();
+    } catch (error) {
+      const message = error instanceof Error ? error.message : `Unknown ${name} cache read error`;
+      notices.push(`${name} Supabase cache unavailable: ${message}`);
+      return [];
     }
-    const insiderCompanies = aggregateInsiderTrades(insiderRows);
-    const insiderTrades = insiderCompanies.slice(0, 5);
-    const whaleTrades = whaleFeed.length ? whaleFeed : flowMock.whaleTrades;
-    const notices = whaleFeed.length ? [] : ["No cached Whale Feed rows found; using fixture fallback."];
+  };
+
+  const [darkPoolRows, insiderRows, whaleFeedRows] = await Promise.all([
+    readSection("Dark Pool", () => readDarkPoolRows(supabase.client, 25)),
+    readSection("Insider Trades", () => readInsiderTradeRows(supabase.client)),
+    readSection("Whale Feed", () => readWhaleFeedRows(supabase.client, 100))
+  ]);
+
+  if (!darkPoolRows.length) notices.push("No cached Dark Pool rows found; using section fixture fallback.");
+  if (!insiderRows.length) notices.push("No cached Insider Trades rows found; using section fixture fallback.");
+  if (!whaleFeedRows.length) notices.push("No cached Whale Feed rows found; using section fixture fallback.");
+
+  if (!darkPoolRows.length && !insiderRows.length && !whaleFeedRows.length) {
     return {
-      payload: {
-        summary: deriveFlowSummary({ darkPool, insiderRows, whaleTrades }),
-        darkPool,
-        whaleTrades,
-        insiderTrades,
-        diagnostics: {
-          insiderLookbackMonths: INSIDER_TRADES_LOOKBACK_MONTHS,
-          insiderRowsUsed: insiderRows.length,
-          insiderCompaniesAggregated: insiderCompanies.length,
-          insiderSource: "supabase/source-table",
-          darkPoolWindowDays: DARK_POOL_RETENTION_DAYS,
-          darkPoolRowsUsed: darkPool.length,
-          whaleFeedRowsUsed: whaleFeed.length,
-          whaleFeedSource: whaleFeed.length ? "supabase/source-table" : "fixture-fallback"
-        },
-        sourceMeta: flowMock.sourceMeta,
-        notices
-      },
-      mode: "live",
-      notices
-    };
-  } catch (error) {
-    const message = error instanceof Error ? error.message : "Unknown Flow cache read error";
-    return {
-      payload: flowMock,
+      payload: { ...flowMock, notices: ["No cached Flow rows found; using fixture fallback."] },
       mode: "mock",
-      notices: [`Flow Supabase cache unavailable: ${message}`, ...fallbackNotices]
+      notices: ["No cached Flow rows found; using fixture fallback."]
     };
   }
+
+  const insiderCompanies = aggregateInsiderTrades(insiderRows);
+  const darkPool = darkPoolRows.length ? darkPoolRows : flowMock.darkPool;
+  const whaleTrades = whaleFeedRows.length ? whaleFeedRows : flowMock.whaleTrades;
+  const insiderTrades = (insiderCompanies.length ? insiderCompanies : flowMock.insiderTrades).slice(0, 5);
+
+  return {
+    payload: {
+      summary: deriveFlowSummary({ darkPool, insiderRows, whaleTrades }),
+      darkPool,
+      whaleTrades,
+      insiderTrades,
+      diagnostics: {
+        insiderLookbackMonths: INSIDER_TRADES_LOOKBACK_MONTHS,
+        insiderRowsUsed: insiderRows.length,
+        insiderCompaniesAggregated: insiderCompanies.length,
+        insiderSource: insiderRows.length ? "supabase/source-table" : "fixture-fallback",
+        darkPoolWindowDays: DARK_POOL_RETENTION_DAYS,
+        darkPoolRowsUsed: darkPoolRows.length,
+        whaleFeedRowsUsed: whaleFeedRows.length,
+        whaleFeedSource: whaleFeedRows.length ? "supabase/source-table" : "fixture-fallback"
+      },
+      sourceMeta: flowMock.sourceMeta,
+      notices
+    },
+    mode: "live",
+    notices
+  };
 }
 
 export async function getDarkPoolPayload(

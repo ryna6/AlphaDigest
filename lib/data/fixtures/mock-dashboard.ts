@@ -326,10 +326,6 @@ export const flowMock: FlowPayload = {
       size: 158000,
       volume: 3000000,
       avg30Volume: 60000000,
-      nbboBid: 532.9,
-      nbboAsk: 533.2,
-      side: "ask",
-      sentiment: "bullish",
       fetchedAt: "2026-06-04T14:00:00.000Z"
     }
   ],
