@@ -66,7 +66,7 @@ function SummaryCard({ metric }: { metric: any }) {
           {metric.subtext ? (
             <p
               className={cn(
-                "ml-auto text-xs font-medium",
+                "text-xs font-medium",
                 toneClass[metric.tone as keyof typeof toneClass]
               )}
             >
