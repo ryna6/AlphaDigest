@@ -15,7 +15,7 @@ This document records active and placeholder data sources. Accuracy matters: do 
 | Cboe U.S. Options Market Statistics                                                 | Active server-side parser for intraday equity, index, and total put/call ratios.                        | `lib/data/adapters/cboe-put-call.ts`, `netlify/functions/refresh-put-call.ts` |
 | Supabase                                                                            | Optional durable cache for supported refresh helpers, including put/call observations.                  | `lib/db/supabase.ts`, `supabase/`                                             |
 | Static earnings fallback JSON                                                       | Active fallback when Supabase/live earnings paths are unavailable.                                      | `public/data/unusual-whales/earnings-calendar.json`                           |
-| FRED, Twelve Data, CoinGecko, sec-api.io, Capitol Trades, CBOE, AAII, HormuzTracker | Listed/planned or placeholder only unless future code wires them into live flows.                       | Settings/source pages and fixtures currently reference some of these names.   |
+| FRED, Twelve Data, CoinGecko, sec-api.io, Capitol Trades, CBOE, AAII, HormuzTracker | Listed/planned or placeholder only unless future code wires them into live flows.                       | Methodology/Status pages and fixtures currently reference some of these names.   |
 
 ## Environment variables
 
@@ -357,7 +357,7 @@ Insider trades are fetched from the provided server-side Unusual Whales insider 
 
 ### Flow display and aggregation semantics
 
-Flow source ingestion remains server-side through Netlify functions and Supabase. Browser/client components do not call Unusual Whales directly. Dark-pool rows are stored with UTC `executed_at` timestamps in `unusual_whales_dark_pool_flows`, but dashboard tables display `executed_at` in Eastern Time (`ET`) using `America/New_York` formatting.
+Flow source ingestion remains server-side through Netlify functions and Supabase. Browser/client components do not call Unusual Whales directly. Dark-pool rows are stored with UTC `executed_at` timestamps in `unusual_whales_dark_pool_flows`, but dashboard tables display `executed_at` in Eastern Time (`ET`) using `America/Toronto` formatting.
 
 Insider trade rows in `unusual_whales_insider_trades` are aggregated with the shared `aggregateInsiderTrades()` helper. The helper filters to the past 6 months, groups by ticker, counts total trades/purchases/sales, preserves sector when available, sums signed net shares and signed net value, and sorts by trade count descending with absolute net value as a tie-breaker. Weighted average trade price is calculated as `sum(abs(shares) * price) / sum(abs(shares))`, excluding rows with missing/non-finite price or zero shares. `/flow` displays the top 5 companies from this aggregate; `/flow/insider-trades` initially displays the top 25 and can reveal up to the top 50 with View more. Individual insider detail rows include `shares_owned_after` from Supabase, but aggregate company views intentionally omit it.
 

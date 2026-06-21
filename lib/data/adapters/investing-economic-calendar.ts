@@ -118,7 +118,7 @@ function getPath(record: UnknownRecord, paths: string[][]): unknown {
 function getTimezoneOffset(dateKey: string) {
   const date = new Date(`${dateKey}T12:00:00Z`);
   const parts = new Intl.DateTimeFormat("en-US", {
-    timeZone: "America/New_York",
+    timeZone: "America/Toronto",
     timeZoneName: "shortOffset"
   }).formatToParts(date);
   const offsetName = parts.find((part) => part.type === "timeZoneName")?.value ?? "GMT-5";

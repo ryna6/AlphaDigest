@@ -15,7 +15,7 @@ export function dashboardJson<T extends ZodTypeAny>({
 }) {
   const envelope = apiEnvelopeSchema(schema).parse({
     generatedAt: new Date().toISOString(),
-    timezone: "America/New_York",
+    timezone: "America/Toronto",
     mode,
     notices,
     payload

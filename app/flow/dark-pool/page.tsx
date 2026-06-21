@@ -11,7 +11,7 @@ export default async function DarkPoolPage() {
     <>
       <PageTitle title="Dark Pool" subtitle="Large cached dark pool prints sorted by premium." />
       <Panel>
-        <SectionHeader title="Dark Pool Prints" action={<FlowBackLink href="/flow" />} />
+        <SectionHeader title="Top Dark Pool Prints" action={<FlowBackLink href="/flow" />} />
         <DarkPoolTable rows={payload.rows} />
       </Panel>
     </>

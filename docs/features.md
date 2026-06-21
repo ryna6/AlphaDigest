@@ -21,8 +21,8 @@ Current primary tabs:
 
 Current utility tabs:
 
-1. Sources & Methodology
-2. Settings
+1. Methodology
+2. Status
 
 ## Today tab
 
@@ -144,7 +144,7 @@ The Flow tab reads cached Supabase rows/snapshots first and never calls Unusual 
 - The main Flow Insider Trades card uses the same full Supabase-backed 6-month row source and company aggregate helper as `/flow/insider-trades`, limited to the top 5 companies so it exactly matches the first five rows of the expanded view. The expanded Insider Trades page initially shows the top 25 and can reveal up to the top 50 with View more companies.
 - Insider company aggregates include trades, purchases, sales, weighted average price, net shares, and net value. The average price is weighted by absolute shares: `sum(abs(shares) * price) / sum(abs(shares))`, skipping zero-share or missing-price rows.
 - `/flow/insider-trades/[ticker]` shows individual trades and includes `shares_owned_after` as the far-right column. Aggregate company tables do not display `shares_owned_after`.
-- User-facing Flow timestamps and dates are formatted in Eastern Time (`ET`) via explicit `America/New_York` formatting; Supabase storage remains UTC/timestamptz or date fields as defined by the cache tables.
+- User-facing Flow timestamps and dates are formatted in Toronto/Eastern time (`ET`) via explicit `America/Toronto` formatting; Supabase storage remains UTC/timestamptz or date fields as defined by the cache tables.
 
 ### Flow follow-up fixes
 
