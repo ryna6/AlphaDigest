@@ -52,7 +52,7 @@ function SummaryCard({ metric }: { metric: any }) {
         ) : null}
       </div>
       <div className="mt-3 flex flex-1 flex-col justify-center">
-        <div className="flex items-baseline gap-8">
+        <div className="flex items-baseline gap-12">
           <p
             className={cn(
               "text-lg font-semibold tabular",
