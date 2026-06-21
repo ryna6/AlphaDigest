@@ -141,6 +141,9 @@ export const marketsPayloadSchema = z.object({
   sourceMeta: z.array(sourceMetaSchema)
 });
 
+export const flowTradeSideSchema = z.enum(["ask", "bid", "unknown"]);
+export const flowTradeSentimentSchema = z.enum(["bullish", "bearish", "unknown"]);
+
 export const darkPoolFlowRowSchema = z.object({
   externalId: z.string(),
   executedAt: z.string(),
@@ -148,7 +151,30 @@ export const darkPoolFlowRowSchema = z.object({
   sector: z.string().nullable(),
   price: z.number().nullable(),
   premium: z.number().nullable(),
+  size: z.number().nullable().optional(),
   volume: z.number().nullable(),
+  avg30Volume: z.number().nullable().optional(),
+  nbboBid: z.number().nullable().optional(),
+  nbboAsk: z.number().nullable().optional(),
+  side: flowTradeSideSchema.optional(),
+  sentiment: flowTradeSentimentSchema.optional(),
+  fetchedAt: z.string().optional()
+});
+
+export const whaleFeedRowSchema = z.object({
+  externalId: z.string(),
+  executedAt: z.string(),
+  ticker: z.string(),
+  sector: z.string().nullable(),
+  price: z.number().nullable(),
+  nbboAsk: z.number().nullable(),
+  nbboBid: z.number().nullable(),
+  side: flowTradeSideSchema,
+  sentiment: flowTradeSentimentSchema,
+  premium: z.number().nullable(),
+  size: z.number().nullable(),
+  volume: z.number().nullable(),
+  avg30Volume: z.number().nullable(),
   fetchedAt: z.string().optional()
 });
 
@@ -180,7 +206,7 @@ export const insiderCompanyAggregateSchema = z.object({
 export const flowPayloadSchema = z.object({
   summary: z.array(metricSchema),
   darkPool: z.array(darkPoolFlowRowSchema),
-  whaleTrades: z.array(z.record(z.string(), z.string())),
+  whaleTrades: z.array(whaleFeedRowSchema),
   insiderTrades: z.array(insiderCompanyAggregateSchema),
   diagnostics: z.object({
     insiderLookbackMonths: z.number().optional(),
@@ -188,7 +214,9 @@ export const flowPayloadSchema = z.object({
     insiderCompaniesAggregated: z.number().optional(),
     insiderSource: z.string().optional(),
     darkPoolWindowDays: z.number().optional(),
-    darkPoolRowsUsed: z.number().optional()
+    darkPoolRowsUsed: z.number().optional(),
+    whaleFeedRowsUsed: z.number().optional(),
+    whaleFeedSource: z.string().optional()
   }).optional(),
   sourceMeta: z.array(sourceMetaSchema),
   notices: z.array(z.string()).default([])
@@ -258,6 +286,7 @@ export type NewsCalendarPayload = z.infer<typeof newsCalendarPayloadSchema>;
 export type TodayPayload = z.infer<typeof todayPayloadSchema>;
 export type MarketsPayload = z.infer<typeof marketsPayloadSchema>;
 export type DarkPoolFlowRow = z.infer<typeof darkPoolFlowRowSchema>;
+export type WhaleFeedRow = z.infer<typeof whaleFeedRowSchema>;
 export type InsiderTradeRow = z.infer<typeof insiderTradeRowSchema>;
 export type InsiderCompanyAggregate = z.infer<typeof insiderCompanyAggregateSchema>;
 export type FlowPayload = z.infer<typeof flowPayloadSchema>;

@@ -216,3 +216,14 @@ Netlify deploys do not automatically apply Supabase migrations. Before enabling 
 ### Verifying Flow refreshes in production
 
 After deploying Flow ingestion changes, manually run the Netlify functions in this order: `refresh-dark-pool`, `refresh-insider-trades`, and `refresh-flow`. Dark-pool logs should show HTTP status, content type, response shape/path, `rawCount`, normalized count, skipped count/reasons, upserted count, pruned count, and `emptyReason` if the provider returns no rows. Insider logs should show pages 0 through 3 (up to 2,000 rows), per-page HTTP status/raw/normalized/6-month filtered counts, duplicates removed, upserted count, content hash, lookback months = 6, any partial refresh warning, and no `ON CONFLICT` duplicate-key batch error. Then open `/api/cache/status` and verify Flow table counts, latest metadata errors, dark-pool `emptyReason`, dark-pool retention/window days, insider duplicate-removal counts, lookback months, latest page counts, Flow insider rows used, aggregate company counts, and `flow:latest` snapshot presence/freshness. Check Supabase row counts for `unusual_whales_dark_pool_flows`, `unusual_whales_insider_trades`, and `dashboard_snapshots` where `key = 'flow:latest'`.
+
+
+### Flow Whale Feed and Dark Pool size fields
+
+Whale Feed replaces the former Whale Trades label in the Flow UI. Netlify runs `refresh-whale-feed` on a conservative weekday schedule (`30 9 * * 1-5` UTC) and calls the Unusual Whales `lit-trades?tab=whale` endpoint server-side only; browser components never call Unusual Whales and never receive `SUPABASE_SERVICE_ROLE_KEY`. Rows are normalized into `unusual_whales_whale_feed` with only `size`, `ticker`, `price`, `nbbo_ask`, `nbbo_bid`, `executed_at`, `premium`, `sector`, `volume`, `avg30_volume`, and internal `external_id`, `side`, `sentiment`, `fetched_at`, `created_at`, `updated_at` fields. The expanded Whale Feed page supports client-side View more in batches of 10 after the server has loaded cached rows.
+
+Dark Pool ingestion now stores `size`, `avg30_volume`, `nbbo_bid`, `nbbo_ask`, `side`, and `sentiment` in addition to existing normalized fields. Flow displays Dark Pool individual trade size from `size`; `volume` is retained as total same-day ticker volume for `% Vol = size / volume`, and `avg30_volume` powers `% 30D Vol = size / avg30_volume`.
+
+When the provider does not send a direct side, both Dark Pool and Whale Feed use a limited NBBO inference: price at or above `(nbbo_bid + nbbo_ask) / 2` is classified as ask-side/bullish, below midpoint is bid-side/bearish, and missing or invalid NBBO data is unknown. This is only a simple buyer-/seller-leaning inference, not guaranteed trade intent.
+
+Apply `supabase/manual/apply-whale-feed-dark-pool-flow.sql` in production Supabase SQL Editor before running `refresh-whale-feed`, `refresh-dark-pool`, and `refresh-flow`; the SQL is idempotent and reloads the PostgREST schema cache.

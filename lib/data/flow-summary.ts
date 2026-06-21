@@ -1,4 +1,4 @@
-import type { DarkPoolFlowRow, InsiderTradeRow } from "./schemas/dashboard";
+import type { DarkPoolFlowRow, InsiderTradeRow, WhaleFeedRow } from "./schemas/dashboard";
 import { DARK_POOL_RETENTION_DAYS } from "./adapters/unusual-whales-dark-pool";
 import type { Metric } from "./schemas/common";
 // Keep a small neutral band around 50% so rounding noise does not overstate direction.
@@ -54,7 +54,7 @@ export function deriveFlowSummary({
 }: {
   darkPool: DarkPoolFlowRow[];
   insiderRows: InsiderTradeRow[];
-  whaleTrades: Array<Record<string, string>>;
+  whaleTrades: WhaleFeedRow[];
 }): FlowSummaryMetric[] {
   const largest = [...darkPool].sort((a, b) => (b.premium ?? 0) - (a.premium ?? 0))[0];
   const whale = whaleTrades[0];
@@ -85,9 +85,10 @@ export function deriveFlowSummary({
     },
     {
       label: "Whale Feed",
-      value: whale ? Object.values(whale).slice(0, 2).join(" • ") : "—",
-      change: whale ? "View whale trades" : undefined,
-      href: whale ? "/flow/whale-trades" : undefined,
+      value: whale ? whale.ticker : "—",
+      subtext: whale ? money(whale.premium) : undefined,
+      change: whale ? "View whale feed" : undefined,
+      href: whale ? "/flow/whale-feed" : undefined,
       tone: "positive"
     }
   ];

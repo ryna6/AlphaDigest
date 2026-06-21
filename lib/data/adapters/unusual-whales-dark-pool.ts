@@ -3,6 +3,7 @@ import { createServerSupabaseClient } from "@/lib/db/supabase";
 import type { DarkPoolFlowRow } from "@/lib/data/schemas/dashboard";
 import { stableHash } from "./unusual-whales-earnings";
 import { payloadContentHash, sourceResult, updateRefreshMetadata } from "./supabase-refresh";
+import { inferTradeSideFromNbbo } from "./nbbo-side";
 
 export const UW_DARK_POOL_URL =
   "https://phx.unusualwhales.com/api/flow/dark-pool?tab=dark-pool&limit=250&min_premium=10000000&min_marketcap=5000000000&min_size_avg30d_vol_perc=0.05&min_size_daily_perc=0.15&min_size=250000&min_price=5&order=Prem&hide_index_etf=true&max_marketcap=100000000000&max_size_daily_perc=0.5&max_size_avg30d_vol_perc=0.25";
@@ -109,21 +110,36 @@ export function normalizeDarkPoolPayload(
       }
       const price = num(value.price ?? value.spot ?? value.underlying_price);
       const premium = num(value.premium ?? value.prem ?? value.notional ?? value.value);
-      const volume = num(value.volume ?? value.vol ?? value.size);
+      const volume = num(value.volume ?? value.vol);
+      const size = num(value.size ?? value.trade_size);
+      const avg30Volume = num(value.avg30_volume ?? value.avg_30_day_volume ?? value.avg30Volume);
+      const nbboBid = num(value.nbbo_bid ?? value.nbboBid);
+      const nbboAsk = num(value.nbbo_ask ?? value.nbboAsk);
+      const inferred = inferTradeSideFromNbbo({ price, nbbo_bid: nbboBid, nbbo_ask: nbboAsk });
       return {
         externalId: stableHash({
           ticker,
           executedAt: executedAt.toISOString(),
           price,
           premium,
-          volume
+          size,
+          volume,
+          avg30Volume,
+          nbboBid,
+          nbboAsk
         }),
         executedAt: executedAt.toISOString(),
         ticker,
         sector: str(value, ["sector", "stock_sector"]),
         price,
         premium,
+        size,
         volume,
+        avg30Volume,
+        nbboBid,
+        nbboAsk,
+        side: inferred.side,
+        sentiment: inferred.sentiment,
         fetchedAt
       };
     })
@@ -147,7 +163,7 @@ export function normalizeDarkPoolPayload(
 export async function readDarkPoolRows(client: SupabaseClient, limit = 50, ticker?: string) {
   let query = client
     .from("unusual_whales_dark_pool_flows")
-    .select("external_id,executed_at,ticker,sector,price,premium,volume,fetched_at")
+    .select("external_id,executed_at,ticker,sector,price,premium,size,volume,avg30_volume,nbbo_bid,nbbo_ask,side,sentiment,fetched_at")
     .order(ticker ? "executed_at" : "premium", { ascending: false })
     .limit(limit);
   if (ticker) query = query.eq("ticker", ticker.toUpperCase());
@@ -160,7 +176,13 @@ export async function readDarkPoolRows(client: SupabaseClient, limit = 50, ticke
     sector: r.sector,
     price: r.price == null ? null : Number(r.price),
     premium: r.premium == null ? null : Number(r.premium),
+    size: r.size == null ? null : Number(r.size),
     volume: r.volume == null ? null : Number(r.volume),
+    avg30Volume: r.avg30_volume == null ? null : Number(r.avg30_volume),
+    nbboBid: r.nbbo_bid == null ? null : Number(r.nbbo_bid),
+    nbboAsk: r.nbbo_ask == null ? null : Number(r.nbbo_ask),
+    side: r.side ?? "unknown",
+    sentiment: r.sentiment ?? "unknown",
     fetchedAt: r.fetched_at
   })) satisfies DarkPoolFlowRow[];
 }
@@ -204,7 +226,13 @@ export async function refreshDarkPoolFlows() {
       sector: r.sector,
       price: r.price,
       premium: r.premium,
+      size: r.size,
       volume: r.volume,
+      avg30_volume: r.avg30Volume,
+      nbbo_bid: r.nbboBid,
+      nbbo_ask: r.nbboAsk,
+      side: r.side,
+      sentiment: r.sentiment,
       fetched_at: r.fetchedAt,
       updated_at: fetchedAt
     }));

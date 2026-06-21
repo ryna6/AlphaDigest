@@ -2,6 +2,7 @@ import Link from "next/link";
 import type { DarkPoolFlowRow } from "@/lib/data/schemas/dashboard";
 import { formatDarkPoolExecutedAt, timestampTitle } from "@/lib/utils/time";
 import { money, number } from "./flow-formatters";
+import { percentOf } from "./flow-trade-formatters";
 
 export function DarkPoolTable({
   rows,
@@ -15,7 +16,7 @@ export function DarkPoolTable({
       <table className="w-full min-w-[760px] border-collapse text-left text-xs">
         <thead className="bg-sidebar text-textMuted">
           <tr>
-            {["Executed", "Ticker", "Sector", "Price", "Premium", "Volume"].map((h) => (
+            {["Time", "Ticker", "Sector", "Price", "Premium", "Size", "% Vol", "% 30D Vol"].map((h) => (
               <th key={h} className="border-b border-borderStrong px-3 py-2 font-medium">
                 {h}
               </th>
@@ -50,7 +51,13 @@ export function DarkPoolTable({
                 {money(r.premium)}
               </td>
               <td className="border-b border-borderStrong/50 px-3 py-2 text-textSecondary">
-                {number(r.volume)}
+                {number(r.size)}
+              </td>
+              <td className="border-b border-borderStrong/50 px-3 py-2 text-textSecondary">
+                {percentOf(r.size, r.volume)}
+              </td>
+              <td className="border-b border-borderStrong/50 px-3 py-2 text-textSecondary">
+                {percentOf(r.size, r.avg30Volume)}
               </td>
             </tr>
           ))}
