@@ -1,6 +1,6 @@
 import { refreshUnusualWhalesFeaturedArticles } from "../../lib/data/adapters/unusual-whales-news";
 
-export const config = { schedule: "20,50 * * * *" };
+export const config = { schedule: "0,30 * * * *" };
 
 function json(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json" } });
