@@ -15,7 +15,7 @@ export default async function InsiderTickerPage({ params }: { params: { ticker: 
     <>
       <PageTitle
         title={`${payload.ticker} Insider Trades`}
-        subtitle="Individual cached insider transactions over the past 3 months."
+        subtitle="Individual cached insider transactions over the past 6 months."
       />
       <Panel>
         <SectionHeader

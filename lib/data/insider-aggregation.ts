@@ -1,18 +1,11 @@
 import type { InsiderCompanyAggregate, InsiderTradeRow } from "./schemas/dashboard";
-
-const PAST_3_MONTHS_DAYS = 92;
-
-function cutoffDateKey(referenceDate = new Date()) {
-  return new Date(referenceDate.getTime() - PAST_3_MONTHS_DAYS * 86_400_000)
-    .toISOString()
-    .slice(0, 10);
-}
+import { getInsiderWindowStartDate } from "./insider-window";
 
 export function aggregateInsiderTrades(
   trades: InsiderTradeRow[],
   referenceDate = new Date()
 ): InsiderCompanyAggregate[] {
-  const cutoff = cutoffDateKey(referenceDate);
+  const cutoff = getInsiderWindowStartDate(undefined, referenceDate);
   const weighted = new Map<string, { shares: number; value: number }>();
   const map = new Map<string, InsiderCompanyAggregate>();
 

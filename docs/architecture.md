@@ -75,7 +75,7 @@ All API responses that use `dashboardJson()` are wrapped with:
 | `/api/uw-earnings`                            | Frontend-safe earnings endpoint around `getCachedUnusualWhalesEarnings()`.              |
 | `/api/flow`                                   | Reads `flow:latest`, source Flow tables, then fixtures.                                 |
 | `/api/ownership`                              | Returns Ownership fixture/snapshot payload.                                             |
-| `/api/flow/insider-trades`                    | Returns top 25 cached insider company aggregates.                                       |
+| `/api/flow/insider-trades`                    | Returns up to top 50 cached insider company aggregates.                                       |
 | `/api/flow/insider-trades/[ticker]`           | Returns cached insider detail rows for one ticker.                                      |
 | `/api/flow-ownership`                         | Legacy redirect to `/api/flow`.                                                         |
 | `/api/economy-sentiment`                      | Returns `economyMock`.                                                                  |
