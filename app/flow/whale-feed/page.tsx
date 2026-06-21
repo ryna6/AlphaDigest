@@ -7,5 +7,5 @@ import { getWhaleTradesPayload } from "@/lib/data/live-dashboard";
 
 export default async function WhaleFeedPage() {
   const { payload } = await getWhaleTradesPayload();
-  return <><PageTitle title="Whale Feed" /><Panel><SectionHeader title="Whale Feed" action={<FlowBackLink href="/flow" />} /><WhaleFeedViewMore rows={payload.rows} /></Panel></>;
+  return <><PageTitle title="Whale Feed" /><Panel><SectionHeader title="Top Whale Trades" action={<FlowBackLink href="/flow" />} /><WhaleFeedViewMore rows={payload.rows} /></Panel></>;
 }

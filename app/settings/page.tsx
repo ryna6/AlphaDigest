@@ -1,5 +1,5 @@
-import { PageTitle } from "@/components/dashboard/page-title";
+import { redirect } from "next/navigation";
 
-export default function SettingsPage() {
-  return <PageTitle title="Settings" />;
+export default function SettingsRedirect() {
+  redirect("/status");
 }
