@@ -647,7 +647,7 @@ async function buildTodayPayload(): Promise<{
           value: putCallValue(putCallResult.response),
           change: putCallSentiment(putCallRatios(putCallResult.response).total),
           changePercent: putCallResult.response?.asOf
-            ? `${putCallResult.response.freshness === "stale" || putCallResult.response.freshness === "previous_close" ? "Latest cached" : "ET"} ${new Intl.DateTimeFormat("en-US", { timeZone: "America/New_York", hour: "numeric", minute: "2-digit", timeZoneName: "short" }).format(new Date(putCallResult.response.asOf)).replace(/E[DS]T$/, "ET")}`
+            ? `${putCallResult.response.freshness === "stale" || putCallResult.response.freshness === "previous_close" ? "Latest cached" : "ET"} ${new Intl.DateTimeFormat("en-US", { timeZone: "America/Toronto", hour: "numeric", minute: "2-digit", timeZoneName: "short" }).format(new Date(putCallResult.response.asOf)).replace(/E[DS]T$/, "ET")}`
             : undefined,
           putCallRatios: putCallRatios(putCallResult.response),
           putCallAsOf: putCallResult.response?.asOf ?? null,

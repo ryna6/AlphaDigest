@@ -47,7 +47,7 @@ export type HeatmapTile = z.infer<typeof heatmapTileSchema>;
 export const apiEnvelopeSchema = <T extends z.ZodTypeAny>(payload: T) =>
   z.object({
     generatedAt: z.string(),
-    timezone: z.literal("America/New_York"),
+    timezone: z.literal("America/Toronto"),
     mode: z.enum(["mock", "live", "cached", "unavailable"]),
     notices: z.array(z.string()),
     payload

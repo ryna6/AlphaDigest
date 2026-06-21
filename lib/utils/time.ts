@@ -1,14 +1,16 @@
+export const TORONTO_TIME_ZONE = "America/Toronto";
+
 const ET_TIME_FORMATTER = new Intl.DateTimeFormat("en-US", {
   hour: "numeric",
   minute: "2-digit",
   hour12: true,
-  timeZone: "America/New_York"
+  timeZone: TORONTO_TIME_ZONE
 });
 
 const ET_DATE_FORMATTER = new Intl.DateTimeFormat("en-US", {
   month: "short",
   day: "numeric",
-  timeZone: "America/New_York"
+  timeZone: TORONTO_TIME_ZONE
 });
 
 
@@ -18,14 +20,14 @@ const ET_COMPACT_DATE_TIME_FORMATTER = new Intl.DateTimeFormat("en-US", {
   hour: "2-digit",
   minute: "2-digit",
   hour12: false,
-  timeZone: "America/New_York"
+  timeZone: TORONTO_TIME_ZONE
 });
 
 const ET_DATE_KEY_FORMATTER = new Intl.DateTimeFormat("en-CA", {
   year: "numeric",
   month: "2-digit",
   day: "2-digit",
-  timeZone: "America/New_York"
+  timeZone: TORONTO_TIME_ZONE
 });
 
 function normalizeTimeParts(value: string) {
@@ -83,7 +85,7 @@ export function formatEtDateTime(timestamp?: string | number | Date | null): str
   const date = timestamp instanceof Date ? timestamp : new Date(timestamp);
   if (!Number.isFinite(date.getTime())) return String(timestamp);
 
-  return `${ET_DATE_FORMATTER.format(date)} • ${formatEtTime(date)}`;
+  return `${ET_DATE_FORMATTER.format(date)}, ${formatEtTime(date)}`;
 }
 
 export function timestampTitle(timestamp?: string | number | Date | null): string | undefined {
@@ -98,3 +100,10 @@ export function formatDarkPoolExecutedAt(timestamp?: string | number | Date | nu
   if (!Number.isFinite(date.getTime())) return String(timestamp);
   return ET_COMPACT_DATE_TIME_FORMATTER.format(date).replace(",", "");
 }
+
+
+export const formatTorontoTime = formatEtTime;
+export const formatTorontoDateKey = formatEtDateKey;
+export const formatTorontoDate = formatEtDate;
+export const formatTorontoDateTime = formatEtDateTime;
+export const formatTorontoCompactDateTime = formatDarkPoolExecutedAt;
