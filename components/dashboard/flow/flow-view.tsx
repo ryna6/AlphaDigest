@@ -8,7 +8,7 @@ import { InfoTooltip } from "@/components/ui/info-tooltip";
 import { cn } from "@/lib/utils/cn";
 import { DarkPoolTable } from "./dark-pool-table";
 import { WhaleFeedTable } from "./whale-feed-table";
-import { money, signed } from "./flow-formatters";
+import { formatStockPrice, money, signed } from "./flow-formatters";
 
 const INSIDER_SENTIMENT_TOOLTIP =
   "This metric compares the total value of insider purchases to total insider trading activity.\n\nWhen the ratio > 0.5, insiders are buying more than they are selling, suggesting more bullish sentiment. When the ratio < 0.5, insiders are selling more than they are buying, suggesting more bearish sentiment.";
@@ -31,7 +31,7 @@ const viewAll = (href: string) => (
 
 function summaryDisplayLabel(label: string) {
   if (label === "Dark Pool Signal") return "Dark Pool Print";
-  if (label === "Whale Feed Signal") return "Whale Feed";
+  if (label === "Whale Feed Signal") return "Whale Feed (7D)";
   return label;
 }
 
@@ -99,6 +99,7 @@ const summaryOrder = [
   "Largest Dark Pool Print (7D)",
   "Largest Dark Pool Print (30D)",
   "Dark Pool Signal",
+  "Whale Feed (7D)",
   "Whale Feed",
   "Whale Feed Signal"
 ];
@@ -175,7 +176,7 @@ export async function FlowView() {
                       {r.saleCount}
                     </td>
                     <td className="border-b border-borderStrong/50 px-3 py-2 text-textSecondary">
-                      {money(r.averageTradePrice)}
+                      {formatStockPrice(r.averageTradePrice)}
                     </td>
                     <td
                       className={cn(

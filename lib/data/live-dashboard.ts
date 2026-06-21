@@ -1035,20 +1035,36 @@ export async function getDarkPoolPayload(
   }
 }
 
-export async function getWhaleTradesPayload(): Promise<{
+export async function getWhaleTradesPayload(ticker?: string): Promise<{
   payload: { rows: FlowPayload["whaleTrades"]; sourceMeta: SourceMeta[]; notices: string[] };
   mode: "mock" | "live";
   notices: string[];
 }> {
+  if (ticker) {
+    const cached = await getSnapshotOrNull<FlowPayload>("flow:latest");
+    if (cached.snapshot && isSnapshotFresh(cached.snapshot) && isUsableFlowSnapshot(cached.snapshot)) {
+      const snapshotRows = cached.snapshot.payload.whaleTrades
+        .filter((r) => r.ticker === ticker.toUpperCase())
+        .sort((a, b) => new Date(b.executedAt).getTime() - new Date(a.executedAt).getTime());
+      if (snapshotRows.length) {
+        return {
+          payload: { rows: snapshotRows, sourceMeta: cached.snapshot.payload.sourceMeta, notices: cached.snapshot.notices },
+          mode: "live",
+          notices: cached.snapshot.notices
+        };
+      }
+    }
+  }
   const supabase = createServerSupabaseClient();
-  if (!supabase.ok) return { payload: { rows: flowMock.whaleTrades, sourceMeta: flowMock.sourceMeta, notices: [supabase.message] }, mode: "mock", notices: [supabase.message] };
+  if (!supabase.ok) return { payload: { rows: ticker ? flowMock.whaleTrades.filter((r) => r.ticker === ticker.toUpperCase()) : flowMock.whaleTrades, sourceMeta: flowMock.sourceMeta, notices: [supabase.message] }, mode: "mock", notices: [supabase.message] };
   try {
-    const rows = await readWhaleFeedRows(supabase.client, 100);
+    const rows = await readWhaleFeedRows(supabase.client, 100, ticker);
     const notices = rows.length ? [] : ["No cached Whale Feed rows found; using fixture fallback."];
-    return { payload: { rows: rows.length ? rows : flowMock.whaleTrades, sourceMeta: flowMock.sourceMeta, notices }, mode: rows.length ? "live" : "mock", notices };
+    const fallbackRows = ticker ? flowMock.whaleTrades.filter((r) => r.ticker === ticker.toUpperCase()) : flowMock.whaleTrades;
+    return { payload: { rows: rows.length ? rows : fallbackRows, sourceMeta: flowMock.sourceMeta, notices }, mode: rows.length ? "live" : "mock", notices };
   } catch (error) {
     const message = error instanceof Error ? error.message : "Unknown Whale Feed cache read error";
-    return { payload: { rows: flowMock.whaleTrades, sourceMeta: flowMock.sourceMeta, notices: [message] }, mode: "mock", notices: [message] };
+    return { payload: { rows: ticker ? flowMock.whaleTrades.filter((r) => r.ticker === ticker.toUpperCase()) : flowMock.whaleTrades, sourceMeta: flowMock.sourceMeta, notices: [message] }, mode: "mock", notices: [message] };
   }
 }
 
@@ -1061,7 +1077,10 @@ export async function buildOwnershipPayload(): Promise<{
 }
 
 function hasRevisedFlowSummary(payload: FlowPayload) {
-  return payload.summary.some((metric) => metric.label === "Insider sentiment");
+  return (
+    payload.summary.some((metric) => metric.label === "Insider sentiment") &&
+    payload.summary.some((metric) => metric.label === "Whale Feed (7D)")
+  );
 }
 
 function isUsableFlowSnapshot(snapshot: { mode: string | null; payload: FlowPayload; metadata?: Record<string, unknown> }) {

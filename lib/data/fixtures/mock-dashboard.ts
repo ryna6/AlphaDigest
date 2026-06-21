@@ -307,11 +307,13 @@ export const flowMock: FlowPayload = {
       purchaseValue: 0,
       saleValue: 0
     },
-    { label: "Largest Dark Pool Print (7D)", value: "SPY", subtext: "$84.2M", href: "/flow/dark-pool/SPY", tone: "neutral" },
+    { label: "Largest Dark Pool Print (7D)", value: "SPY", subtext: "0.3% of 30D Vol", change: "$84.2M", href: "/flow/dark-pool/SPY", tone: "neutral" },
     {
-      label: "Whale Feed",
-      value: "$12.4M TSLA calls",
-      href: "/flow/whale-feed",
+      label: "Whale Feed (7D)",
+      value: "TSLA",
+      subtext: "Bullish",
+      change: "$12.4M",
+      href: "/flow/whale-feed/TSLA",
       tone: "positive"
     }
   ],

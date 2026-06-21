@@ -46,8 +46,15 @@ export function normalizeWhaleFeedPayload(payload: unknown, fetchedAt = new Date
   return { rows: deduped, rawCount: extracted.rows.length, skipped: extracted.rows.length - rows.length, skipReasons, duplicatesRemoved: rows.length - deduped.length, responsePath: extracted.path, emptyReason: extracted.rows.length === 0 ? extracted.reason : deduped.length === 0 ? "all_rows_skipped" : undefined };
 }
 
-export async function readWhaleFeedRows(client: SupabaseClient, limit = 100) {
-  const { data, error } = await client.from("unusual_whales_whale_feed").select("external_id,executed_at,ticker,sector,price,nbbo_ask,nbbo_bid,side,sentiment,premium,size,volume,avg30_volume,fetched_at").order("premium", { ascending: false }).limit(limit);
+export async function readWhaleFeedRows(client: SupabaseClient, limit = 100, ticker?: string) {
+  let query = client
+    .from("unusual_whales_whale_feed")
+    .select("external_id,executed_at,ticker,sector,price,nbbo_ask,nbbo_bid,side,sentiment,premium,size,volume,avg30_volume,fetched_at");
+  if (ticker) query = query.eq("ticker", ticker.toUpperCase());
+  query = ticker
+    ? query.order("executed_at", { ascending: false })
+    : query.order("premium", { ascending: false });
+  const { data, error } = await query.limit(limit);
   if (error) throw new Error(error.message);
   return (data ?? []).map((r: any) => ({ externalId: r.external_id, executedAt: r.executed_at, ticker: r.ticker, sector: r.sector, price: r.price == null ? null : Number(r.price), nbboAsk: r.nbbo_ask == null ? null : Number(r.nbbo_ask), nbboBid: r.nbbo_bid == null ? null : Number(r.nbbo_bid), side: r.side ?? "unknown", sentiment: r.sentiment ?? "unknown", premium: r.premium == null ? null : Number(r.premium), size: r.size == null ? null : Number(r.size), volume: r.volume == null ? null : Number(r.volume), avg30Volume: r.avg30_volume == null ? null : Number(r.avg30_volume), fetchedAt: r.fetched_at })) satisfies WhaleFeedRow[];
 }
