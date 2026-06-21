@@ -21,6 +21,6 @@ export const mainNavigation = [
 ];
 
 export const utilityNavigation = [
-  { label: "Sources & Methodology", href: "/sources-methodology", icon: Database },
-  { label: "Settings", href: "/settings", icon: Settings }
+  { label: "Methodology", href: "/sources-methodology", icon: Database },
+  { label: "Status", href: "/status", icon: Settings }
 ];

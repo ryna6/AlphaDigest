@@ -2,6 +2,8 @@ import { PageTitle } from "@/components/dashboard/page-title";
 import { Panel } from "@/components/ui/panel";
 import { SectionHeader } from "@/components/ui/section-header";
 
+export const metadata = { title: "Methodology" };
+
 const definitions = [
   "Put/call ratio",
   "VIX3M/VIX ratio",
@@ -23,13 +25,13 @@ const definitions = [
 export default function SourcesMethodologyPage() {
   return (
     <>
-      <PageTitle title="Sources & Methodology" />
+      <PageTitle title="Methodology" />
       <Panel>
         <SectionHeader title="Refresh Schedule" />
         <p className="text-sm leading-6 text-textSecondary">
           News should refresh every 5–15 minutes, flow every 15–60 minutes depending on limits, FRED
           macro daily, CBOE after market close, AAII weekly, and Finnhub heatmaps every 1–15 minutes
-          while respecting rate limits. All market display logic uses America/New_York and shows ET
+          while respecting rate limits. All market display logic uses America/Toronto and shows ET
           timestamps.
         </p>
       </Panel>

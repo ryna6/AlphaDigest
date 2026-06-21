@@ -61,7 +61,7 @@ A currently fixture-backed macro dashboard for rates, inflation, labor, sentimen
 
 A placeholder ticker-intelligence area. The explorer page does not perform live lookup yet; direct ticker detail routes are fixture-backed until a live ticker pipeline is added.
 
-### Sources, Methodology, and Settings
+### Methodology and Status
 
 Utility pages list intended source coverage and environment variable names. Secret values are never shown in the browser. The desktop sidebar and mobile primary-tab bar remain available while scrolling.
 

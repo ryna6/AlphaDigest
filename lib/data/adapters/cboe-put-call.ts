@@ -5,7 +5,7 @@ export const CBOE_PUT_CALL_SOURCE_URL =
 export const CBOE_DAILY_PUT_CALL_SOURCE_URL =
   "https://www.cboe.com/markets/us/options/market-statistics/daily/";
 export const CBOE_SOURCE_TIMEZONE = "America/Chicago";
-export const CBOE_DISPLAY_TIMEZONE = "America/New_York";
+export const CBOE_DISPLAY_TIMEZONE = "America/Toronto";
 const FRESH_CACHE_MS = 35 * 60 * 1000;
 
 type PutCallRatios = { equity: number | null; index: number | null; total: number | null };

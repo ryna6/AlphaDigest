@@ -234,7 +234,7 @@ Flow ingestion preserves the GitHub + Netlify + Supabase Cloud architecture: Net
 
 Flow now has expanded section routes for `/flow/dark-pool`, `/flow/whale-feed`, and `/flow/insider-trades`, plus ticker drilldowns for insider trades and dark-pool prints. These pages continue to read through server-side dashboard loaders/API paths backed by Supabase snapshots/source tables and fixture fallback. Dark Pool and Insider Trades data remain server-side cached; Whale Feed reads its Supabase source table/snapshot when rows exist and only falls back to fixtures when no real rows are available.
 
-Dashboard-facing Flow date/time rendering uses explicit Eastern Time (`America/New_York`) helpers and labels values as `ET`. This is a presentation-layer choice only; Supabase timestamp columns continue to store UTC/timestamptz values, and Netlify/platform logs can remain UTC.
+Dashboard-facing Flow date/time rendering uses explicit Eastern Time (`America/Toronto`) helpers and labels values as `ET`. This is a presentation-layer choice only; Supabase timestamp columns continue to store UTC/timestamptz values, and Netlify/platform logs can remain UTC.
 
 ### Flow mock snapshot bypass
 
