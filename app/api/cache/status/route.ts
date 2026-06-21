@@ -59,6 +59,10 @@ function flowDiagnostics(counts: any[], metadata: any[], sizes: any[]) {
     metadata: { darkPool: darkPoolMetadata, insiderTrades: insiderMetadata, flowLatest: flowSnapshotMetadata },
     latestError: darkPoolMetadata?.error ?? insiderMetadata?.error ?? flowSnapshotMetadata?.error ?? null,
     darkPoolEmptyReason: darkPoolMetadata?.meta?.emptyReason ?? null,
+    insiderLookbackMonths: insiderMetadata?.meta?.lookbackMonths ?? null,
+    insiderLatestRowCount: insiderCount?.count ?? null,
+    insiderLatestMetadata: insiderMetadata ?? null,
+    insiderLatestPageCounts: insiderMetadata?.meta?.pageCounts ?? [],
     insiderDuplicatesRemoved: insiderMetadata?.meta?.duplicatesRemoved ?? null,
     insiderDuplicateIdsSample: insiderMetadata?.meta?.duplicateIds ?? [],
     flowLatestSnapshot: flowSnapshot
