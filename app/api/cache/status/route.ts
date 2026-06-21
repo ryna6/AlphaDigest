@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import { createServerSupabaseClient } from "@/lib/db/supabase";
 import { listDashboardSnapshotStatus } from "@/lib/data/adapters/dashboard-snapshots";
+import { getNetlifyFunctionRuns } from "@/lib/status/netlify-logs";
+import { STATUS_JOBS } from "@/lib/status/jobs";
 
 export const dynamic = "force-dynamic";
 
@@ -97,6 +99,7 @@ function flowDiagnostics(counts: any[], metadata: any[], sizes: any[]) {
 
 export async function GET() {
   const generatedAt = new Date().toISOString();
+  const netlify = await getNetlifyFunctionRuns(Array.from(new Set(STATUS_JOBS.map((job) => job.functionName).filter((name) => name !== "TBD"))));
   const supabase = createServerSupabaseClient();
   const snapshots = await listDashboardSnapshotStatus();
   const snapshotKeys = snapshots.snapshots.map((snapshot: { key?: string }) => snapshot.key).filter((key): key is string => typeof key === "string");
@@ -114,7 +117,8 @@ export async function GET() {
       tableCounts: [],
       columnChecks: [],
       metadata: [],
-      latestMetadataErrors: []
+      latestMetadataErrors: [],
+      netlifyLogs: netlify.diagnostics
     });
   }
 
@@ -150,6 +154,7 @@ export async function GET() {
     metadata: metadataResult.error ? [] : metadataRows,
     latestMetadataErrors,
     flow,
-    metadataError: metadataResult.error?.message
+    metadataError: metadataResult.error?.message,
+    netlifyLogs: netlify.diagnostics
   });
 }
