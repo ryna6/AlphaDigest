@@ -821,7 +821,10 @@ export async function refreshDashboardSnapshot(
     ttlSeconds: entry.ttlSeconds,
     mode: result.mode,
     notices: result.notices,
-    metadata: { refreshedBy: "netlify-function", ...(key === "flow:latest" ? (result.payload as FlowPayload).diagnostics ?? {} : {}) }
+    metadata: {
+      refreshedBy: "netlify-function",
+      ...(key === "flow:latest" ? ((result.payload as FlowPayload).diagnostics ?? {}) : {})
+    }
   });
   const supabase = createServerSupabaseClient();
   if (supabase.ok) {
@@ -836,7 +839,7 @@ export async function refreshDashboardSnapshot(
         notices: result.notices,
         persisted: write.persisted ?? false,
         refreshedBy: "netlify-function",
-        ...(key === "flow:latest" ? (result.payload as FlowPayload).diagnostics ?? {} : {})
+        ...(key === "flow:latest" ? ((result.payload as FlowPayload).diagnostics ?? {}) : {})
       }
     }).catch((error) =>
       console.warn("dashboard_snapshot_metadata_write_failed", {
@@ -944,9 +947,12 @@ export async function buildFlowPayload(): Promise<{
     readSection("Whale Feed", () => readWhaleFeedRows(supabase.client, 100))
   ]);
 
-  if (!darkPoolRows.length) notices.push("No cached Dark Pool rows found; using section fixture fallback.");
-  if (!insiderRows.length) notices.push("No cached Insider Trades rows found; using section fixture fallback.");
-  if (!whaleFeedRows.length) notices.push("No cached Whale Feed rows found; using section fixture fallback.");
+  if (!darkPoolRows.length)
+    notices.push("No cached Dark Pool rows found; using section fixture fallback.");
+  if (!insiderRows.length)
+    notices.push("No cached Insider Trades rows found; using section fixture fallback.");
+  if (!whaleFeedRows.length)
+    notices.push("No cached Whale Feed rows found; using section fixture fallback.");
 
   if (!darkPoolRows.length && !insiderRows.length && !whaleFeedRows.length) {
     return {
@@ -959,7 +965,10 @@ export async function buildFlowPayload(): Promise<{
   const insiderCompanies = aggregateInsiderTrades(insiderRows);
   const darkPool = darkPoolRows.length ? darkPoolRows : flowMock.darkPool;
   const whaleTrades = whaleFeedRows.length ? whaleFeedRows : flowMock.whaleTrades;
-  const insiderTrades = (insiderCompanies.length ? insiderCompanies : flowMock.insiderTrades).slice(0, 5);
+  const insiderTrades = (insiderCompanies.length ? insiderCompanies : flowMock.insiderTrades).slice(
+    0,
+    5
+  );
 
   return {
     payload: {
@@ -1042,13 +1051,21 @@ export async function getWhaleTradesPayload(ticker?: string): Promise<{
 }> {
   if (ticker) {
     const cached = await getSnapshotOrNull<FlowPayload>("flow:latest");
-    if (cached.snapshot && isSnapshotFresh(cached.snapshot) && isUsableFlowSnapshot(cached.snapshot)) {
+    if (
+      cached.snapshot &&
+      isSnapshotFresh(cached.snapshot) &&
+      isUsableFlowSnapshot(cached.snapshot)
+    ) {
       const snapshotRows = cached.snapshot.payload.whaleTrades
         .filter((r) => r.ticker === ticker.toUpperCase())
         .sort((a, b) => new Date(b.executedAt).getTime() - new Date(a.executedAt).getTime());
       if (snapshotRows.length) {
         return {
-          payload: { rows: snapshotRows, sourceMeta: cached.snapshot.payload.sourceMeta, notices: cached.snapshot.notices },
+          payload: {
+            rows: snapshotRows,
+            sourceMeta: cached.snapshot.payload.sourceMeta,
+            notices: cached.snapshot.notices
+          },
           mode: "live",
           notices: cached.snapshot.notices
         };
@@ -1056,15 +1073,46 @@ export async function getWhaleTradesPayload(ticker?: string): Promise<{
     }
   }
   const supabase = createServerSupabaseClient();
-  if (!supabase.ok) return { payload: { rows: ticker ? flowMock.whaleTrades.filter((r) => r.ticker === ticker.toUpperCase()) : flowMock.whaleTrades, sourceMeta: flowMock.sourceMeta, notices: [supabase.message] }, mode: "mock", notices: [supabase.message] };
+  if (!supabase.ok)
+    return {
+      payload: {
+        rows: ticker
+          ? flowMock.whaleTrades.filter((r) => r.ticker === ticker.toUpperCase())
+          : flowMock.whaleTrades,
+        sourceMeta: flowMock.sourceMeta,
+        notices: [supabase.message]
+      },
+      mode: "mock",
+      notices: [supabase.message]
+    };
   try {
     const rows = await readWhaleFeedRows(supabase.client, 100, ticker);
     const notices = rows.length ? [] : ["No cached Whale Feed rows found; using fixture fallback."];
-    const fallbackRows = ticker ? flowMock.whaleTrades.filter((r) => r.ticker === ticker.toUpperCase()) : flowMock.whaleTrades;
-    return { payload: { rows: rows.length ? rows : fallbackRows, sourceMeta: flowMock.sourceMeta, notices }, mode: rows.length ? "live" : "mock", notices };
+    const fallbackRows = ticker
+      ? flowMock.whaleTrades.filter((r) => r.ticker === ticker.toUpperCase())
+      : flowMock.whaleTrades;
+    return {
+      payload: {
+        rows: rows.length ? rows : fallbackRows,
+        sourceMeta: flowMock.sourceMeta,
+        notices
+      },
+      mode: rows.length ? "live" : "mock",
+      notices
+    };
   } catch (error) {
     const message = error instanceof Error ? error.message : "Unknown Whale Feed cache read error";
-    return { payload: { rows: ticker ? flowMock.whaleTrades.filter((r) => r.ticker === ticker.toUpperCase()) : flowMock.whaleTrades, sourceMeta: flowMock.sourceMeta, notices: [message] }, mode: "mock", notices: [message] };
+    return {
+      payload: {
+        rows: ticker
+          ? flowMock.whaleTrades.filter((r) => r.ticker === ticker.toUpperCase())
+          : flowMock.whaleTrades,
+        sourceMeta: flowMock.sourceMeta,
+        notices: [message]
+      },
+      mode: "mock",
+      notices: [message]
+    };
   }
 }
 
@@ -1083,12 +1131,31 @@ function hasRevisedFlowSummary(payload: FlowPayload) {
   );
 }
 
-function isUsableFlowSnapshot(snapshot: { mode: string | null; payload: FlowPayload; metadata?: Record<string, unknown> }) {
+function hasExplanatoryDarkPool30dVolumeSubtext(payload: FlowPayload) {
+  const darkPoolMetric = payload.summary.find(
+    (metric) => metric.label === `Largest Dark Pool Print (${DARK_POOL_RETENTION_DAYS}D)`
+  );
+  return (
+    !darkPoolMetric?.subtext ||
+    darkPoolMetric.subtext === "—" ||
+    darkPoolMetric.subtext.endsWith(" of 30D Vol")
+  );
+}
+
+function isUsableFlowSnapshot(snapshot: {
+  mode: string | null;
+  payload: FlowPayload;
+  metadata?: Record<string, unknown>;
+}) {
   const metadata = snapshot.metadata ?? {};
-  const snapshotRows = typeof metadata.insiderRowsUsed === "number" ? metadata.insiderRowsUsed : snapshot.payload.diagnostics?.insiderRowsUsed;
+  const snapshotRows =
+    typeof metadata.insiderRowsUsed === "number"
+      ? metadata.insiderRowsUsed
+      : snapshot.payload.diagnostics?.insiderRowsUsed;
   return (
     snapshot.mode !== "mock" &&
     hasRevisedFlowSummary(snapshot.payload) &&
+    hasExplanatoryDarkPool30dVolumeSubtext(snapshot.payload) &&
     snapshot.payload.diagnostics?.insiderLookbackMonths === INSIDER_TRADES_LOOKBACK_MONTHS &&
     snapshot.payload.diagnostics?.insiderSource === "supabase/source-table" &&
     snapshot.payload.diagnostics?.whaleFeedSource !== undefined &&
@@ -1122,6 +1189,13 @@ export async function getFlowPayload(): Promise<{
       key,
       generatedAt: cached.snapshot.generatedAt,
       reason: "Flow snapshot is missing revised Insider sentiment summary fields; rebuilding."
+    });
+  } else if (cached.snapshot && !hasExplanatoryDarkPool30dVolumeSubtext(cached.snapshot.payload)) {
+    console.warn("dashboard_snapshot_flow_summary_bypassed", {
+      key,
+      generatedAt: cached.snapshot.generatedAt,
+      reason:
+        "Flow snapshot is missing explanatory Largest Dark Pool Print 30D volume subtext; rebuilding."
     });
   } else if (cached.message) {
     console.warn("dashboard_snapshot_read", { key, message: cached.message });
