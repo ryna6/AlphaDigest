@@ -125,7 +125,7 @@ Important behavior:
 - Contains Flow Summary, Dark Pool, Whale Trades, and Insider Trades.
 - Flow Summary replaces Big Money Flow Summary and no longer includes Top 13F accumulation because 13F data moved to Ownership.
 - Dark Pool is Supabase-backed from the provided Unusual Whales dark-pool endpoint, refreshed once daily, expected to be delayed by roughly two days, and retained for 7 days.
-- Insider Trades is Supabase-backed from the provided Unusual Whales insider endpoint, filtered to the past 3 months, aggregated by ticker, with top 5 on the main Flow tab, top 25 at `/flow/insider-trades`, and detail rows at `/flow/insider-trades/[ticker]`.
+- Insider Trades is Supabase-backed from up to four server-side pages of the provided Unusual Whales insider endpoint, filtered to the past 6 months, aggregated by ticker, with top 5 on the main Flow tab, initial top 25 and View more up to top 50 at `/flow/insider-trades`, and detail rows at `/flow/insider-trades/[ticker]`.
 - Whale Trades remains fixture-backed because no live endpoint was provided.
 
 ## Ownership tab
@@ -136,12 +136,12 @@ Important behavior:
 
 #### Flow cache behavior
 
-The Flow tab reads cached Supabase rows/snapshots first and never calls Unusual Whales from browser components. Dark Pool keeps up to 7 days of normalized large-print rows and may show zero fresh rows when the provider is delayed, the plan returns an empty/paywalled response, filters match nothing, or the response shape changes; `/api/cache/status` and Netlify logs expose a safe `emptyReason` instead of treating unexplained zero rows as a silent success. Insider Trades are filtered to the past 3 months, deduped before Supabase upsert, and keyed with stable deterministic IDs. `flow:latest` can be written with notices when one Flow source succeeds and another fails, but refresh logs identify partial snapshots versus fully fresh snapshots.
+The Flow tab reads cached Supabase rows/snapshots first and never calls Unusual Whales from browser components. Dark Pool keeps up to 7 days of normalized large-print rows and may show zero fresh rows when the provider is delayed, the plan returns an empty/paywalled response, filters match nothing, or the response shape changes; `/api/cache/status` and Netlify logs expose a safe `emptyReason` instead of treating unexplained zero rows as a silent success. Insider Trades are filtered to the past 6 months, deduped before Supabase upsert, and keyed with stable deterministic IDs. `flow:latest` can be written with notices when one Flow source succeeds and another fails, but refresh logs identify partial snapshots versus fully fresh snapshots.
 
 ### Flow revision details
 
 - `/flow` now exposes View All links for Insider Trades, Dark Pool, and Whale Trades. Expanded section pages use the same Back button pattern as News pages: `/flow/insider-trades`, `/flow/dark-pool`, and `/flow/whale-trades` return to `/flow`, while ticker detail pages return to their parent section.
-- The main Flow Insider Trades card uses the same company aggregate model as `/flow/insider-trades`, limited to the top 5 companies. The expanded Insider Trades page shows the top 25 companies.
+- The main Flow Insider Trades card uses the same company aggregate model as `/flow/insider-trades`, limited to the top 5 companies. The expanded Insider Trades page initially shows the top 25 and can reveal up to the top 50 with View more companies.
 - Insider company aggregates include trades, purchases, sales, weighted average price, net shares, and net value. The average price is weighted by absolute shares: `sum(abs(shares) * price) / sum(abs(shares))`, skipping zero-share or missing-price rows.
 - `/flow/insider-trades/[ticker]` shows individual trades and includes `shares_owned_after` as the far-right column. Aggregate company tables do not display `shares_owned_after`.
 - User-facing Flow timestamps and dates are formatted in Eastern Time (`ET`) via explicit `America/New_York` formatting; Supabase storage remains UTC/timestamptz or date fields as defined by the cache tables.
@@ -158,4 +158,6 @@ The Flow tab reads cached Supabase rows/snapshots first and never calls Unusual 
 - Flow Summary now uses three responsive mini cards: Insider sentiment, Dark Pool Print, and Whale Feed. Summary cards link only when a reliable drilldown exists, such as Dark Pool ticker detail, Whale Trades expanded view, or Insider Trades expanded view.
 - Dark Pool timestamps display in Eastern Time as `MM/DD HH:mm` (for example `06/15 16:00`) on the card, expanded page, and ticker detail views.
 - `/flow/dark-pool/[ticker]` is ticker-level: it shows all available same-ticker dark-pool prints from the cache/source rows, sorted by most recent `executed_at` first, with the Back action returning to `/flow/dark-pool`.
-- `Top insider activity` was replaced with `Insider sentiment`. Insider Sentiment uses `purchaseValue / saleValue`, where sale value is absolute sale value. The UI labels ratios `>= 1.05` Bullish, `<= 0.95` Bearish, and the neutral band between those values Neutral, with matching color and an info tooltip.
+- `Top insider activity` was replaced with `Insider sentiment`. Insider Sentiment uses `purchaseValue / (purchaseValue + saleValue)`, where sale value is absolute sale value. The UI labels ratios `> 0.505` Bullish, `< 0.495` Bearish, and the small documented neutral band around 0.5 Neutral, with matching color and an info tooltip.
+
+- Flow card subtexts were cleaned up for Insider Trades, Dark Pool, and Whale Trades; technical fallback/provider notices continue to use existing mode/notices patterns.

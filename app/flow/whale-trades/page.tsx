@@ -11,7 +11,6 @@ export default async function WhaleTradesPage() {
     <>
       <PageTitle
         title="Whale Trades"
-        subtitle="Fixture-backed placeholder until a live endpoint is added."
       />
       <Panel>
         <SectionHeader title="Whale Trades" action={<FlowBackLink href="/flow" />} />
