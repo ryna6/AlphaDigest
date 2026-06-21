@@ -38,7 +38,7 @@ export default async function StatusPage() {
             </div>
           ))}
         </div>
-        <p className="mb-3 text-xs text-textSecondary">All times are shown in Eastern Standard Time (EST).</p>
+        <p className="mb-3 text-xs text-textSecondary">All times are shown in Eastern Standard Time.</p>
         <div className="overflow-x-auto">
           <table className="w-full min-w-[920px] border-collapse text-left text-sm">
             <thead className="border-b border-borderStrong text-xs uppercase tracking-wide text-textSecondary">
