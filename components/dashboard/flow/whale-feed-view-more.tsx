@@ -21,13 +21,15 @@ export function WhaleFeedViewMore({
     <div className="space-y-3">
       <WhaleFeedTable rows={shown} />
       {visible < rows.length ? (
-        <button
-          type="button"
-          onClick={() => setVisible((v) => Math.min(v + step, rows.length))}
-          className="border border-borderStrong px-3 py-2 text-xs text-textSecondary hover:border-accentBlue/50 hover:text-textPrimary"
-        >
-          View more
-        </button>
+        <div className="flex justify-center">
+          <button
+            type="button"
+            onClick={() => setVisible((v) => Math.min(v + step, rows.length))}
+            className="border border-borderStrong px-3 py-2 text-xs text-textSecondary hover:border-accentBlue/50 hover:text-textPrimary"
+          >
+            View more
+          </button>
+        </div>
       ) : null}
     </div>
   );
