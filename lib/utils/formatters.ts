@@ -29,6 +29,16 @@ export function formatCurrency(value: number | null | undefined) {
   }).format(value);
 }
 
+export function formatStockPrice(value: number | null | undefined) {
+  if (value === null || value === undefined || !Number.isFinite(value)) return "—";
+  return new Intl.NumberFormat("en-US", {
+    style: "currency",
+    currency: "USD",
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2
+  }).format(value);
+}
+
 export function formatDateShort(date: string | Date | null | undefined) {
   if (!date) return "—";
   const value = typeof date === "string" ? new Date(`${date}T00:00:00Z`) : date;

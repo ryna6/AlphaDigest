@@ -6,7 +6,7 @@ import { FlowBackLink } from "@/components/dashboard/flow/back-link";
 import { getInsiderTradeDetailPayload } from "@/lib/data/live-dashboard";
 import { cn } from "@/lib/utils/cn";
 import { formatEtDate, timestampTitle } from "@/lib/utils/time";
-import { money, number, signed } from "@/components/dashboard/flow/flow-formatters";
+import { formatStockPrice, money, number, signed } from "@/components/dashboard/flow/flow-formatters";
 
 export default async function InsiderTickerPage({ params }: { params: { ticker: string } }) {
   const { payload } = await getInsiderTradeDetailPayload(params.ticker);
@@ -113,7 +113,7 @@ export default async function InsiderTickerPage({ params }: { params: { ticker: 
                     {signed(t.amount)}
                   </td>
                   <td className="border-b border-borderStrong/50 px-3 py-2 text-textSecondary">
-                    {money(t.price)}
+                    {formatStockPrice(t.price)}
                   </td>
                   <td
                     className={cn(
