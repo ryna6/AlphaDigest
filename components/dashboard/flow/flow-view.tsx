@@ -10,7 +10,7 @@ import { DarkPoolTable } from "./dark-pool-table";
 import { money, signed } from "./flow-formatters";
 
 const INSIDER_SENTIMENT_TOOLTIP =
-  "This metric compares the total value of insider purchases to total insider trading activity.";
+  "This metric compares the total value of insider purchases to total insider trading activity.\n\nWhen the ratio > 0.5, insiders are buying more than they are selling, suggesting more bullish sentiment. When the ratio < 0.5, insiders are selling more than they are buying, suggesting more bearish sentiment.";
 
 const toneClass = {
   positive: "text-positive",
@@ -52,26 +52,28 @@ function SummaryCard({ metric }: { metric: any }) {
         ) : null}
       </div>
       <div className="mt-3 flex flex-1 flex-col justify-center">
-        <p
-          className={cn(
-            "text-lg font-semibold tabular",
-            displayLabel === "Insider sentiment"
-              ? toneClass[metric.tone as keyof typeof toneClass]
-              : "text-textPrimary"
-          )}
-        >
-          {metric.value}
-        </p>
-        {metric.subtext ? (
+        <div className="flex items-baseline gap-4">
           <p
             className={cn(
-              "mt-1 text-xs font-medium",
-              toneClass[metric.tone as keyof typeof toneClass]
+              "text-lg font-semibold tabular",
+              displayLabel === "Insider sentiment"
+                ? toneClass[metric.tone as keyof typeof toneClass]
+                : "text-textPrimary"
             )}
           >
-            {metric.subtext}
+            {metric.value}
           </p>
-        ) : null}
+          {metric.subtext ? (
+            <p
+              className={cn(
+                "text-xs font-medium",
+                toneClass[metric.tone as keyof typeof toneClass]
+              )}
+            >
+              {metric.subtext}
+            </p>
+          ) : null}
+        </div>
         {metric.change ? (
           <p className="mt-1 line-clamp-2 text-xs text-textSecondary">{metric.change}</p>
         ) : null}
@@ -127,7 +129,6 @@ export async function FlowView() {
         <Panel>
           <SectionHeader
             title="Insider Trades"
-            subtitle="Top 5 companies by insider trade count over the past 3 months."
             action={viewAll("/flow/insider-trades")}
           />
           <div className="scrollbar-thin overflow-auto rounded-none border border-borderStrong">
@@ -206,7 +207,6 @@ export async function FlowView() {
         <Panel>
           <SectionHeader
             title="Dark Pool"
-            subtitle="Large unusual prints, sorted by premium; delayed data is expected on the current UW plan."
             action={viewAll("/flow/dark-pool")}
           />
           <DarkPoolTable rows={payload.darkPool.slice(0, 5)} />
@@ -214,7 +214,6 @@ export async function FlowView() {
         <Panel>
           <SectionHeader
             title="Whale Trades"
-            subtitle="Fixture-backed placeholder until a live endpoint is added."
             action={viewAll("/flow/whale-trades")}
           />
           <DataTable rows={payload.whaleTrades} />

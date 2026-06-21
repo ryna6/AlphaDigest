@@ -1,7 +1,8 @@
 import type { DarkPoolFlowRow, InsiderTradeRow } from "./schemas/dashboard";
 import type { Metric } from "./schemas/common";
-const NEUTRAL_LOW = 0.95;
-const NEUTRAL_HIGH = 1.05;
+// Keep a small neutral band around 50% so rounding noise does not overstate direction.
+const NEUTRAL_LOW = 0.495;
+const NEUTRAL_HIGH = 0.505;
 
 export type FlowSummaryMetric = Metric & {
   href?: string;
@@ -31,17 +32,16 @@ export function deriveInsiderSentiment(trades: InsiderTradeRow[]) {
     if (trade.transactionCode === "P" && trade.amount > 0) purchaseValue += value;
     if (trade.transactionCode === "S") saleValue += value;
   }
-  const ratio = saleValue > 0 ? purchaseValue / saleValue : null;
+  const denominator = purchaseValue + saleValue;
+  const ratio = denominator > 0 ? purchaseValue / denominator : null;
   const label =
-    saleValue === 0 && purchaseValue > 0
-      ? "Bullish"
-      : ratio === null
-        ? "Neutral"
-        : ratio >= NEUTRAL_HIGH
-          ? "Bullish"
-          : ratio <= NEUTRAL_LOW
-            ? "Bearish"
-            : "Neutral";
+    ratio === null
+      ? "Neutral"
+      : ratio > NEUTRAL_HIGH
+        ? "Bullish"
+        : ratio < NEUTRAL_LOW
+          ? "Bearish"
+          : "Neutral";
   const tone = label === "Bullish" ? "positive" : label === "Bearish" ? "negative" : "neutral";
   return { purchaseValue, saleValue, ratio, label, tone } as const;
 }
@@ -61,12 +61,7 @@ export function deriveFlowSummary({
   return [
     {
       label: "Insider sentiment",
-      value:
-        sentiment.ratio === null
-          ? sentiment.purchaseValue > 0 && sentiment.saleValue === 0
-            ? "All buys"
-            : "—"
-          : `${sentiment.ratio.toFixed(2)}x`,
+      value: sentiment.ratio === null ? "—" : `${Math.round(sentiment.ratio * 100)}%`,
       subtext: sentiment.label,
       change: `Purchases ${money(sentiment.purchaseValue)} / Sales ${money(sentiment.saleValue)}`,
       href: "/flow/insider-trades",
