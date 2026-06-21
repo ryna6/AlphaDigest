@@ -29,7 +29,7 @@ export default async function StatusPage() {
       <PageTitle title="Status" subtitle="Job and component health for cached dashboard data." />
       <Panel>
         <SectionHeader title="Component Status" />
-        <div className="mb-3 flex flex-wrap items-center justify-center gap-x-22 gap-y-3 text-sm text-textSecondary">
+        <div className="mb-3 flex flex-wrap items-center justify-center gap-x-20 gap-y-3 text-sm text-textSecondary">
           {legend.map((item) => (
             <div key={item.status} className="flex items-center gap-2 whitespace-nowrap">
               <span className={`h-2.5 w-2.5 rounded-full ${statusDot[item.status]}`} aria-hidden="true" />
