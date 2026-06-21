@@ -926,7 +926,7 @@ export async function buildFlowPayload(): Promise<{
   try {
     const [darkPool, insiderRows] = await Promise.all([
       readDarkPoolRows(supabase.client, 25),
-      readInsiderTradeRows(supabase.client, undefined, 500)
+      readInsiderTradeRows(supabase.client, undefined, 2000)
     ]);
     if (!darkPool.length && !insiderRows.length) {
       return {
@@ -1126,7 +1126,7 @@ export async function getInsiderTradesPayload(
       notices: [supabase.message]
     };
   try {
-    const rows = await readInsiderTradeRows(supabase.client, undefined, 1000);
+    const rows = await readInsiderTradeRows(supabase.client, undefined, 2000);
     const companies = aggregateInsiderTrades(rows).slice(0, limit);
     return {
       payload: {
@@ -1169,7 +1169,7 @@ export async function getInsiderTradeDetailPayload(
       notices: [supabase.message]
     };
   try {
-    const trades = await readInsiderTradeRows(supabase.client, symbol, 500);
+    const trades = await readInsiderTradeRows(supabase.client, symbol, 2000);
     const aggregate = aggregateInsiderTrades(trades)[0] ?? null;
     return {
       payload: {
