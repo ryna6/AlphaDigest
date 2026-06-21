@@ -12,7 +12,8 @@ const EXPECTED_TABLE_COLUMNS = {
   unusual_whales_featured_articles: ["id", "slug", "title", "published_at", "created_at_source", "source_url", "content_hash", "fetched_at", "updated_at"],
   unusual_whales_news_feed: ["id", "headline", "event_time", "source_url", "content_hash", "fetched_at", "updated_at"],
   put_call_observations: ["external_id", "ratio_type", "value", "equity_ratio", "index_ratio", "total_ratio", "market_date", "as_of_eastern", "source_url", "fetched_at", "updated_at"],
-  unusual_whales_dark_pool_flows: ["external_id", "executed_at", "ticker", "sector", "price", "premium", "volume", "fetched_at", "updated_at"],
+  unusual_whales_dark_pool_flows: ["external_id", "executed_at", "ticker", "sector", "price", "premium", "size", "volume", "avg30_volume", "nbbo_bid", "nbbo_ask", "side", "sentiment", "fetched_at", "updated_at"],
+  unusual_whales_whale_feed: ["external_id", "executed_at", "ticker", "sector", "price", "nbbo_ask", "nbbo_bid", "side", "sentiment", "premium", "size", "volume", "avg30_volume", "fetched_at", "created_at", "updated_at"],
   unusual_whales_insider_trades: ["external_id", "ticker", "sector", "amount", "transaction_date", "price", "owner_name", "officer_title", "transaction_code", "shares_owned_after", "fetched_at", "updated_at"],
   dashboard_snapshots: ["key", "payload", "mode", "notices", "generated_at", "expires_at", "source_hash", "metadata"]
 } as const;
@@ -50,17 +51,26 @@ function latestMetadataFor(metadata: any[], source: string) {
 function flowDiagnostics(counts: any[], metadata: any[], sizes: any[]) {
   const darkPoolCount = counts.find((row) => row.table === "unusual_whales_dark_pool_flows") ?? null;
   const insiderCount = counts.find((row) => row.table === "unusual_whales_insider_trades") ?? null;
+  const whaleFeedCount = counts.find((row) => row.table === "unusual_whales_whale_feed") ?? null;
   const darkPoolMetadata = latestMetadataFor(metadata, "unusual_whales_dark_pool_flows");
   const insiderMetadata = latestMetadataFor(metadata, "unusual_whales_insider_trades");
+  const whaleFeedMetadata = latestMetadataFor(metadata, "unusual_whales_whale_feed");
   const flowSnapshotMetadata = latestMetadataFor(metadata, "flow:latest");
   const flowSnapshot = sizes.find((row) => row.key === "flow:latest") ?? null;
   return {
-    tableCounts: { darkPool: darkPoolCount, insiderTrades: insiderCount },
-    metadata: { darkPool: darkPoolMetadata, insiderTrades: insiderMetadata, flowLatest: flowSnapshotMetadata },
-    latestError: darkPoolMetadata?.error ?? insiderMetadata?.error ?? flowSnapshotMetadata?.error ?? null,
+    tableCounts: { darkPool: darkPoolCount, insiderTrades: insiderCount, whaleFeed: whaleFeedCount },
+    metadata: { darkPool: darkPoolMetadata, insiderTrades: insiderMetadata, whaleFeed: whaleFeedMetadata, flowLatest: flowSnapshotMetadata },
+    latestError: darkPoolMetadata?.error ?? insiderMetadata?.error ?? whaleFeedMetadata?.error ?? flowSnapshotMetadata?.error ?? null,
     darkPoolEmptyReason: darkPoolMetadata?.meta?.emptyReason ?? null,
     darkPoolWindowDays: darkPoolMetadata?.meta?.retentionDays ?? flowSnapshot?.metadata?.darkPoolWindowDays ?? null,
     darkPoolLatestRowCount: darkPoolCount?.count ?? null,
+    darkPoolSchemaFields: ["size", "avg30_volume", "nbbo_bid", "nbbo_ask", "side", "sentiment"],
+    whaleFeedLatestRowCount: whaleFeedCount?.count ?? null,
+    whaleFeedLatestMetadata: whaleFeedMetadata ?? null,
+    whaleFeedLatestError: whaleFeedMetadata?.error ?? null,
+    whaleFeedFetchedCount: whaleFeedMetadata?.meta?.fetched ?? whaleFeedMetadata?.meta?.rawCount ?? null,
+    whaleFeedUpsertedCount: whaleFeedMetadata?.meta?.upserted ?? null,
+    flowLatestIncludesWhaleFeed: (flowSnapshot?.metadata?.whaleFeedRowsUsed ?? 0) > 0 || (flowSnapshot as any)?.payload?.whaleTrades?.length > 0,
     insiderLookbackMonths: insiderMetadata?.meta?.lookbackMonths ?? null,
     insiderLatestRowCount: insiderCount?.count ?? null,
     insiderLatestMetadata: insiderMetadata ?? null,

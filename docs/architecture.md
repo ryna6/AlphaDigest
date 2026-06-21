@@ -232,7 +232,7 @@ Flow ingestion preserves the GitHub + Netlify + Supabase Cloud architecture: Net
 
 ### Flow routes and timestamp display
 
-Flow now has expanded section routes for `/flow/dark-pool`, `/flow/whale-trades`, and `/flow/insider-trades`, plus ticker drilldowns for insider trades and dark-pool prints. These pages continue to read through server-side dashboard loaders/API paths backed by Supabase snapshots/source tables and fixture fallback. Dark Pool and Insider Trades data remain server-side cached; Whale Trades remains fixture-backed until a live endpoint is provided.
+Flow now has expanded section routes for `/flow/dark-pool`, `/flow/whale-feed`, and `/flow/insider-trades`, plus ticker drilldowns for insider trades and dark-pool prints. These pages continue to read through server-side dashboard loaders/API paths backed by Supabase snapshots/source tables and fixture fallback. Dark Pool and Insider Trades data remain server-side cached; Whale Feed remains fixture-backed until a live endpoint is provided.
 
 Dashboard-facing Flow date/time rendering uses explicit Eastern Time (`America/New_York`) helpers and labels values as `ET`. This is a presentation-layer choice only; Supabase timestamp columns continue to store UTC/timestamptz values, and Netlify/platform logs can remain UTC.
 
@@ -242,6 +242,17 @@ The Flow dashboard keeps snapshot-first behavior for real cached payloads, but i
 
 ### Flow route and summary behavior
 
-The Flow page now lays out Flow Summary, Insider Trades, Dark Pool, and Whale Trades as separate card rows. Flow Summary is derived through shared helper logic so refresh snapshots and server loaders can include Insider sentiment, `Largest Dark Pool Print (7D)`, and Whale Feed fields without duplicating calculations in components. The dark-pool summary title reflects the 7-day prune/retention window, and clickable summary cards use the Markets heatmap-style hover lift.
+The Flow page now lays out Flow Summary, Insider Trades, Dark Pool, and Whale Feed as separate card rows. Flow Summary is derived through shared helper logic so refresh snapshots and server loaders can include Insider sentiment, `Largest Dark Pool Print (7D)`, and Whale Feed fields without duplicating calculations in components. The dark-pool summary title reflects the 7-day prune/retention window, and clickable summary cards use the Markets heatmap-style hover lift.
 
 Dark Pool ticker drilldowns use `/flow/dark-pool/[ticker]` as the primary detail route. The server-side loader queries Supabase/source rows by ticker and sorts ticker detail rows by `executed_at` descending, falling back to fixtures only when cached rows are unavailable. Browser components still do not call Unusual Whales and never receive the Supabase service role key.
+
+
+### Flow Whale Feed and Dark Pool size fields
+
+Whale Feed replaces the former Whale Trades label in the Flow UI. Netlify runs `refresh-whale-feed` on a conservative weekday schedule (`30 9 * * 1-5` UTC) and calls the Unusual Whales `lit-trades?tab=whale` endpoint server-side only; browser components never call Unusual Whales and never receive `SUPABASE_SERVICE_ROLE_KEY`. Rows are normalized into `unusual_whales_whale_feed` with only `size`, `ticker`, `price`, `nbbo_ask`, `nbbo_bid`, `executed_at`, `premium`, `sector`, `volume`, `avg30_volume`, and internal `external_id`, `side`, `sentiment`, `fetched_at`, `created_at`, `updated_at` fields. The expanded Whale Feed page supports client-side View more in batches of 10 after the server has loaded cached rows.
+
+Dark Pool ingestion now stores `size`, `avg30_volume`, `nbbo_bid`, `nbbo_ask`, `side`, and `sentiment` in addition to existing normalized fields. Flow displays Dark Pool individual trade size from `size`; `volume` is retained as total same-day ticker volume for `% Vol = size / volume`, and `avg30_volume` powers `% 30D Vol = size / avg30_volume`.
+
+When the provider does not send a direct side, both Dark Pool and Whale Feed use a limited NBBO inference: price at or above `(nbbo_bid + nbbo_ask) / 2` is classified as ask-side/bullish, below midpoint is bid-side/bearish, and missing or invalid NBBO data is unknown. This is only a simple buyer-/seller-leaning inference, not guaranteed trade intent.
+
+Apply `supabase/manual/apply-whale-feed-dark-pool-flow.sql` in production Supabase SQL Editor before running `refresh-whale-feed`, `refresh-dark-pool`, and `refresh-flow`; the SQL is idempotent and reloads the PostgREST schema cache.

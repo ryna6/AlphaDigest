@@ -4,9 +4,10 @@ import { PageTitle } from "@/components/dashboard/page-title";
 import { Panel } from "@/components/ui/panel";
 import { SectionHeader } from "@/components/ui/section-header";
 import { InfoTooltip } from "@/components/ui/info-tooltip";
-import { DataTable } from "@/components/ui/data-table";
+
 import { cn } from "@/lib/utils/cn";
 import { DarkPoolTable } from "./dark-pool-table";
+import { WhaleFeedTable } from "./whale-feed-table";
 import { money, signed } from "./flow-formatters";
 
 const INSIDER_SENTIMENT_TOOLTIP =
@@ -215,10 +216,10 @@ export async function FlowView() {
         </Panel>
         <Panel>
           <SectionHeader
-            title="Whale Trades"
-            action={viewAll("/flow/whale-trades")}
+            title="Whale Feed"
+            action={viewAll("/flow/whale-feed")}
           />
-          <DataTable rows={payload.whaleTrades} />
+          <WhaleFeedTable rows={payload.whaleTrades.slice(0, 5)} />
         </Panel>
       </div>
     </>

@@ -311,7 +311,7 @@ export const flowMock: FlowPayload = {
     {
       label: "Whale Feed",
       value: "$12.4M TSLA calls",
-      href: "/flow/whale-trades",
+      href: "/flow/whale-feed",
       tone: "positive"
     }
   ],
@@ -323,19 +323,32 @@ export const flowMock: FlowPayload = {
       sector: "ETF",
       price: 533.12,
       premium: 84200000,
-      volume: 158000,
+      size: 158000,
+      volume: 3000000,
+      avg30Volume: 60000000,
+      nbboBid: 532.9,
+      nbboAsk: 533.2,
+      side: "ask",
+      sentiment: "bullish",
       fetchedAt: "2026-06-04T14:00:00.000Z"
     }
   ],
   whaleTrades: [
     {
-      Time: "10:04 ET",
-      Ticker: "TSLA",
-      Type: "Call sweep",
-      Premium: "$12.4M",
-      Bias: "Bullish",
-      Expiry: "2026-07-17",
-      Strike: "$210"
+      externalId: "mock-tsla-whale-feed-2026-06-04",
+      executedAt: "2026-06-04T14:04:00.000Z",
+      ticker: "TSLA",
+      sector: "Consumer Cyclical",
+      price: 210.5,
+      nbboAsk: 210.6,
+      nbboBid: 210.1,
+      side: "ask",
+      sentiment: "bullish",
+      premium: 12400000,
+      size: 60000,
+      volume: 1150000,
+      avg30Volume: 82000000,
+      fetchedAt: "2026-06-04T14:05:00.000Z"
     }
   ],
   insiderTrades: [
@@ -356,9 +369,9 @@ export const flowMock: FlowPayload = {
       "Unusual Whales insider trades cache",
       "https://phx.unusualwhales.com/api/insider_trades/feed"
     ),
-    mockMeta("Whale trades fixture placeholder")
+    mockMeta("Whale Feed fixture fallback")
   ],
-  notices: ["Whale Trades remains fixture-backed until a live endpoint is added."]
+  notices: ["Whale Feed falls back to fixtures when Supabase data is unavailable."]
 };
 
 export const ownershipMock: OwnershipPayload = {

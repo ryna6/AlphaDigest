@@ -1,6 +1,7 @@
 import { refreshDashboardSnapshot } from "../../lib/data/live-dashboard";
 import { refreshDarkPoolFlows } from "../../lib/data/adapters/unusual-whales-dark-pool";
 import { refreshInsiderTrades } from "../../lib/data/adapters/unusual-whales-insider-trades";
+import { refreshWhaleFeed } from "../../lib/data/adapters/unusual-whales-whale-feed";
 
 export const config = { schedule: "45 9 * * *" };
 const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json" } });
@@ -8,17 +9,17 @@ const json = (body: unknown, status = 200) => new Response(JSON.stringify(body),
 export default async function handler() {
   const startedAt = new Date().toISOString();
   console.log("scheduled_refresh_start", { job: "refresh-flow", startedAt, schedule: "45 9 * * * UTC" });
-  const [darkPool, insiderTrades] = await Promise.all([refreshDarkPoolFlows(), refreshInsiderTrades()]);
-  const sourceStatuses = { darkPool: { ok: darkPool.ok, count: darkPool.count, error: darkPool.error, meta: darkPool.meta }, insiderTrades: { ok: insiderTrades.ok, count: insiderTrades.count, error: insiderTrades.error, meta: insiderTrades.meta } };
-  const freshSourceCount = [darkPool, insiderTrades].filter((source) => source.ok).length;
-  const partial = freshSourceCount > 0 && freshSourceCount < 2;
+  const [darkPool, insiderTrades, whaleFeed] = await Promise.all([refreshDarkPoolFlows(), refreshInsiderTrades(), refreshWhaleFeed()]);
+  const sourceStatuses = { darkPool: { ok: darkPool.ok, count: darkPool.count, error: darkPool.error, meta: darkPool.meta }, insiderTrades: { ok: insiderTrades.ok, count: insiderTrades.count, error: insiderTrades.error, meta: insiderTrades.meta }, whaleFeed: { ok: whaleFeed.ok, count: whaleFeed.count, error: whaleFeed.error, meta: whaleFeed.meta } };
+  const freshSourceCount = [darkPool, insiderTrades, whaleFeed].filter((source) => source.ok).length;
+  const partial = freshSourceCount > 0 && freshSourceCount < 3;
   const snapshot = freshSourceCount > 0 ? await refreshDashboardSnapshot("flow:latest") : { ok: false, key: "flow:latest", persisted: false, error: "No Flow sources refreshed successfully; snapshot not persisted." };
-  const ok = darkPool.ok && insiderTrades.ok && snapshot.ok;
+  const ok = darkPool.ok && insiderTrades.ok && whaleFeed.ok && snapshot.ok;
   const snapshotFreshness = snapshot.ok && snapshot.persisted ? (partial ? "partial_fresh_sources" : "all_sources_fresh") : "not_persisted";
   const notices = [
     ...(partial ? ["Flow snapshot contains partial fresh data because one source refresh failed or returned unusable data."] : []),
     ...(!freshSourceCount ? ["No Flow sources refreshed successfully; flow:latest was not rewritten."] : [])
   ];
   console.log("scheduled_refresh_complete", { job: "refresh-flow", sourceStatuses, partial, snapshotKey: snapshot.key, snapshotPersisted: snapshot.persisted, snapshotFreshness, notices, ok });
-  return json({ job: "refresh-flow", startedAt, finishedAt: new Date().toISOString(), ok, partial, sourceStatuses, darkPool, insiderTrades, snapshot, snapshotFreshness, notices }, ok ? 200 : 502);
+  return json({ job: "refresh-flow", startedAt, finishedAt: new Date().toISOString(), ok, partial, sourceStatuses, darkPool, insiderTrades, whaleFeed, snapshot, snapshotFreshness, notices }, ok ? 200 : 502);
 }

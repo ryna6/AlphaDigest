@@ -122,11 +122,11 @@ Important behavior:
 ## Flow tab
 
 - Page route: `app/flow/page.tsx`; API route: `/api/flow`.
-- Contains Flow Summary, Dark Pool, Whale Trades, and Insider Trades.
+- Contains Flow Summary, Dark Pool, Whale Feed, and Insider Trades.
 - Flow Summary replaces Big Money Flow Summary and no longer includes Top 13F accumulation because 13F data moved to Ownership.
 - Dark Pool is Supabase-backed from the provided Unusual Whales dark-pool endpoint, refreshed once daily, expected to be delayed by roughly two days, and retained for 7 days.
 - Insider Trades is Supabase-backed from up to four server-side pages of the provided Unusual Whales insider endpoint, filtered to the past 6 months, aggregated by ticker, with top 5 on the main Flow tab, initial top 25 and View more up to top 50 at `/flow/insider-trades`, and detail rows at `/flow/insider-trades/[ticker]`.
-- Whale Trades remains fixture-backed because no live endpoint was provided.
+- Whale Feed is Supabase-backed from the server-side Unusual Whales lit-trades whale endpoint, with fixture fallback only when cached rows are unavailable.
 
 ## Ownership tab
 
@@ -140,7 +140,7 @@ The Flow tab reads cached Supabase rows/snapshots first and never calls Unusual 
 
 ### Flow revision details
 
-- `/flow` now exposes View All links for Insider Trades, Dark Pool, and Whale Trades. Expanded section pages use the same Back button pattern as News pages: `/flow/insider-trades`, `/flow/dark-pool`, and `/flow/whale-trades` return to `/flow`, while ticker detail pages return to their parent section.
+- `/flow` now exposes View All links for Insider Trades, Dark Pool, and Whale Feed. Expanded section pages use the same Back button pattern as News pages: `/flow/insider-trades`, `/flow/dark-pool`, and `/flow/whale-feed` return to `/flow`, while ticker detail pages return to their parent section.
 - The main Flow Insider Trades card uses the same full Supabase-backed 6-month row source and company aggregate helper as `/flow/insider-trades`, limited to the top 5 companies so it exactly matches the first five rows of the expanded view. The expanded Insider Trades page initially shows the top 25 and can reveal up to the top 50 with View more companies.
 - Insider company aggregates include trades, purchases, sales, weighted average price, net shares, and net value. The average price is weighted by absolute shares: `sum(abs(shares) * price) / sum(abs(shares))`, skipping zero-share or missing-price rows.
 - `/flow/insider-trades/[ticker]` shows individual trades and includes `shares_owned_after` as the far-right column. Aggregate company tables do not display `shares_owned_after`.
@@ -154,10 +154,21 @@ The Flow tab reads cached Supabase rows/snapshots first and never calls Unusual 
 
 ### Flow UI revision
 
-- `/flow` keeps Flow Summary near the top, then renders Insider Trades, Dark Pool, and Whale Trades as separate full-width rows so Dark Pool and Whale Feed text has desktop room while mobile remains stacked.
-- Flow Summary now uses three responsive mini cards: Insider sentiment, `Largest Dark Pool Print (7D)`, and Whale Feed. Summary cards link only when a reliable drilldown exists, such as Dark Pool ticker detail, Whale Trades expanded view, or Insider Trades expanded view, and clickable cards use the same hover-lift cursor behavior as Markets heatmap tiles.
+- `/flow` keeps Flow Summary near the top, then renders Insider Trades, Dark Pool, and Whale Feed as separate full-width rows so Dark Pool and Whale Feed text has desktop room while mobile remains stacked.
+- Flow Summary now uses three responsive mini cards: Insider sentiment, `Largest Dark Pool Print (7D)`, and Whale Feed. Summary cards link only when a reliable drilldown exists, such as Dark Pool ticker detail, Whale Feed expanded view, or Insider Trades expanded view, and clickable cards use the same hover-lift cursor behavior as Markets heatmap tiles.
 - Dark Pool timestamps display in Eastern Time as `MM/DD HH:mm` (for example `06/15 16:00`) on the card, expanded page, and ticker detail views.
 - `/flow/dark-pool/[ticker]` is ticker-level: it shows all available same-ticker dark-pool prints from the cache/source rows, sorted by most recent `executed_at` first, with the Back action returning to `/flow/dark-pool`.
 - `Top insider activity` was replaced with `Insider sentiment`. Insider Sentiment uses the same full Supabase-backed 6-month insider row population as the main and expanded Insider Trades views and calculates `purchaseValue / (purchaseValue + saleValue)`, where sale value is absolute sale value. The UI labels ratios `> 0.505` Bullish, `< 0.495` Bearish, and the small documented neutral band around 0.5 Neutral, with matching color and an info tooltip.
 
-- Flow card subtexts were cleaned up for Insider Trades, Dark Pool, and Whale Trades; technical fallback/provider notices continue to use existing mode/notices patterns.
+- Flow card subtexts were cleaned up for Insider Trades, Dark Pool, and Whale Feed; technical fallback/provider notices continue to use existing mode/notices patterns.
+
+
+### Flow Whale Feed and Dark Pool size fields
+
+Whale Feed replaces the former Whale Trades label in the Flow UI. Netlify runs `refresh-whale-feed` on a conservative weekday schedule (`30 9 * * 1-5` UTC) and calls the Unusual Whales `lit-trades?tab=whale` endpoint server-side only; browser components never call Unusual Whales and never receive `SUPABASE_SERVICE_ROLE_KEY`. Rows are normalized into `unusual_whales_whale_feed` with only `size`, `ticker`, `price`, `nbbo_ask`, `nbbo_bid`, `executed_at`, `premium`, `sector`, `volume`, `avg30_volume`, and internal `external_id`, `side`, `sentiment`, `fetched_at`, `created_at`, `updated_at` fields. The expanded Whale Feed page supports client-side View more in batches of 10 after the server has loaded cached rows.
+
+Dark Pool ingestion now stores `size`, `avg30_volume`, `nbbo_bid`, `nbbo_ask`, `side`, and `sentiment` in addition to existing normalized fields. Flow displays Dark Pool individual trade size from `size`; `volume` is retained as total same-day ticker volume for `% Vol = size / volume`, and `avg30_volume` powers `% 30D Vol = size / avg30_volume`.
+
+When the provider does not send a direct side, both Dark Pool and Whale Feed use a limited NBBO inference: price at or above `(nbbo_bid + nbbo_ask) / 2` is classified as ask-side/bullish, below midpoint is bid-side/bearish, and missing or invalid NBBO data is unknown. This is only a simple buyer-/seller-leaning inference, not guaranteed trade intent.
+
+Apply `supabase/manual/apply-whale-feed-dark-pool-flow.sql` in production Supabase SQL Editor before running `refresh-whale-feed`, `refresh-dark-pool`, and `refresh-flow`; the SQL is idempotent and reloads the PostgREST schema cache.
