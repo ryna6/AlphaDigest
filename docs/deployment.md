@@ -103,7 +103,7 @@ Because not every Supabase table is wired to current UI flows, verify actual ada
 `fetch-uw-earnings.ts`:
 
 - URL: `/.netlify/functions/fetch-uw-earnings`
-- Declared schedule: every minute (`* * * * *`) where Netlify supports scheduled functions for the site/plan.
+- Declared schedule: every minute (`0 */4 * * *`) where Netlify supports scheduled functions for the site/plan.
 - Accepts optional `min_date` and `max_date` query params.
 - Calls `refreshUnusualWhalesEarnings()`.
 - Writes to Supabase only when Supabase server credentials are configured.
@@ -143,7 +143,7 @@ Current caveat: `npm run lint` uses `next lint`; if the installed Next.js versio
 
 ## Data freshness and operational caveats
 
-- `refresh-put-call.ts` wakes every 30 minutes on the hour and half-hour (`0,30 * * * *`) and uses a runtime `America/Chicago` source-time gate so Cboe Total put/call refreshes occur only from 9:00 AM through 3:30 PM Central on weekdays, displayed as 10:00 AM through 4:30 PM ET across DST.
+- `refresh-put-call.ts` wakes every 30 minutes on the hour and half-hour Monday through Friday (`*/30 * * * 1-5`).
 - Netlify scheduled functions are not guaranteed to run every minute on all plans/configurations.
 - In-memory server caches reset on cold starts and deployments.
 - Public endpoints can rate-limit or change shape without notice.
@@ -209,7 +209,7 @@ After the SQL succeeds, run these Netlify functions manually: `refresh-economic-
 
 Use `/api/cache/status` for non-secret diagnostics: configured Supabase status, expected/missing tables and columns, row counts, latest metadata errors, snapshot timestamps, freshness, payload sizes, and missing expected snapshot keys.
 
-The `/status` page displays the operational Status table with Job, Status, Source, Frequency, Last Run, and Next Run columns. Source values are short safe provider names rather than raw endpoints, statuses are centered in their column, and Status page times are calculated with America/Toronto while the page note reads “All times are shown in Eastern Standard Time (EST).” Several Netlify schedules use broad UTC cron wakes plus `lib/schedule/toronto.ts` runtime guards so provider fetches occur in the intended Eastern/Toronto windows without hard-coded EST offsets. Current guarded schedules include market quotes every 5 minutes from the exact Sunday 6 PM through Friday 5 PM window, markets every 5 minutes Monday-Friday 9 AM-4 PM, economic events at 6 AM and 6 PM, earnings every 30 minutes from 2 PM through 6 PM, Flow source jobs every 2 hours, and `refresh-flow` five minutes after the Flow source jobs for sequencing. A future full-site sequencing overhaul may further refine these dependencies.
+The `/status` page displays the operational Status table with Job, Status, Source, Frequency, Last Run, and Next Run columns. Source values are short safe provider names rather than raw endpoints, statuses are centered in their column, and Status page times are calculated with America/Toronto while the page note reads “All times are shown in Eastern Standard Time.” Several Netlify schedules use broad UTC cron wakes plus `lib/schedule/toronto.ts` runtime guards so provider fetches occur in the intended Eastern/Toronto windows without hard-coded EST offsets. Current guarded schedules include market quotes every 5 minutes from the exact Sunday 6 PM through Friday 5 PM window, markets every 5 minutes Monday-Friday 9 AM-4 PM, economic events every 6 hours from midnight, earnings every 4 hours from midnight, Flow source jobs every 2 hours, and `refresh-flow` five minutes after the Flow source jobs for sequencing. A future full-site sequencing overhaul may further refine these dependencies.
 
 ## Deploying Flow cache tables
 
@@ -222,7 +222,7 @@ After deploying Flow ingestion changes, manually run the Netlify functions in th
 
 ### Flow Whale Feed and Dark Pool size fields
 
-Whale Feed replaces the former Whale Trades label in the Flow UI. Netlify wakes `refresh-whale-feed` hourly on weekdays; a Toronto runtime guard runs provider work every 2 hours from 4 AM through 8 PM and calls the Unusual Whales `lit-trades?tab=whale` endpoint server-side only; browser components never call Unusual Whales and never receive `SUPABASE_SERVICE_ROLE_KEY`. Rows are normalized into `unusual_whales_whale_feed` with only `size`, `ticker`, `price`, `nbbo_ask`, `nbbo_bid`, `executed_at`, `premium`, `sector`, `volume`, `avg30_volume`, and internal `external_id`, `side`, `sentiment`, `fetched_at`, `created_at`, `updated_at` fields. The expanded Whale Feed page supports client-side View more in batches of 10 after the server has loaded cached rows.
+Whale Feed replaces the former Whale Trades label in the Flow UI. Netlify wakes `refresh-whale-feed` on weekdays; a Toronto runtime guard runs provider work every 2 hours from 4 AM through 8 PM and calls the Unusual Whales `lit-trades?tab=whale` endpoint server-side only; browser components never call Unusual Whales and never receive `SUPABASE_SERVICE_ROLE_KEY`. Rows are normalized into `unusual_whales_whale_feed` with only `size`, `ticker`, `price`, `nbbo_ask`, `nbbo_bid`, `executed_at`, `premium`, `sector`, `volume`, `avg30_volume`, and internal `external_id`, `side`, `sentiment`, `fetched_at`, `created_at`, `updated_at` fields. The expanded Whale Feed page supports client-side View more in batches of 10 after the server has loaded cached rows.
 
 Dark Pool ingestion stores `size` and `avg30_volume` in addition to existing normalized fields, but does not store NBBO, side, or sentiment. Flow displays Dark Pool individual trade size from `size`; `volume` is retained as total same-day ticker volume for `% Vol = size / volume`, and `avg30_volume` powers `% 30D Vol = size / avg30_volume`.
 
@@ -236,4 +236,7 @@ Flow Summary now labels the Whale Feed mini card as `Whale Feed (7D)` and explic
 
 The `/status` page and `/api/cache/status` use Supabase `job_runs` as the source of truth for job status and Last Run. Each scheduled function should call `startJobRun` when provider work begins and `finishJobRun` or `recordJobRun` when it succeeds, warns, errors, or intentionally skips a guarded wake-up. `job_runs` records function/job names, source, start/end timestamps, status, row counts, warnings, errors, and safe JSON metadata. Netlify logs are only for manual debugging in the Netlify UI/CLI and are not fetched by the dashboard. After deploying this change, old Netlify log-diagnostic environment variables are not required for Status and may be removed if they were only used for log diagnostics. Future scheduled jobs must be added to the central Status registry and instrumented with job telemetry.
 
-The Status table column formerly labeled `Endpoint` is now `Source`. Source values are intentionally short provider names such as `Yahoo`, `Cboe`, `Unusual Whales`, `Investing.com`, and `Supabase`; raw URLs, API paths, query strings, API keys, and secret-bearing values must not be displayed. The component status legend is centered within its card with widened horizontal spacing while the jobs table keeps Job left-aligned and Status centered. Put/Call Ratio displays `Every 30m`; Flow jobs display every 2 hours, with `refresh-flow` offset 5 minutes after source jobs.
+The Status table column formerly labeled `Endpoint` is now `Source`. Source values are intentionally short provider names such as `Yahoo`, `Cboe`, `Unusual Whales`, `Investing.com`, and `Supabase`; raw URLs, API paths, query strings, API keys, and secret-bearing values must not be displayed. The component status legend is centered within its card with widened horizontal spacing while the jobs table keeps Job left-aligned and Status centered. Put/Call Ratio displays `Every 30m, Mon–Fri`; Flow jobs display every 2 hours, with `refresh-flow` offset 5 minutes after source jobs.
+
+
+Status schedule notes: Today’s Earnings / `fetch-uw-earnings` runs every 4h from midnight (`0 */4 * * *`); Today’s Economic Events / `refresh-economic-events` runs every 6h from midnight (`0 */6 * * *`); Put/Call Ratio / `refresh-put-call` runs every 30m Monday-Friday (`*/30 * * * 1-5`); Flow jobs remain every 2h, with `refresh-flow` offset by 5 minutes; Market Overview source label in Status is `Finnhub`; and the Status note says `All times are shown in Eastern Standard Time.`

@@ -23,6 +23,7 @@ export type StatusJob = {
   schedule?: string;
   scheduleDescription?: string;
   nextRunRule?: TorontoRunWindowOptions;
+  nextRunUtcRule?: { hours: number[]; minutes: number[] };
   enabled?: boolean;
   staleAfterMinutes?: number;
 };
@@ -71,21 +72,21 @@ export const STATUS_GROUPS: StatusGroup[] = [
 ];
 
 export const STATUS_JOBS: StatusJob[] = [
-  { id: "today-market-overview", group: "Today", job: "Market Overview", functionName: "refresh-market-quotes", source: "Finnhub / CoinGecko / Yahoo", frequency: "Every 5m, Sun 6 PM–Fri 5 PM", schedule: "*/5 * * * 0-5", scheduleDescription: "Exact guarded Toronto window: Sunday 6 PM-8 PM, Monday-Thursday 4 AM-8 PM, Friday 4 AM-5 PM.", nextRunRule: { windows: [{ day: 0, startTime: "18:00", endTime: "20:00" }, { day: 1, startTime: "04:00", endTime: "20:00" }, { day: 2, startTime: "04:00", endTime: "20:00" }, { day: 3, startTime: "04:00", endTime: "20:00" }, { day: 4, startTime: "04:00", endTime: "20:00" }, { day: 5, startTime: "04:00", endTime: "17:00" }], intervalMinutes: 5, minuteOffset: 0 }, staleAfterMinutes: 15 },
-  { id: "today-put-call-ratio", group: "Today", job: "Put/Call Ratio", functionName: "refresh-put-call", source: "Cboe", frequency: "Every 30m", schedule: "0,30 * * * *", scheduleDescription: "Every 30 minutes on the hour and half-hour with a Toronto runtime guard for the Cboe market-statistics window.", nextRunRule: { days: [1, 2, 3, 4, 5], startTime: "10:00", endTime: "16:30", intervalMinutes: 30, minuteOffset: 0 }, staleAfterMinutes: 60 },
+  { id: "today-market-overview", group: "Today", job: "Market Overview", functionName: "refresh-market-quotes", source: "Finnhub", frequency: "Every 5m, Sun 6 PM–Fri 5 PM", schedule: "*/5 * * * 0-5", scheduleDescription: "Exact guarded Toronto window: Sunday 6 PM-8 PM, Monday-Thursday 4 AM-8 PM, Friday 4 AM-5 PM.", nextRunRule: { windows: [{ day: 0, startTime: "18:00", endTime: "20:00" }, { day: 1, startTime: "04:00", endTime: "20:00" }, { day: 2, startTime: "04:00", endTime: "20:00" }, { day: 3, startTime: "04:00", endTime: "20:00" }, { day: 4, startTime: "04:00", endTime: "20:00" }, { day: 5, startTime: "04:00", endTime: "17:00" }], intervalMinutes: 5, minuteOffset: 0 }, staleAfterMinutes: 15 },
+  { id: "today-put-call-ratio", group: "Today", job: "Put/Call Ratio", functionName: "refresh-put-call", source: "Cboe", frequency: "Every 30m, Mon–Fri", schedule: "*/30 * * * 1-5", scheduleDescription: "Every 30 minutes on the hour and half-hour, Monday to Friday only.", nextRunRule: { days: [1, 2, 3, 4, 5], intervalMinutes: 30, minuteOffset: 0 }, staleAfterMinutes: 60 },
   { id: "today-top-news", group: "Today", job: "Top News", functionName: "refresh-featured-articles", source: "Unusual Whales", frequency: "Every 30m", schedule: "0,30 * * * *", nextRunRule: { intervalMinutes: 30, minuteOffset: 0 }, staleAfterMinutes: 60 },
-  { id: "today-economic-events", group: "Today", job: "Today’s Economic Events", functionName: "refresh-economic-events", source: "Investing.com", frequency: "Every 12h", staleAfterMinutes: 900, schedule: "0 * * * *", scheduleDescription: "Hourly UTC wake with Toronto runtime guard for 6:00 AM and 6:00 PM.", nextRunRule: { hours: [6, 18], minutes: [0] } },
-  { id: "today-earnings", group: "Today", job: "Today’s Earnings", functionName: "fetch-uw-earnings", source: "Unusual Whales", frequency: "Every 30m, 2–6 PM", schedule: "0,30 * * * *", scheduleDescription: "Every 30 minutes with Toronto runtime guard from 2:00 PM through 6:00 PM.", nextRunRule: { startTime: "14:00", endTime: "18:00", intervalMinutes: 30, minuteOffset: 0 }, staleAfterMinutes: 60 },
+  { id: "today-economic-events", group: "Today", job: "Today’s Economic Events", functionName: "refresh-economic-events", source: "Investing.com", frequency: "Every 6h", staleAfterMinutes: 480, schedule: "0 */6 * * *", scheduleDescription: "Every 6 hours from midnight UTC.", nextRunUtcRule: { hours: [0, 6, 12, 18], minutes: [0] } },
+  { id: "today-earnings", group: "Today", job: "Today’s Earnings", functionName: "fetch-uw-earnings", source: "Unusual Whales", frequency: "Every 4h", schedule: "0 */4 * * *", scheduleDescription: "Every 4 hours from midnight UTC.", nextRunUtcRule: { hours: [0, 4, 8, 12, 16, 20], minutes: [0] }, staleAfterMinutes: 360 },
   { id: "markets-indices-heatmaps", group: "Markets", job: "Indices/Heatmaps", functionName: "refresh-markets", source: "Yahoo Finance", frequency: "Every 5m, Mon–Fri 9 AM–4 PM", schedule: "*/5 * * * 1-5", scheduleDescription: "Every 5 minutes with Toronto runtime guard Monday-Friday 9:00 AM-4:00 PM.", nextRunRule: { days: [1, 2, 3, 4, 5], startTime: "09:00", endTime: "16:00", intervalMinutes: 5, minuteOffset: 0 }, staleAfterMinutes: 15 },
   { id: "markets-breadth", group: "Markets", job: "Market Breadth", functionName: "TBD", source: "TBD", frequency: "TBD" },
   { id: "markets-movers", group: "Markets", job: "Movers / Leaders / Laggards", functionName: "TBD", source: "TBD", frequency: "TBD" },
   { id: "news-calendar-news-feed", group: "News & Calendar", job: "Unusual Whales News Feed", functionName: "refresh-news-feed", source: "Unusual Whales", frequency: "Every 30m", schedule: "10,40 * * * *", staleAfterMinutes: 60 },
-  { id: "news-calendar-economic-events", group: "News & Calendar", job: "Economic Events", functionName: "refresh-economic-events", source: "Investing.com", frequency: "Every 12h", staleAfterMinutes: 900, schedule: "0 * * * *", scheduleDescription: "Hourly UTC wake with Toronto runtime guard for 6:00 AM and 6:00 PM.", nextRunRule: { hours: [6, 18], minutes: [0] } },
-  { id: "news-calendar-earnings", group: "News & Calendar", job: "Earnings Calendar", functionName: "fetch-uw-earnings", source: "Unusual Whales", frequency: "Every 30m, 2–6 PM", schedule: "0,30 * * * *", scheduleDescription: "Every 30 minutes with Toronto runtime guard from 2:00 PM through 6:00 PM.", nextRunRule: { startTime: "14:00", endTime: "18:00", intervalMinutes: 30, minuteOffset: 0 }, staleAfterMinutes: 60 },
-  { id: "flow-insider-trades", group: "Flow", job: "Insider Trades", functionName: "refresh-insider-trades", source: "Unusual Whales", frequency: "Every 2h", schedule: "0 * * * *", scheduleDescription: "Hourly UTC wake with Toronto runtime guard every 2 hours.", nextRunRule: { intervalMinutes: 120, minuteOffset: 0 }, staleAfterMinutes: 180 },
-  { id: "flow-dark-pool", group: "Flow", job: "Dark Pool", functionName: "refresh-dark-pool", source: "Unusual Whales", frequency: "Every 2h, Mon–Fri 4 AM–8 PM", schedule: "0 * * * 1-5", scheduleDescription: "Hourly UTC wake with Toronto runtime guard every 2 hours Monday-Friday 4:00 AM-8:00 PM.", nextRunRule: { days: [1, 2, 3, 4, 5], startTime: "04:00", endTime: "20:00", intervalMinutes: 120, minuteOffset: 0 }, staleAfterMinutes: 180 },
-  { id: "flow-whale-feed", group: "Flow", job: "Whale Feed", functionName: "refresh-whale-feed", source: "Unusual Whales", frequency: "Every 2h, Mon–Fri 4 AM–8 PM", schedule: "0 * * * 1-5", scheduleDescription: "Hourly UTC wake with Toronto runtime guard every 2 hours Monday-Friday 4:00 AM-8:00 PM.", nextRunRule: { days: [1, 2, 3, 4, 5], startTime: "04:00", endTime: "20:00", intervalMinutes: 120, minuteOffset: 0 }, staleAfterMinutes: 180 },
-  { id: "flow-snapshot", group: "Flow", job: "Flow Snapshot", functionName: "refresh-flow", source: "Supabase", frequency: "Every 2h, Mon–Fri 4:05 AM–8:05 PM", schedule: "5 * * * 1-5", scheduleDescription: "Hourly UTC wake with Toronto runtime guard every 2 hours Monday-Friday 4:05 AM-8:05 PM, offset after Flow source jobs.", nextRunRule: { days: [1, 2, 3, 4, 5], startTime: "04:05", endTime: "20:05", intervalMinutes: 120, minuteOffset: 5 }, staleAfterMinutes: 180 },
+  { id: "news-calendar-economic-events", group: "News & Calendar", job: "Economic Events", functionName: "refresh-economic-events", source: "Investing.com", frequency: "Every 6h", staleAfterMinutes: 480, schedule: "0 */6 * * *", scheduleDescription: "Every 6 hours from midnight UTC.", nextRunUtcRule: { hours: [0, 6, 12, 18], minutes: [0] } },
+  { id: "news-calendar-earnings", group: "News & Calendar", job: "Earnings Calendar", functionName: "fetch-uw-earnings", source: "Unusual Whales", frequency: "Every 4h", schedule: "0 */4 * * *", scheduleDescription: "Every 4 hours from midnight UTC.", nextRunUtcRule: { hours: [0, 4, 8, 12, 16, 20], minutes: [0] }, staleAfterMinutes: 360 },
+  { id: "flow-insider-trades", group: "Flow", job: "Insider Trades", functionName: "refresh-insider-trades", source: "Unusual Whales", frequency: "Every 2h", schedule: "0 * * * *", scheduleDescription: "Every 2 hours, every day.", nextRunRule: { intervalMinutes: 120, minuteOffset: 0 }, staleAfterMinutes: 180 },
+  { id: "flow-dark-pool", group: "Flow", job: "Dark Pool", functionName: "refresh-dark-pool", source: "Unusual Whales", frequency: "Every 2h, Mon–Fri 4 AM–8 PM", schedule: "0 * * * 1-5", scheduleDescription: "Every 2 hours, Monday to Friday, 4:00 AM to 8:00 PM Eastern time.", nextRunRule: { days: [1, 2, 3, 4, 5], startTime: "04:00", endTime: "20:00", intervalMinutes: 120, minuteOffset: 0 }, staleAfterMinutes: 180 },
+  { id: "flow-whale-feed", group: "Flow", job: "Whale Feed", functionName: "refresh-whale-feed", source: "Unusual Whales", frequency: "Every 2h, Mon–Fri 4 AM–8 PM", schedule: "0 * * * 1-5", scheduleDescription: "Every 2 hours, Monday to Friday, 4:00 AM to 8:00 PM Eastern time.", nextRunRule: { days: [1, 2, 3, 4, 5], startTime: "04:00", endTime: "20:00", intervalMinutes: 120, minuteOffset: 0 }, staleAfterMinutes: 180 },
+  { id: "flow-snapshot", group: "Flow", job: "Flow Snapshot", functionName: "refresh-flow", source: "Supabase", frequency: "Every 2h, Mon–Fri 4:05 AM–8:05 PM", schedule: "5 * * * 1-5", scheduleDescription: "Every 2 hours, Monday to Friday, 5 minutes after the source jobs, 4:05 AM to 8:05 PM Eastern time.", nextRunRule: { days: [1, 2, 3, 4, 5], startTime: "04:05", endTime: "20:05", intervalMinutes: 120, minuteOffset: 5 }, staleAfterMinutes: 180 },
   { id: "ownership-institutional", group: "Ownership", job: "Institutional", functionName: "TBD", source: "TBD", frequency: "TBD" },
   { id: "ownership-congressional-trades", group: "Ownership", job: "Congressional Trades", functionName: "TBD", source: "TBD", frequency: "TBD" },
   { id: "economy-sentiment-tbd", group: "Economy & Sentiment", job: "TBD", functionName: "TBD", source: "TBD", frequency: "TBD" }
@@ -107,8 +108,19 @@ function formatStatusDateTime(timestamp?: string | number | Date | null): string
   return STATUS_TIME_FORMATTER.format(date).replace("a.m.", "AM").replace("p.m.", "PM");
 }
 
+function nextUtcRun(rule: { hours: number[]; minutes: number[] }, from = new Date()) {
+  const next = new Date(from.getTime() + 60_000);
+  next.setUTCSeconds(0, 0);
+  const deadline = from.getTime() + 14 * 24 * 60 * 60 * 1000;
+  while (next.getTime() <= deadline) {
+    if (rule.hours.includes(next.getUTCHours()) && rule.minutes.includes(next.getUTCMinutes())) return next;
+    next.setUTCMinutes(next.getUTCMinutes() + 1);
+  }
+  return null;
+}
+
 function nextScheduledRun(job: StatusJob) {
-  const next = job.nextRunRule ? nextTorontoRun(job.nextRunRule) : null;
+  const next = job.nextRunUtcRule ? nextUtcRun(job.nextRunUtcRule) : job.nextRunRule ? nextTorontoRun(job.nextRunRule) : null;
   return next ? formatStatusDateTime(next) : "—";
 }
 
@@ -188,18 +200,19 @@ export async function getStatusRowsWithDiagnostics(): Promise<StatusRowsResult> 
   return { rows: STATUS_JOBS.map((job) => {
     const runs = job.functionName === "TBD" ? [] : byFunction.get(job.functionName) ?? [];
     const latestRun = runs[0];
+    const latestDisplayRun = runs.find((run) => run.status !== "skipped");
     const latestSuccess = runs.find((run) => run.status === "success");
-    const lastTimestamp = latestRun ? (latestRun.finished_at ?? latestRun.started_at) : null;
+    const lastTimestamp = latestDisplayRun ? (latestDisplayRun.finished_at ?? latestDisplayRun.started_at) : null;
     return {
       ...job,
       status: statusFor(job, latestRun, latestSuccess),
       lastRun: lastTimestamp ? formatStatusDateTime(lastTimestamp) : "—",
       nextRun: nextScheduledRun(job),
-      rowsFetched: latestRun?.rows_fetched ?? null,
-      rowsInserted: latestRun?.rows_inserted ?? null,
-      rowsUpdated: latestRun?.rows_updated ?? null,
-      errorMessage: latestRun?.error_message ?? null,
-      warningMessage: latestRun?.warning_message ?? null
+      rowsFetched: latestDisplayRun?.rows_fetched ?? null,
+      rowsInserted: latestDisplayRun?.rows_inserted ?? null,
+      rowsUpdated: latestDisplayRun?.rows_updated ?? null,
+      errorMessage: latestDisplayRun?.error_message ?? null,
+      warningMessage: latestDisplayRun?.warning_message ?? null
     };
   }), supabaseReadHealth };
 }
