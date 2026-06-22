@@ -2,10 +2,13 @@ import { Fragment } from "react";
 import { PageTitle } from "@/components/dashboard/page-title";
 import { Panel } from "@/components/ui/panel";
 import { SectionHeader } from "@/components/ui/section-header";
+import { StatusAutoRefresh } from "@/components/status/status-auto-refresh";
 import { getStatusRowsWithDiagnostics, STATUS_GROUPS, type StatusValue } from "@/lib/status/jobs";
 
 export const metadata = { title: "Status" };
 export const dynamic = "force-dynamic";
+export const revalidate = 0;
+export const fetchCache = "force-no-store";
 
 const statusDot: Record<StatusValue, string> = {
   Healthy: "bg-[#22c55e]",
@@ -13,6 +16,22 @@ const statusDot: Record<StatusValue, string> = {
   Error: "bg-[#ff5a5f]",
   Unknown: "bg-[#9ca3af]"
 };
+
+
+const STATUS_PAGE_TIME_FORMATTER = new Intl.DateTimeFormat("en-US", {
+  month: "short",
+  day: "numeric",
+  hour: "numeric",
+  minute: "2-digit",
+  hour12: true,
+  timeZone: "America/Toronto"
+});
+
+function formatStatusPageDateTime(timestamp: string) {
+  const date = new Date(timestamp);
+  if (!Number.isFinite(date.getTime())) return "—";
+  return STATUS_PAGE_TIME_FORMATTER.format(date).replace("a.m.", "AM").replace("p.m.", "PM");
+}
 
 const legend: Array<{ status: StatusValue; description: string }> = [
   { status: "Healthy", description: "All good" },
@@ -23,9 +42,11 @@ const legend: Array<{ status: StatusValue; description: string }> = [
 
 export default async function StatusPage() {
   const { rows, supabaseReadHealth } = await getStatusRowsWithDiagnostics();
+  const lastUpdated = supabaseReadHealth.checkedAt;
 
   return (
     <>
+      <StatusAutoRefresh />
       <PageTitle title="Status" subtitle="Job and component health for cached dashboard data." />
       <Panel>
         <SectionHeader title="Component Status" />
@@ -38,7 +59,10 @@ export default async function StatusPage() {
             </div>
           ))}
         </div>
-        <p className="mb-3 text-xs text-right text-textSecondary">All times are shown in Eastern Standard Time.</p>
+        <div className="mb-3 text-right text-xs text-textSecondary">
+          <p>Last updated: {formatStatusPageDateTime(lastUpdated)}</p>
+          <p>All times are shown in Eastern Standard Time.</p>
+        </div>
         {supabaseReadHealth.status === "error" ? (
           <div className="mb-4 rounded-lg border border-[#facc15]/40 bg-[#facc15]/10 px-4 py-3 text-sm text-textPrimary">
             <span className="font-semibold">Status unavailable:</span> could not read Supabase job metadata.

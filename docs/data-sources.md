@@ -322,7 +322,7 @@ Active source refresh functions:
 | Function                    | Table                              | Schedule                                             |
 | --------------------------- | ---------------------------------- | ---------------------------------------------------- |
 | `fetch-uw-earnings`         | `unusual_whales_earnings_events`   | `0 */4 * * *`                                          |
-| `refresh-news-feed`         | `unusual_whales_news_feed`         | `10,40 * * * *`                                      |
+| `refresh-news-feed`         | `unusual_whales_news_feed`         | `*/30 * * * *`                                      |
 | `refresh-featured-articles` | `unusual_whales_featured_articles` | `20,50 * * * *`                                      |
 | `refresh-economic-events`   | `investing_economic_events`        | `0 */6 * * *`                                 |
 | `refresh-market-quotes`     | `market_quotes`                    | `*/15 14-22 * * 1-5`                                 |

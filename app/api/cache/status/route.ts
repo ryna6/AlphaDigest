@@ -4,6 +4,25 @@ import { listDashboardSnapshotStatus } from "@/lib/data/adapters/dashboard-snaps
 import { getStatusRowsWithDiagnostics } from "@/lib/status/jobs";
 
 export const dynamic = "force-dynamic";
+export const revalidate = 0;
+export const fetchCache = "force-no-store";
+
+
+const NO_STORE_HEADERS = {
+  "Cache-Control": "no-store, no-cache, must-revalidate, proxy-revalidate",
+  Pragma: "no-cache",
+  Expires: "0"
+};
+
+function noStoreJson(body: unknown, init?: ResponseInit) {
+  return NextResponse.json(body, {
+    ...init,
+    headers: {
+      ...NO_STORE_HEADERS,
+      ...(init?.headers ?? {})
+    }
+  });
+}
 
 const EXPECTED_TABLE_COLUMNS = {
   data_refresh_metadata: ["source", "ok", "fetched_at", "changed", "row_count", "content_hash", "error", "meta"],
@@ -105,7 +124,7 @@ export async function GET() {
   const missingSnapshotKeys = EXPECTED_SNAPSHOT_KEYS.filter((key) => !snapshotKeys.includes(key));
 
   if (!supabase.ok) {
-    return NextResponse.json({
+    return noStoreJson({
       generatedAt,
       supabase: { configured: false, message: supabase.message },
       expectedTables: CACHE_TABLES,
@@ -139,7 +158,7 @@ export async function GET() {
   const latestMetadataErrors = metadataRows.filter((row: { ok?: boolean; error?: string | null }) => row.ok === false || row.error);
   const flow = flowDiagnostics(counts, metadataRows, sizes);
 
-  return NextResponse.json({
+  return noStoreJson({
     generatedAt,
     supabase: { configured: true },
     expectedTables: CACHE_TABLES,
