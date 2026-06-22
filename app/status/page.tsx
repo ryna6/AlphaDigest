@@ -38,7 +38,7 @@ export default async function StatusPage() {
             </div>
           ))}
         </div>
-        <p className="mb-3 text-xs text-right text-textSecondary">All times are shown in Eastern Standard Time (EST).</p>
+        <p className="mb-3 text-xs text-right text-textSecondary">All times are shown in Eastern Standard Time.</p>
         {supabaseReadHealth.status === "error" ? (
           <div className="mb-4 rounded-lg border border-[#facc15]/40 bg-[#facc15]/10 px-4 py-3 text-sm text-textPrimary">
             <span className="font-semibold">Status unavailable:</span> could not read Supabase job metadata.

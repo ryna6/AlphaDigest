@@ -56,7 +56,7 @@ supabase/                    Schema and migrations
 | `/settings`                       | Legacy redirect.                                       | Redirects to `/status`.                                                    |
 
 
-The Status page groups automated jobs by dashboard tab and uses `lib/status/jobs.ts` as the central registry for user-facing names, Netlify function/job names, metadata keys, confirmed schedules, and freshness windows. Its visible columns are Job, Status, Source, Frequency, Last Run, and Next Run, with the Status content center-aligned and Source limited to short safe provider names. Last Run and health use Supabase `job_runs` telemetry as the source of truth; Next Run is calculated from the registry schedule rule when the automatic schedule is known. Status times are rendered with America/Toronto calculations under the page-level note “All times are shown in Eastern Standard Time (EST).” rather than per-cell ET/EST/EDT suffixes. Netlify cron wakes in UTC for several jobs, so `lib/schedule/toronto.ts` guards provider fetches inside the intended Eastern/Toronto windows without fixed EST offsets. Flow source jobs run on the hour where guarded, while `refresh-flow` runs at five minutes after the hour to support source-to-snapshot sequencing. TBD rows represent planned or unimplemented jobs and remain Unknown until a real schedule and metadata source exist.
+The Status page groups automated jobs by dashboard tab and uses `lib/status/jobs.ts` as the central registry for user-facing names, Netlify function/job names, metadata keys, confirmed schedules, and freshness windows. Its visible columns are Job, Status, Source, Frequency, Last Run, and Next Run, with the Status content center-aligned and Source limited to short safe provider names. Last Run and health use Supabase `job_runs` telemetry as the source of truth; Next Run is calculated from the registry schedule rule when the automatic schedule is known. Status times are rendered with America/Toronto calculations under the page-level note “All times are shown in Eastern Standard Time.” rather than per-cell ET/EST/EDT suffixes. Netlify cron wakes in UTC for several jobs, so `lib/schedule/toronto.ts` guards provider fetches inside the intended Eastern/Toronto windows without fixed EST offsets. Flow source jobs run on the hour where guarded, while `refresh-flow` runs at five minutes after the hour to support source-to-snapshot sequencing. TBD rows represent planned or unimplemented jobs and remain Unknown until a real schedule and metadata source exist.
 
 Navigation items live in `lib/constants/navigation.ts`. The desktop sidebar and mobile horizontal tab bar mark an item active when the current path exactly matches or starts with the item's `href`.
 
@@ -156,7 +156,7 @@ The app does **not** require Supabase to render. In particular, earnings can fal
 
 Active earnings functions:
 
-- `fetch-uw-earnings.ts`: scheduled every minute where Netlify scheduled functions are supported; refreshes optional Supabase earnings cache.
+- `fetch-uw-earnings.ts`: scheduled every 4 hours from midnight (`0 */4 * * *`) where Netlify scheduled functions are supported; refreshes optional Supabase earnings cache.
 - `get-uw-earnings.ts`: frontend-safe serverless getter for filtered cached/live/fallback earnings.
 
 Placeholder functions:
@@ -188,7 +188,7 @@ The placeholder functions only return JSON that describes future ingestion flow.
 ## Known architecture limitations
 
 - Several pages remain fixture-backed even though source/methodology pages list future intended providers.
-- `refresh-put-call.ts`: wakes every 30 minutes on the hour and half-hour (`0,30 * * * *`) and is gated against the source schedule in `America/Chicago` so the Cboe scraper runs only from 9:00 AM through 3:30 PM Central on weekdays, which displays as 10:00 AM through 4:30 PM ET. The broad UTC wake-up schedule lets the IANA timezone gate handle standard and daylight time without fixed UTC offsets.
+- `refresh-put-call.ts`: wakes every 30 minutes on the hour and half-hour Monday through Friday (`*/30 * * * 1-5`).
 - Many refresh helpers are implemented at the adapter level but are not wired to scheduled Netlify functions.
 - Source pages and settings pages are mostly static references and may drift unless maintained with code changes.
 - The app has no formal unit-test suite beyond typecheck and the custom News & Calendar UI validation script.
@@ -253,7 +253,7 @@ Dark Pool ticker drilldowns use `/flow/dark-pool/[ticker]` as the primary detail
 
 ### Flow Whale Feed and Dark Pool size fields
 
-Whale Feed replaces the former Whale Trades label in the Flow UI. Netlify wakes `refresh-whale-feed` hourly on weekdays; a Toronto runtime guard runs provider work every 2 hours from 4 AM through 8 PM and calls the Unusual Whales `lit-trades?tab=whale` endpoint server-side only; browser components never call Unusual Whales and never receive `SUPABASE_SERVICE_ROLE_KEY`. Rows are normalized into `unusual_whales_whale_feed` with only `size`, `ticker`, `price`, `nbbo_ask`, `nbbo_bid`, `executed_at`, `premium`, `sector`, `volume`, `avg30_volume`, and internal `external_id`, `side`, `sentiment`, `fetched_at`, `created_at`, `updated_at` fields. The expanded Whale Feed page supports client-side View more in batches of 10 after the server has loaded cached rows.
+Whale Feed replaces the former Whale Trades label in the Flow UI. Netlify wakes `refresh-whale-feed` on weekdays; a Toronto runtime guard runs provider work every 2 hours from 4 AM through 8 PM and calls the Unusual Whales `lit-trades?tab=whale` endpoint server-side only; browser components never call Unusual Whales and never receive `SUPABASE_SERVICE_ROLE_KEY`. Rows are normalized into `unusual_whales_whale_feed` with only `size`, `ticker`, `price`, `nbbo_ask`, `nbbo_bid`, `executed_at`, `premium`, `sector`, `volume`, `avg30_volume`, and internal `external_id`, `side`, `sentiment`, `fetched_at`, `created_at`, `updated_at` fields. The expanded Whale Feed page supports client-side View more in batches of 10 after the server has loaded cached rows.
 
 Dark Pool ingestion stores `size` and `avg30_volume` in addition to existing normalized fields, but does not store NBBO, side, or sentiment. Flow displays Dark Pool individual trade size from `size`; `volume` is retained as total same-day ticker volume for `% Vol = size / volume`, and `avg30_volume` powers `% 30D Vol = size / avg30_volume`.
 
@@ -266,3 +266,6 @@ Flow Summary now labels the Whale Feed mini card as `Whale Feed (7D)` and explic
 ### Status job telemetry boundary
 
 Status no longer depends on Netlify function-log APIs or Netlify auth tokens. Scheduled functions write start/end rows to Supabase `job_runs` through `lib/status/job-runs.ts`, including status, row counts, warnings, errors, and safe metadata. The `/status` page and `/api/cache/status` read `job_runs` server-side and expose only safe operational fields plus a Supabase read-health diagnostic. Netlify logs remain useful for manual debugging in the Netlify UI/CLI, but they are not a dashboard data source. Future automated jobs must be added to `lib/status/jobs.ts` and instrumented with job telemetry.
+
+
+Status schedule notes: Today’s Earnings / `fetch-uw-earnings` runs every 4h from midnight (`0 */4 * * *`); Today’s Economic Events / `refresh-economic-events` runs every 6h from midnight (`0 */6 * * *`); Put/Call Ratio / `refresh-put-call` runs every 30m Monday-Friday (`*/30 * * * 1-5`); Flow jobs remain every 2h, with `refresh-flow` offset by 5 minutes; Market Overview source label in Status is `Finnhub`; and the Status note says `All times are shown in Eastern Standard Time.`

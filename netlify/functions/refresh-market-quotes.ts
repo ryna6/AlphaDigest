@@ -24,11 +24,11 @@ export default async function handler() {
   });
   if (!runWindow.shouldRun) {
     console.info("scheduled_refresh_skipped", { job: "refresh-market-quotes", reason: runWindow.reason, torontoTime: runWindow.torontoTime });
-    await recordJobRun({ jobName: "Market Overview", functionName: "refresh-market-quotes", source: "Finnhub / CoinGecko / Yahoo", status: "skipped", startedAt, metadata: { reason: runWindow.reason, torontoTime: runWindow.torontoTime } });
+    await recordJobRun({ jobName: "Market Overview", functionName: "refresh-market-quotes", source: "Finnhub", status: "skipped", startedAt, metadata: { reason: runWindow.reason, torontoTime: runWindow.torontoTime } });
     return json({ ok: true, skipped: true, job: "refresh-market-quotes", startedAt, reason: runWindow.reason, torontoTime: runWindow.torontoTime });
   }
   console.log("scheduled_refresh_start", { job: "refresh-market-quotes", source: "yahoo_market_quotes", startedAt, torontoTime: runWindow.torontoTime });
-  const runId = await startJobRun({ jobName: "Market Overview", functionName: "refresh-market-quotes", source: "Finnhub / CoinGecko / Yahoo" });
+  const runId = await startJobRun({ jobName: "Market Overview", functionName: "refresh-market-quotes", source: "Finnhub" });
   try {
     const result = await refreshYahooMarketQuotes();
     console.log("scheduled_refresh_complete", { job: "refresh-market-quotes", rowsFetched: result.count, rowsUpserted: result.upserted ?? 0, persisted: result.persisted, ok: result.ok, error: result.error });

@@ -1,10 +1,7 @@
-import {
-  isExpectedCboeFetchWindow,
-  refreshCboePutCallRatio
-} from "../../lib/data/adapters/cboe-put-call";
-import { finishJobRun, recordJobRun, startJobRun } from "../../lib/status/job-runs";
+import { refreshCboePutCallRatio } from "../../lib/data/adapters/cboe-put-call";
+import { finishJobRun, startJobRun } from "../../lib/status/job-runs";
 
-export const config = { schedule: "0,30 * * * *" };
+export const config = { schedule: "*/30 * * * 1-5" };
 
 function json(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), {
@@ -13,18 +10,8 @@ function json(body: unknown, status = 200) {
   });
 }
 
-export default async function handler(request: Request) {
+export default async function handler() {
   const startedAt = new Date().toISOString();
-  const url = new URL(request.url);
-  const force = url.searchParams.get("force") === "true";
-  if (!force && !isExpectedCboeFetchWindow()) {
-    await recordJobRun({ jobName: "Put/Call Ratio", functionName: "refresh-put-call", source: "Cboe", status: "skipped", startedAt, metadata: { reason: "outside_cboe_fetch_window" } });
-    return json({
-      ok: true,
-      skipped: true,
-      reason: "Outside expected Cboe 30-minute source release fetch windows: on the hour and half-hour from 9:00 AM through 3:30 PM America/Chicago / 10:00 AM through 4:30 PM ET."
-    });
-  }
   const runId = await startJobRun({ jobName: "Put/Call Ratio", functionName: "refresh-put-call", source: "Cboe" });
   try {
     const result = await refreshCboePutCallRatio();
