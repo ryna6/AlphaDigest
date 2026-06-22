@@ -136,7 +136,7 @@ Important behavior:
 
 #### Flow cache behavior
 
-The Flow tab reads cached Supabase rows/snapshots first and never calls Unusual Whales from browser components. Dark Pool keeps up to 7 days of normalized large-print rows and may show zero fresh rows when the provider is delayed, the plan returns an empty/paywalled response, filters match nothing, or the response shape changes; `/api/cache/status` and Netlify logs expose a safe `emptyReason` instead of treating unexplained zero rows as a silent success. Insider Trades are filtered to the past 6 months, deduped before Supabase upsert, and keyed with stable deterministic IDs. `flow:latest` can be written with notices when one Flow source succeeds and another fails, but refresh logs identify partial snapshots versus fully fresh snapshots.
+The Flow tab reads cached Supabase rows/snapshots first and never calls Unusual Whales from browser components. Dark Pool keeps up to 7 days of normalized large-print rows and may show zero fresh rows when the provider is delayed, the plan returns an empty/paywalled response, filters match nothing, or the response shape changes; `/api/cache/status` and Supabase job telemetry expose a safe `emptyReason` instead of treating unexplained zero rows as a silent success. Insider Trades are filtered to the past 6 months, deduped before Supabase upsert, and keyed with stable deterministic IDs. `flow:latest` can be written with notices when one Flow source succeeds and another fails, but refresh logs identify partial snapshots versus fully fresh snapshots.
 
 ### Flow revision details
 
@@ -179,4 +179,4 @@ Flow Summary now labels the Whale Feed mini card as `Whale Feed (7D)` and explic
 
 The Status tab presents grouped automated jobs with the columns Job, Status, Source, Frequency, Last Run, and Next Run. The Source column replaces the former Endpoint label and uses short provider names rather than exact URLs or API paths. The component status legend is centered in its card with wider spacing and preserves the Healthy, Warning, Error, Unknown order. Put/Call Ratio displays `Every 30m`; Flow jobs display every 2 hours, with `refresh-flow` offset 5 minutes after source jobs.
 
-Status can optionally check server-side Netlify configuration with `NETLIFY_AUTH_TOKEN` and `NETLIFY_SITE_ID`. These variables are server-only and must never be exposed to the browser. When Netlify historical function run data is not available through a stable API, Status continues to use matching Supabase refresh metadata for Last Run/status, schedule metadata for Next Run, and Unknown for TBD jobs.
+Status reads Supabase `job_runs` telemetry written by scheduled functions. Last Run and status come from job metadata, Next Run remains schedule-based, and TBD or not-yet-run jobs remain Unknown. Netlify logs are only for manual debugging in the Netlify UI/CLI and no Netlify auth token is required for Status.

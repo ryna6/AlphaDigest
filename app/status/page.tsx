@@ -2,7 +2,7 @@ import { Fragment } from "react";
 import { PageTitle } from "@/components/dashboard/page-title";
 import { Panel } from "@/components/ui/panel";
 import { SectionHeader } from "@/components/ui/section-header";
-import { getStatusRows, STATUS_GROUPS, type StatusValue } from "@/lib/status/jobs";
+import { getStatusRowsWithDiagnostics, STATUS_GROUPS, type StatusValue } from "@/lib/status/jobs";
 
 export const metadata = { title: "Status" };
 export const dynamic = "force-dynamic";
@@ -22,7 +22,7 @@ const legend: Array<{ status: StatusValue; description: string }> = [
 ];
 
 export default async function StatusPage() {
-  const rows = await getStatusRows();
+  const { rows, supabaseReadHealth } = await getStatusRowsWithDiagnostics();
 
   return (
     <>
@@ -38,7 +38,12 @@ export default async function StatusPage() {
             </div>
           ))}
         </div>
-        <p className="mb-3 text-xs text-right text-textSecondary">All times are shown in Eastern Standard Time.</p>
+        <p className="mb-3 text-xs text-right text-textSecondary">All times are shown in Eastern Standard Time (EST).</p>
+        {supabaseReadHealth.status === "error" ? (
+          <div className="mb-4 rounded-lg border border-[#facc15]/40 bg-[#facc15]/10 px-4 py-3 text-sm text-textPrimary">
+            <span className="font-semibold">Status unavailable:</span> could not read Supabase job metadata.
+          </div>
+        ) : null}
         <div className="overflow-x-auto">
           <table className="w-full min-w-[920px] border-collapse text-left text-sm">
             <thead className="border-b border-borderStrong text-xs uppercase tracking-wide text-textSecondary">

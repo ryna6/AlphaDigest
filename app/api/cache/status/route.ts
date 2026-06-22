@@ -1,8 +1,7 @@
 import { NextResponse } from "next/server";
 import { createServerSupabaseClient } from "@/lib/db/supabase";
 import { listDashboardSnapshotStatus } from "@/lib/data/adapters/dashboard-snapshots";
-import { getNetlifyFunctionRuns } from "@/lib/status/netlify-logs";
-import { STATUS_JOBS } from "@/lib/status/jobs";
+import { getStatusRowsWithDiagnostics } from "@/lib/status/jobs";
 
 export const dynamic = "force-dynamic";
 
@@ -99,7 +98,7 @@ function flowDiagnostics(counts: any[], metadata: any[], sizes: any[]) {
 
 export async function GET() {
   const generatedAt = new Date().toISOString();
-  const netlify = await getNetlifyFunctionRuns(Array.from(new Set(STATUS_JOBS.map((job) => job.functionName).filter((name) => name !== "TBD"))));
+  const statusRows = await getStatusRowsWithDiagnostics();
   const supabase = createServerSupabaseClient();
   const snapshots = await listDashboardSnapshotStatus();
   const snapshotKeys = snapshots.snapshots.map((snapshot: { key?: string }) => snapshot.key).filter((key): key is string => typeof key === "string");
@@ -118,7 +117,8 @@ export async function GET() {
       columnChecks: [],
       metadata: [],
       latestMetadataErrors: [],
-      netlifyLogs: netlify.diagnostics
+      jobs: statusRows.rows.map((row) => ({ group: row.group, job: row.job, functionName: row.functionName, source: row.source, status: row.status, frequency: row.frequency, lastRun: row.lastRun, nextRun: row.nextRun, rowsFetched: row.rowsFetched, rowsInserted: row.rowsInserted, rowsUpdated: row.rowsUpdated, errorMessage: row.errorMessage, warningMessage: row.warningMessage })),
+      supabaseReadHealth: statusRows.supabaseReadHealth
     });
   }
 
@@ -155,6 +155,7 @@ export async function GET() {
     latestMetadataErrors,
     flow,
     metadataError: metadataResult.error?.message,
-    netlifyLogs: netlify.diagnostics
+    jobs: statusRows.rows.map((row) => ({ group: row.group, job: row.job, functionName: row.functionName, source: row.source, status: row.status, frequency: row.frequency, lastRun: row.lastRun, nextRun: row.nextRun, rowsFetched: row.rowsFetched, rowsInserted: row.rowsInserted, rowsUpdated: row.rowsUpdated, errorMessage: row.errorMessage, warningMessage: row.warningMessage })),
+    supabaseReadHealth: statusRows.supabaseReadHealth
   });
 }
