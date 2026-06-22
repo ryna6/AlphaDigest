@@ -1,7 +1,6 @@
 import { createServerSupabaseClient } from "@/lib/db/supabase";
 import { TORONTO_TIME_ZONE } from "@/lib/utils/time";
 import { nextTorontoRun, type TorontoRunWindowOptions } from "@/lib/schedule/toronto";
-import { getNetlifyFunctionRuns, type NetlifyLogsDiagnostics, type NetlifyFunctionRun } from "@/lib/status/netlify-logs";
 
 export type StatusValue = "Healthy" | "Warning" | "Error" | "Unknown";
 
@@ -20,34 +19,46 @@ export type StatusJob = {
   job: string;
   functionName: string | "TBD";
   source: string | "TBD" | "—";
-  metadataKey?: string;
   frequency: string;
   schedule?: string;
   scheduleDescription?: string;
   nextRunRule?: TorontoRunWindowOptions;
   enabled?: boolean;
-  staleAfterHours?: number;
+  staleAfterMinutes?: number;
 };
 
 export type StatusRow = StatusJob & {
   status: StatusValue;
   lastRun: string;
   nextRun: string;
-  error: string | null;
-  runSource: "netlify" | "supabase" | "registry" | "unknown";
+  rowsFetched: number | null;
+  rowsInserted: number | null;
+  rowsUpdated: number | null;
+  errorMessage: string | null;
+  warningMessage: string | null;
 };
 
 export type StatusRowsResult = {
   rows: StatusRow[];
-  netlifyLogs: NetlifyLogsDiagnostics;
+  supabaseReadHealth: SupabaseReadHealth;
 };
 
-type MetadataRow = {
-  source: string;
-  ok: boolean | null;
-  fetched_at: string | null;
-  updated_at?: string | null;
+export type SupabaseReadHealth = {
+  status: "healthy" | "error";
+  checkedAt: string;
   error: string | null;
+};
+
+type JobRunRow = {
+  function_name: string;
+  status: "running" | "success" | "warning" | "error" | "skipped";
+  started_at: string;
+  finished_at: string | null;
+  rows_fetched: number | null;
+  rows_inserted: number | null;
+  rows_updated: number | null;
+  error_message: string | null;
+  warning_message: string | null;
 };
 
 export const STATUS_GROUPS: StatusGroup[] = [
@@ -60,21 +71,21 @@ export const STATUS_GROUPS: StatusGroup[] = [
 ];
 
 export const STATUS_JOBS: StatusJob[] = [
-  { id: "today-market-overview", group: "Today", job: "Market Overview", functionName: "refresh-market-quotes", source: "Finnhub", metadataKey: "yahoo_market_quotes", frequency: "Every 5m, Sun 6 PM–Fri 5 PM", schedule: "*/5 * * * 0-5", scheduleDescription: "Exact guarded Toronto window: Sunday 6 PM-8 PM, Monday-Thursday 4 AM-8 PM, Friday 4 AM-5 PM.", nextRunRule: { windows: [{ day: 0, startTime: "18:00", endTime: "20:00" }, { day: 1, startTime: "04:00", endTime: "20:00" }, { day: 2, startTime: "04:00", endTime: "20:00" }, { day: 3, startTime: "04:00", endTime: "20:00" }, { day: 4, startTime: "04:00", endTime: "20:00" }, { day: 5, startTime: "04:00", endTime: "17:00" }], intervalMinutes: 5, minuteOffset: 0 }, staleAfterHours: 4 },
-  { id: "today-put-call-ratio", group: "Today", job: "Put/Call Ratio", functionName: "refresh-put-call", source: "Cboe", metadataKey: "put_call_observations", frequency: "Every 30m", schedule: "0,30 * * * *", scheduleDescription: "Every 30 minutes on the hour and half-hour with a Toronto runtime guard for the Cboe market-statistics window.", nextRunRule: { days: [1, 2, 3, 4, 5], startTime: "10:00", endTime: "16:30", intervalMinutes: 30, minuteOffset: 0 }, staleAfterHours: 26 },
-  { id: "today-top-news", group: "Today", job: "Top News", functionName: "refresh-featured-articles", source: "Unusual Whales", metadataKey: "unusual_whales_featured_articles", frequency: "Every 30m", schedule: "0,30 * * * *", nextRunRule: { intervalMinutes: 30, minuteOffset: 0 }, staleAfterHours: 2 },
-  { id: "today-economic-events", group: "Today", job: "Today’s Economic Events", functionName: "refresh-economic-events", source: "Investing.com", metadataKey: "investing_economic_events", frequency: "Every 12h", schedule: "0 * * * *", scheduleDescription: "Hourly UTC wake with Toronto runtime guard for 6:00 AM and 6:00 PM.", nextRunRule: { hours: [6, 18], minutes: [0] }, staleAfterHours: 26 },
-  { id: "today-earnings", group: "Today", job: "Today’s Earnings", functionName: "fetch-uw-earnings", source: "Unusual Whales", metadataKey: "unusual_whales_earnings", frequency: "Every 30m, 2–6 PM", schedule: "0,30 * * * *", scheduleDescription: "Every 30 minutes with Toronto runtime guard from 2:00 PM through 6:00 PM.", nextRunRule: { startTime: "14:00", endTime: "18:00", intervalMinutes: 30, minuteOffset: 0 }, staleAfterHours: 26 },
-  { id: "markets-indices-heatmaps", group: "Markets", job: "Indices/Heatmaps", functionName: "refresh-markets", source: "Yahoo Finance", metadataKey: "dashboard_snapshot:markets:latest", frequency: "Every 5m, Mon–Fri 9 AM–4 PM", schedule: "*/5 * * * 1-5", scheduleDescription: "Every 5 minutes with Toronto runtime guard Monday-Friday 9:00 AM-4:00 PM.", nextRunRule: { days: [1, 2, 3, 4, 5], startTime: "09:00", endTime: "16:00", intervalMinutes: 5, minuteOffset: 0 }, staleAfterHours: 4 },
+  { id: "today-market-overview", group: "Today", job: "Market Overview", functionName: "refresh-market-quotes", source: "Finnhub / CoinGecko / Yahoo", frequency: "Every 5m, Sun 6 PM–Fri 5 PM", schedule: "*/5 * * * 0-5", scheduleDescription: "Exact guarded Toronto window: Sunday 6 PM-8 PM, Monday-Thursday 4 AM-8 PM, Friday 4 AM-5 PM.", nextRunRule: { windows: [{ day: 0, startTime: "18:00", endTime: "20:00" }, { day: 1, startTime: "04:00", endTime: "20:00" }, { day: 2, startTime: "04:00", endTime: "20:00" }, { day: 3, startTime: "04:00", endTime: "20:00" }, { day: 4, startTime: "04:00", endTime: "20:00" }, { day: 5, startTime: "04:00", endTime: "17:00" }], intervalMinutes: 5, minuteOffset: 0 }, staleAfterMinutes: 15 },
+  { id: "today-put-call-ratio", group: "Today", job: "Put/Call Ratio", functionName: "refresh-put-call", source: "Cboe", frequency: "Every 30m", schedule: "0,30 * * * *", scheduleDescription: "Every 30 minutes on the hour and half-hour with a Toronto runtime guard for the Cboe market-statistics window.", nextRunRule: { days: [1, 2, 3, 4, 5], startTime: "10:00", endTime: "16:30", intervalMinutes: 30, minuteOffset: 0 }, staleAfterMinutes: 60 },
+  { id: "today-top-news", group: "Today", job: "Top News", functionName: "refresh-featured-articles", source: "Unusual Whales", frequency: "Every 30m", schedule: "0,30 * * * *", nextRunRule: { intervalMinutes: 30, minuteOffset: 0 }, staleAfterMinutes: 60 },
+  { id: "today-economic-events", group: "Today", job: "Today’s Economic Events", functionName: "refresh-economic-events", source: "Investing.com", frequency: "Every 12h", staleAfterMinutes: 900, schedule: "0 * * * *", scheduleDescription: "Hourly UTC wake with Toronto runtime guard for 6:00 AM and 6:00 PM.", nextRunRule: { hours: [6, 18], minutes: [0] } },
+  { id: "today-earnings", group: "Today", job: "Today’s Earnings", functionName: "fetch-uw-earnings", source: "Unusual Whales", frequency: "Every 30m, 2–6 PM", schedule: "0,30 * * * *", scheduleDescription: "Every 30 minutes with Toronto runtime guard from 2:00 PM through 6:00 PM.", nextRunRule: { startTime: "14:00", endTime: "18:00", intervalMinutes: 30, minuteOffset: 0 }, staleAfterMinutes: 60 },
+  { id: "markets-indices-heatmaps", group: "Markets", job: "Indices/Heatmaps", functionName: "refresh-markets", source: "Yahoo Finance", frequency: "Every 5m, Mon–Fri 9 AM–4 PM", schedule: "*/5 * * * 1-5", scheduleDescription: "Every 5 minutes with Toronto runtime guard Monday-Friday 9:00 AM-4:00 PM.", nextRunRule: { days: [1, 2, 3, 4, 5], startTime: "09:00", endTime: "16:00", intervalMinutes: 5, minuteOffset: 0 }, staleAfterMinutes: 15 },
   { id: "markets-breadth", group: "Markets", job: "Market Breadth", functionName: "TBD", source: "TBD", frequency: "TBD" },
   { id: "markets-movers", group: "Markets", job: "Movers / Leaders / Laggards", functionName: "TBD", source: "TBD", frequency: "TBD" },
-  { id: "news-calendar-news-feed", group: "News & Calendar", job: "Unusual Whales News Feed", functionName: "refresh-news-feed", source: "Unusual Whales", metadataKey: "unusual_whales_news_feed", frequency: "Every 30m", schedule: "10,40 * * * *", staleAfterHours: 2 },
-  { id: "news-calendar-economic-events", group: "News & Calendar", job: "Economic Events", functionName: "refresh-economic-events", source: "Investing.com", metadataKey: "investing_economic_events", frequency: "Every 12h", schedule: "0 * * * *", scheduleDescription: "Hourly UTC wake with Toronto runtime guard for 6:00 AM and 6:00 PM.", nextRunRule: { hours: [6, 18], minutes: [0] }, staleAfterHours: 26 },
-  { id: "news-calendar-earnings", group: "News & Calendar", job: "Earnings Calendar", functionName: "fetch-uw-earnings", source: "Unusual Whales", metadataKey: "unusual_whales_earnings", frequency: "Every 30m, 2–6 PM", schedule: "0,30 * * * *", scheduleDescription: "Every 30 minutes with Toronto runtime guard from 2:00 PM through 6:00 PM.", nextRunRule: { startTime: "14:00", endTime: "18:00", intervalMinutes: 30, minuteOffset: 0 }, staleAfterHours: 26 },
-  { id: "flow-insider-trades", group: "Flow", job: "Insider Trades", functionName: "refresh-insider-trades", source: "Unusual Whales", metadataKey: "unusual_whales_insider_trades", frequency: "Every 2h", schedule: "0 * * * *", scheduleDescription: "Hourly UTC wake with Toronto runtime guard every 2 hours.", nextRunRule: { intervalMinutes: 120, minuteOffset: 0 }, staleAfterHours: 36 },
-  { id: "flow-dark-pool", group: "Flow", job: "Dark Pool", functionName: "refresh-dark-pool", source: "Unusual Whales", metadataKey: "unusual_whales_dark_pool_flows", frequency: "Every 2h, Mon–Fri 4 AM–8 PM", schedule: "0 * * * 1-5", scheduleDescription: "Hourly UTC wake with Toronto runtime guard every 2 hours Monday-Friday 4:00 AM-8:00 PM.", nextRunRule: { days: [1, 2, 3, 4, 5], startTime: "04:00", endTime: "20:00", intervalMinutes: 120, minuteOffset: 0 }, staleAfterHours: 36 },
-  { id: "flow-whale-feed", group: "Flow", job: "Whale Feed", functionName: "refresh-whale-feed", source: "Unusual Whales", metadataKey: "unusual_whales_whale_feed", frequency: "Every 2h, Mon–Fri 4 AM–8 PM", schedule: "0 * * * 1-5", scheduleDescription: "Hourly UTC wake with Toronto runtime guard every 2 hours Monday-Friday 4:00 AM-8:00 PM.", nextRunRule: { days: [1, 2, 3, 4, 5], startTime: "04:00", endTime: "20:00", intervalMinutes: 120, minuteOffset: 0 }, staleAfterHours: 36 },
-  { id: "flow-snapshot", group: "Flow", job: "Flow Snapshot", functionName: "refresh-flow", source: "Supabase", metadataKey: "dashboard_snapshot:flow:latest", frequency: "Every 2h, Mon–Fri 4:05 AM–8:05 PM", schedule: "5 * * * 1-5", scheduleDescription: "Hourly UTC wake with Toronto runtime guard every 2 hours Monday-Friday 4:05 AM-8:05 PM, offset after Flow source jobs.", nextRunRule: { days: [1, 2, 3, 4, 5], startTime: "04:05", endTime: "20:05", intervalMinutes: 120, minuteOffset: 5 }, staleAfterHours: 36 },
+  { id: "news-calendar-news-feed", group: "News & Calendar", job: "Unusual Whales News Feed", functionName: "refresh-news-feed", source: "Unusual Whales", frequency: "Every 30m", schedule: "10,40 * * * *", staleAfterMinutes: 60 },
+  { id: "news-calendar-economic-events", group: "News & Calendar", job: "Economic Events", functionName: "refresh-economic-events", source: "Investing.com", frequency: "Every 12h", staleAfterMinutes: 900, schedule: "0 * * * *", scheduleDescription: "Hourly UTC wake with Toronto runtime guard for 6:00 AM and 6:00 PM.", nextRunRule: { hours: [6, 18], minutes: [0] } },
+  { id: "news-calendar-earnings", group: "News & Calendar", job: "Earnings Calendar", functionName: "fetch-uw-earnings", source: "Unusual Whales", frequency: "Every 30m, 2–6 PM", schedule: "0,30 * * * *", scheduleDescription: "Every 30 minutes with Toronto runtime guard from 2:00 PM through 6:00 PM.", nextRunRule: { startTime: "14:00", endTime: "18:00", intervalMinutes: 30, minuteOffset: 0 }, staleAfterMinutes: 60 },
+  { id: "flow-insider-trades", group: "Flow", job: "Insider Trades", functionName: "refresh-insider-trades", source: "Unusual Whales", frequency: "Every 2h", schedule: "0 * * * *", scheduleDescription: "Hourly UTC wake with Toronto runtime guard every 2 hours.", nextRunRule: { intervalMinutes: 120, minuteOffset: 0 }, staleAfterMinutes: 180 },
+  { id: "flow-dark-pool", group: "Flow", job: "Dark Pool", functionName: "refresh-dark-pool", source: "Unusual Whales", frequency: "Every 2h, Mon–Fri 4 AM–8 PM", schedule: "0 * * * 1-5", scheduleDescription: "Hourly UTC wake with Toronto runtime guard every 2 hours Monday-Friday 4:00 AM-8:00 PM.", nextRunRule: { days: [1, 2, 3, 4, 5], startTime: "04:00", endTime: "20:00", intervalMinutes: 120, minuteOffset: 0 }, staleAfterMinutes: 180 },
+  { id: "flow-whale-feed", group: "Flow", job: "Whale Feed", functionName: "refresh-whale-feed", source: "Unusual Whales", frequency: "Every 2h, Mon–Fri 4 AM–8 PM", schedule: "0 * * * 1-5", scheduleDescription: "Hourly UTC wake with Toronto runtime guard every 2 hours Monday-Friday 4:00 AM-8:00 PM.", nextRunRule: { days: [1, 2, 3, 4, 5], startTime: "04:00", endTime: "20:00", intervalMinutes: 120, minuteOffset: 0 }, staleAfterMinutes: 180 },
+  { id: "flow-snapshot", group: "Flow", job: "Flow Snapshot", functionName: "refresh-flow", source: "Supabase", frequency: "Every 2h, Mon–Fri 4:05 AM–8:05 PM", schedule: "5 * * * 1-5", scheduleDescription: "Hourly UTC wake with Toronto runtime guard every 2 hours Monday-Friday 4:05 AM-8:05 PM, offset after Flow source jobs.", nextRunRule: { days: [1, 2, 3, 4, 5], startTime: "04:05", endTime: "20:05", intervalMinutes: 120, minuteOffset: 5 }, staleAfterMinutes: 180 },
   { id: "ownership-institutional", group: "Ownership", job: "Institutional", functionName: "TBD", source: "TBD", frequency: "TBD" },
   { id: "ownership-congressional-trades", group: "Ownership", job: "Congressional Trades", functionName: "TBD", source: "TBD", frequency: "TBD" },
   { id: "economy-sentiment-tbd", group: "Economy & Sentiment", job: "TBD", functionName: "TBD", source: "TBD", frequency: "TBD" }
@@ -101,19 +112,26 @@ function nextScheduledRun(job: StatusJob) {
   return next ? formatStatusDateTime(next) : "—";
 }
 
-function statusFor(job: StatusJob, metadata?: MetadataRow, netlifyRun?: NetlifyFunctionRun): StatusValue {
+function isStale(timestamp: string | null | undefined, staleAfterMinutes?: number) {
+  if (!timestamp || !staleAfterMinutes) return false;
+  const ageMs = Date.now() - new Date(timestamp).getTime();
+  return Number.isFinite(ageMs) && ageMs > staleAfterMinutes * 60 * 1000;
+}
+
+function statusFor(job: StatusJob, latestRun?: JobRunRow, latestSuccess?: JobRunRow): StatusValue {
   if (job.functionName === "TBD") return "Unknown";
-  if (netlifyRun?.status === "error") return "Error";
-  if (!metadata) return netlifyRun?.status === "success" ? "Healthy" : "Unknown";
-  if (metadata.ok === false || metadata.error) return "Error";
-  const fetchedAt = metadata.fetched_at ?? metadata.updated_at;
-  if (!fetchedAt) return "Unknown";
-  if (job.staleAfterHours) {
-    const ageMs = Date.now() - new Date(fetchedAt).getTime();
-    if (Number.isFinite(ageMs) && ageMs > job.staleAfterHours * 60 * 60 * 1000) return "Warning";
+  if (!latestRun) return "Unknown";
+  const runningAgeMs = Date.now() - new Date(latestRun.started_at).getTime();
+  if (latestRun.status === "running") return runningAgeMs > 30 * 60 * 1000 ? "Error" : "Warning";
+  if (latestRun.status === "error" || latestRun.error_message) return "Error";
+  if (latestRun.status === "warning") return "Warning";
+  if (latestRun.status === "skipped") {
+    if (!latestSuccess) return "Unknown";
+    return isStale(latestSuccess.finished_at ?? latestSuccess.started_at, job.staleAfterMinutes) ? "Warning" : "Healthy";
   }
-  if (netlifyRun?.status === "success" && metadata.ok === true) return "Healthy";
-  return metadata.ok === true ? "Healthy" : "Unknown";
+  if ((latestRun.rows_fetched ?? 1) === 0) return "Warning";
+  if (isStale(latestSuccess?.finished_at ?? latestRun.finished_at ?? latestRun.started_at, job.staleAfterMinutes)) return "Warning";
+  return "Healthy";
 }
 
 export async function getStatusRows(): Promise<StatusRow[]> {
@@ -122,34 +140,66 @@ export async function getStatusRows(): Promise<StatusRow[]> {
 }
 
 export async function getStatusRowsWithDiagnostics(): Promise<StatusRowsResult> {
-  const netlify = await getNetlifyFunctionRuns(Array.from(new Set(STATUS_JOBS.map((job) => job.functionName).filter((name) => name !== "TBD"))));
+  const checkedAt = new Date().toISOString();
   const supabase = createServerSupabaseClient();
   if (!supabase.ok) {
-    return { rows: STATUS_JOBS.map((job) => {
-      const netlifyRun = job.functionName !== "TBD" ? netlify.runs.get(job.functionName) : undefined;
-      return { ...job, status: statusFor(job, undefined, netlifyRun), lastRun: netlifyRun?.lastRunAt ? formatStatusDateTime(netlifyRun.lastRunAt) : "—", nextRun: nextScheduledRun(job), error: netlifyRun?.errorSnippet ?? null, runSource: netlifyRun?.lastRunAt ? "netlify" : "unknown" };
-    }), netlifyLogs: netlify.diagnostics };
+    const supabaseReadHealth: SupabaseReadHealth = { status: "error", checkedAt, error: supabase.message };
+    return { rows: STATUS_JOBS.map((job) => ({
+      ...job,
+      status: "Unknown",
+      lastRun: "—",
+      nextRun: nextScheduledRun(job),
+      rowsFetched: null,
+      rowsInserted: null,
+      rowsUpdated: null,
+      errorMessage: null,
+      warningMessage: null
+    })), supabaseReadHealth };
   }
 
-  const keys = Array.from(new Set(STATUS_JOBS.map((job) => job.metadataKey).filter(Boolean))) as string[];
-  const { data } = await supabase.client
-    .from("data_refresh_metadata")
-    .select("source,ok,fetched_at,updated_at,error")
-    .in("source", keys);
-  const metadata = new Map((data ?? []).map((row) => [row.source, row as MetadataRow]));
+  const functionNames = Array.from(new Set(STATUS_JOBS.map((job) => job.functionName).filter((name) => name !== "TBD")));
+  const { data, error } = await supabase.client
+    .from("job_runs")
+    .select("function_name,status,started_at,finished_at,rows_fetched,rows_inserted,rows_updated,error_message,warning_message")
+    .in("function_name", functionNames)
+    .order("started_at", { ascending: false })
+    .limit(200);
+
+  const supabaseReadHealth: SupabaseReadHealth = { status: error ? "error" : "healthy", checkedAt, error: error?.message ?? null };
+  if (error) {
+    return { rows: STATUS_JOBS.map((job) => ({
+      ...job,
+      status: "Unknown",
+      lastRun: "—",
+      nextRun: nextScheduledRun(job),
+      rowsFetched: null,
+      rowsInserted: null,
+      rowsUpdated: null,
+      errorMessage: null,
+      warningMessage: null
+    })), supabaseReadHealth };
+  }
+
+  const byFunction = new Map<string, JobRunRow[]>();
+  for (const run of (data ?? []) as JobRunRow[]) {
+    byFunction.set(run.function_name, [...(byFunction.get(run.function_name) ?? []), run]);
+  }
 
   return { rows: STATUS_JOBS.map((job) => {
-    const row = job.metadataKey ? metadata.get(job.metadataKey) : undefined;
-    const netlifyRun = job.functionName !== "TBD" ? netlify.runs.get(job.functionName) : undefined;
-    const supabaseTimestamp = row?.fetched_at ?? row?.updated_at ?? null;
-    const lastTimestamp = netlifyRun?.lastRunAt ?? supabaseTimestamp;
+    const runs = job.functionName === "TBD" ? [] : byFunction.get(job.functionName) ?? [];
+    const latestRun = runs[0];
+    const latestSuccess = runs.find((run) => run.status === "success");
+    const lastTimestamp = latestRun ? (latestRun.finished_at ?? latestRun.started_at) : null;
     return {
       ...job,
-      status: statusFor(job, row, netlifyRun),
+      status: statusFor(job, latestRun, latestSuccess),
       lastRun: lastTimestamp ? formatStatusDateTime(lastTimestamp) : "—",
       nextRun: nextScheduledRun(job),
-      error: netlifyRun?.errorSnippet ?? row?.error ?? null,
-      runSource: netlifyRun?.lastRunAt ? "netlify" : supabaseTimestamp ? "supabase" : job.nextRunRule ? "registry" : "unknown"
+      rowsFetched: latestRun?.rows_fetched ?? null,
+      rowsInserted: latestRun?.rows_inserted ?? null,
+      rowsUpdated: latestRun?.rows_updated ?? null,
+      errorMessage: latestRun?.error_message ?? null,
+      warningMessage: latestRun?.warning_message ?? null
     };
-  }), netlifyLogs: netlify.diagnostics };
+  }), supabaseReadHealth };
 }
