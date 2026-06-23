@@ -75,7 +75,7 @@ export default async function StatusPage() {
                 <th className="py-3 pr-4 font-medium">Job</th>
                 <th className="py-3 px-4 text-center font-medium">Status</th>
                 <th className="py-3 pr-4 font-medium">Source</th>
-                <th className="py-3 pr-4 font-medium">Frequency</th>
+                <th className="py-3 pr-4 font-medium">Schedule</th>
                 <th className="py-3 pr-4 font-medium">Last Run</th>
                 <th className="py-3 font-medium">Next Run</th>
               </tr>

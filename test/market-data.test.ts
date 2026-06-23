@@ -11,6 +11,7 @@ import {
   normalizeCoinGeckoCryptoResponse,
   cryptoAssets
 } from "../lib/data/adapters/coingecko-crypto";
+import { shouldRunInTorontoWindow } from "../lib/schedule/toronto";
 
 test("Cboe parser reads equity, index, and total ratios from the market-statistics section only", () => {
   const html = readFileSync("test/fixtures/cboe-market-statistics.html", "utf8");
@@ -68,6 +69,14 @@ test("Cboe scheduler gate allows only 9:05 AM through 3:35 PM Central on weekday
   assert.equal(isExpectedCboeFetchWindow(new Date("2026-06-12T13:35:00.000Z")), false);
   assert.equal(isExpectedCboeFetchWindow(new Date("2026-06-12T21:05:00.000Z")), false);
   assert.equal(isExpectedCboeFetchWindow(new Date("2026-06-13T14:05:00.000Z")), false);
+});
+
+test("Toronto weekday-only Flow guard allows late hourly wakes without interval skips", () => {
+  const tuesdayLateWake = new Date("2026-06-23T05:15:05.000Z");
+  const decision = shouldRunInTorontoWindow({ days: [1, 2, 3, 4, 5], now: tuesdayLateWake });
+  assert.equal(decision.shouldRun, true);
+  assert.equal(decision.reason, "scheduled_toronto_window");
+  assert.equal(decision.torontoTime, "Tue 2026-06-23 01:15:05");
 });
 
 test("CoinGecko normalization requires every configured current USD crypto quote", () => {
