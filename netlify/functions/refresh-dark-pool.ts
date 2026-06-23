@@ -9,7 +9,7 @@ const json = (body: unknown, status = 200) => new Response(JSON.stringify(body),
 export default async function handler(request: Request) {
   const startedAt = new Date().toISOString();
   const force = new URL(request.url).searchParams.get("force") === "true";
-  const runWindow = shouldRunInTorontoWindow({ days: [1, 2, 3, 4, 5], intervalMinutes: 60, minuteOffset: 0 });
+  const runWindow = shouldRunInTorontoWindow({ days: [1, 2, 3, 4, 5] });
   if (!force && !runWindow.shouldRun) {
     console.info("scheduled_refresh_skipped", { job: "refresh-dark-pool", reason: runWindow.reason, torontoTime: runWindow.torontoTime });
     await recordJobRun({ jobName: "Dark Pool", functionName: "refresh-dark-pool", source: "Unusual Whales", status: "skipped", startedAt, metadata: { reason: runWindow.reason, torontoTime: runWindow.torontoTime } });
