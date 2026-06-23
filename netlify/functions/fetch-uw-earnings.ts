@@ -4,7 +4,7 @@ import {
 } from "../../lib/data/adapters/unusual-whales-earnings";
 import { finishJobRun, startJobRun } from "../../lib/status/job-runs";
 
-export const config = { schedule: "0 */4 * * *" };
+export const config = { schedule: "0 */6 * * *" };
 
 function json(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), {

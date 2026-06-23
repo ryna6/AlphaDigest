@@ -210,7 +210,7 @@ npm run fetch:uw-earnings -- --min_date 2026-06-01 --max_date 2026-06-06 --write
 
 Netlify functions:
 
-- `/.netlify/functions/fetch-uw-earnings` refreshes Supabase when configured and is declared with `schedule: "0 */4 * * *"`.
+- `/.netlify/functions/fetch-uw-earnings` refreshes Supabase when configured and is declared with `schedule: "0 */6 * * *"`.
 - `/.netlify/functions/get-uw-earnings` exposes a serverless getter with `min_date`, `max_date`, `symbol`, `sp500_only`, `has_options`, `limit`, and `order` filters.
 
 ## Investing.com economic calendar flow
@@ -321,11 +321,11 @@ Active source refresh functions:
 
 | Function                    | Table                              | Schedule                                             |
 | --------------------------- | ---------------------------------- | ---------------------------------------------------- |
-| `fetch-uw-earnings`         | `unusual_whales_earnings_events`   | `0 */4 * * *`                                          |
+| `fetch-uw-earnings`         | `unusual_whales_earnings_events`   | `0 */6 * * *`                                          |
 | `refresh-news-feed`         | `unusual_whales_news_feed`         | `*/30 * * * *`                                      |
-| `refresh-featured-articles` | `unusual_whales_featured_articles` | `20,50 * * * *`                                      |
+| `refresh-featured-articles` | `unusual_whales_featured_articles` | `*/30 * * * *`                                      |
 | `refresh-economic-events`   | `investing_economic_events`        | `0 */6 * * *`                                 |
-| `refresh-market-quotes`     | `market_quotes`                    | `*/15 14-22 * * 1-5`                                 |
+| `refresh-market-quotes`     | `market_quotes`                    | `*/5 * * * *` with Toronto Sun–Fri guard                                 |
 | `refresh-put-call`          | `put_call_observations`            | `*/30 * * * 1-5` |
 
 ## Cache schema expectation map
@@ -376,7 +376,7 @@ Unusual Whales calls for Flow remain server-side in Netlify functions/adapters; 
 
 ### Flow Whale Feed and Dark Pool size fields
 
-Whale Feed replaces the former Whale Trades label in the Flow UI. Netlify wakes `refresh-whale-feed` on weekdays; a Toronto runtime guard runs provider work every 2 hours from 4 AM through 8 PM and calls the Unusual Whales `lit-trades?tab=whale` endpoint server-side only; browser components never call Unusual Whales and never receive `SUPABASE_SERVICE_ROLE_KEY`. Rows are normalized into `unusual_whales_whale_feed` with only `size`, `ticker`, `price`, `nbbo_ask`, `nbbo_bid`, `executed_at`, `premium`, `sector`, `volume`, `avg30_volume`, and internal `external_id`, `side`, `sentiment`, `fetched_at`, `created_at`, `updated_at` fields. The expanded Whale Feed page initially shows 15 server-loaded rows and supports client-side View more in batches of 15 after the server has loaded cached rows.
+Whale Feed replaces the former Whale Trades label in the Flow UI. Netlify wakes `refresh-whale-feed` on weekdays; a Toronto runtime guard runs provider work every hour Monday-Friday and calls the Unusual Whales `lit-trades?tab=whale` endpoint server-side only; browser components never call Unusual Whales and never receive `SUPABASE_SERVICE_ROLE_KEY`. Rows are normalized into `unusual_whales_whale_feed` with only `size`, `ticker`, `price`, `nbbo_ask`, `nbbo_bid`, `executed_at`, `premium`, `sector`, `volume`, `avg30_volume`, and internal `external_id`, `side`, `sentiment`, `fetched_at`, `created_at`, `updated_at` fields. The expanded Whale Feed page initially shows 15 server-loaded rows and supports client-side View more in batches of 15 after the server has loaded cached rows.
 
 Dark Pool ingestion stores `size` and `avg30_volume` in addition to existing normalized fields, but does not store NBBO, side, or sentiment. Flow displays Dark Pool individual trade size from `size`; `volume` is retained as total same-day ticker volume for `% Vol = size / volume`, and `avg30_volume` powers `% 30D Vol = size / avg30_volume`.
 
