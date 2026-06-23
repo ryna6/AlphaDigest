@@ -192,6 +192,7 @@ Caching/fallback order in `getCachedUnusualWhalesEarnings()`:
 Normalization details:
 
 - Stable event id: `uw-earnings:{SYMBOL}:{reportDate}:{reportTime || unknown}`.
+- Server-side normalization/read paths suppress same-ticker `unknown` report-time variants when a better non-unknown row exists for that ticker, while keeping unknown rows when they are the only available row.
 - Rows are deduped by id and sorted deterministically.
 - Implied move percentage is calculated from implied/expected move divided by current/previous price when possible.
 - Content hashes exclude fetch timestamps so unchanged data can skip unnecessary upserts.

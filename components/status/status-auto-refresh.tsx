@@ -3,7 +3,7 @@
 import { useEffect } from "react";
 import { useRouter } from "next/navigation";
 
-const STATUS_REFRESH_INTERVAL_MS = 150_000;
+const STATUS_REFRESH_INTERVAL_MS = 300_000;
 
 export function StatusAutoRefresh() {
   const router = useRouter();

@@ -33,12 +33,14 @@ function formatStatusPageDateTime(timestamp: string) {
   return STATUS_PAGE_TIME_FORMATTER.format(date).replace("a.m.", "AM").replace("p.m.", "PM");
 }
 
-const legend: Array<{ status: StatusValue; description: string }> = [
-  { status: "Healthy", description: "All good" },
-  { status: "Warning", description: "Degraded or delayed" },
-  { status: "Error", description: "Action required" },
-  { status: "Unknown", description: "No recent data" }
-];
+const statusDisplay: Record<StatusValue, { label: string; description: string }> = {
+  Healthy: { label: "Good", description: "Healthy" },
+  Warning: { label: "Warning", description: "Delayed or missing" },
+  Error: { label: "Critical", description: "Action required" },
+  Unknown: { label: "Offline", description: "No status available" }
+};
+
+const legend: StatusValue[] = ["Healthy", "Warning", "Error", "Unknown"];
 
 export default async function StatusPage() {
   const { rows, supabaseReadHealth } = await getStatusRowsWithDiagnostics();
@@ -51,11 +53,11 @@ export default async function StatusPage() {
       <Panel>
         <SectionHeader title="Component Status" />
         <div className="mb-3 flex flex-wrap items-center justify-center gap-x-20 gap-y-3 text-sm text-textSecondary">
-          {legend.map((item) => (
-            <div key={item.status} className="flex items-center gap-2 whitespace-nowrap">
-              <span className={`h-2.5 w-2.5 rounded-full ${statusDot[item.status]}`} aria-hidden="true" />
-              <span className="font-medium text-textPrimary">{item.status}</span>
-              <span className="ml-1 text-xs text-textSecondary">{item.description}</span>
+          {legend.map((status) => (
+            <div key={status} className="flex items-center gap-2 whitespace-nowrap">
+              <span className={`h-2.5 w-2.5 rounded-full ${statusDot[status]}`} aria-hidden="true" />
+              <span className="font-medium text-textPrimary">{statusDisplay[status].label}</span>
+              <span className="ml-1 text-xs text-textSecondary">{statusDisplay[status].description}</span>
             </div>
           ))}
         </div>
@@ -101,7 +103,7 @@ export default async function StatusPage() {
                         <td className="py-3 px-4 text-center">
                           <span className="inline-flex items-center justify-center gap-2 text-textPrimary">
                             <span className={`h-2.5 w-2.5 rounded-full ${statusDot[row.status]}`} aria-hidden="true" />
-                            {row.status}
+                            {statusDisplay[row.status].label}
                           </span>
                         </td>
                         <td className="py-3 pr-4 text-textSecondary">{row.source}</td>
