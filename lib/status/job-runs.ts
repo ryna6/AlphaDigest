@@ -1,3 +1,4 @@
+import type { SupabaseClient } from "@supabase/supabase-js";
 import { createServerSupabaseClient } from "@/lib/db/supabase";
 
 export type JobRunStatus = "running" | "success" | "warning" | "error" | "skipped";
@@ -41,6 +42,16 @@ function logTelemetryFailure(action: string, error: unknown) {
   console.warn("job_run_telemetry_failed", { action, error: message });
 }
 
+async function cleanupOldJobRuns(client: SupabaseClient) {
+  const { error } = await client.rpc("cleanup_old_job_runs");
+  if (!error) return;
+
+  const cutoff = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+  const { error: fallbackError } = await client.from("job_runs").delete().lt("started_at", cutoff);
+  if (fallbackError) throw fallbackError;
+  console.warn("job_run_retention_rpc_unavailable", { error: error.message });
+}
+
 export async function startJobRun(input: StartJobRunInput): Promise<string | null> {
   try {
     const supabase = createServerSupabaseClient();
@@ -48,6 +59,7 @@ export async function startJobRun(input: StartJobRunInput): Promise<string | nul
       console.warn("job_run_telemetry_unavailable", { action: "start", functionName: input.functionName, message: supabase.message });
       return null;
     }
+    await cleanupOldJobRuns(supabase.client);
     const { data, error } = await supabase.client
       .from("job_runs")
       .insert({
@@ -102,6 +114,7 @@ export async function recordJobRun(input: RecordJobRunInput): Promise<void> {
       console.warn("job_run_telemetry_unavailable", { action: "record", functionName: input.functionName, message: supabase.message });
       return;
     }
+    await cleanupOldJobRuns(supabase.client);
     const { error } = await supabase.client.from("job_runs").insert({
       job_name: input.jobName,
       function_name: input.functionName,

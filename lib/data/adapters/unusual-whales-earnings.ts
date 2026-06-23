@@ -137,7 +137,24 @@ export function normalizeUnusualWhalesEarningsRows(
     .filter((event): event is UnusualWhalesEarningsEvent => Boolean(event));
   const deduped = new Map<string, UnusualWhalesEarningsEvent>();
   for (const event of events) deduped.set(event.id, event);
-  return Array.from(deduped.values()).sort((a, b) => a.id.localeCompare(b.id));
+  return suppressUnknownEarningsVariants(Array.from(deduped.values())).sort((a, b) =>
+    a.id.localeCompare(b.id)
+  );
+}
+
+function isUnknownEarningsVariant(event: UnusualWhalesEarningsEvent) {
+  return !event.reportTime || event.id.endsWith(":unknown");
+}
+
+export function suppressUnknownEarningsVariants(events: UnusualWhalesEarningsEvent[]) {
+  const symbolsWithDatedRows = new Set(
+    events
+      .filter((event) => !isUnknownEarningsVariant(event))
+      .map((event) => event.symbol.toUpperCase())
+  );
+  return events.filter(
+    (event) => !isUnknownEarningsVariant(event) || !symbolsWithDatedRows.has(event.symbol.toUpperCase())
+  );
 }
 
 export function normalizeUnusualWhalesEarningsRow(
@@ -528,7 +545,7 @@ function filterAndSortEvents(
         return event.openInterest ?? -1;
     }
   };
-  return events
+  return suppressUnknownEarningsVariants(events)
     .filter((event) => {
       if (options.symbol && event.symbol !== options.symbol.toUpperCase()) return false;
       if (options.sp500Only && !event.isSp500) return false;
@@ -624,8 +641,7 @@ export async function getCachedUnusualWhalesEarnings(
     .order(orderMap[options.order ?? "oi"] ?? "open_interest", {
       ascending: false,
       nullsFirst: false
-    })
-    .limit(options.limit ?? DEFAULT_LIMIT);
+    });
   const { data, error } = await query;
   if (error) {
     try {
@@ -655,7 +671,10 @@ export async function getCachedUnusualWhalesEarnings(
     .eq("source", metadataSource({ minDate, maxDate }))
     .maybeSingle();
   return {
-    events: (data ?? []).map((row) => fromDbRow(row as UnknownRecord)),
+    events: filterAndSortEvents(
+      (data ?? []).map((row) => fromDbRow(row as UnknownRecord)),
+      options
+    ),
     metadata: metadata ? fromMetadataRow(metadata as UnknownRecord) : null,
     mode: "supabase"
   };

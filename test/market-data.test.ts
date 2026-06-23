@@ -12,6 +12,8 @@ import {
   cryptoAssets
 } from "../lib/data/adapters/coingecko-crypto";
 import { shouldRunInTorontoWindow } from "../lib/schedule/toronto";
+import { normalizeUnusualWhalesEarningsRows } from "../lib/data/adapters/unusual-whales-earnings";
+
 
 test("Cboe parser reads equity, index, and total ratios from the market-statistics section only", () => {
   const html = readFileSync("test/fixtures/cboe-market-statistics.html", "utf8");
@@ -91,4 +93,18 @@ test("CoinGecko normalization requires every configured current USD crypto quote
   assert.equal(quotes[0].symbol, "BTCUSD");
   assert.equal(quotes[0].price, 100);
   assert.equal(quotes[0].changePercent24h, -2);
+});
+
+test("Unusual Whales earnings normalization suppresses duplicate same-ticker unknown variants only when a dated row exists", () => {
+  const rows = [
+    { symbol: "AVAV", full_name: "AeroVironment", report_date: "2026-06-23", report_time: null, marketcap: 5_000_000_000, country_code: "US" },
+    { symbol: "AVAV", full_name: "AeroVironment", report_date: "2026-06-23", report_time: "postmarket", marketcap: 5_000_000_000, country_code: "US" },
+    { symbol: "ONLY", full_name: "Only Unknown", report_date: "2026-06-23", report_time: null, marketcap: 5_000_000_000, country_code: "US" }
+  ];
+
+  const events = normalizeUnusualWhalesEarningsRows(rows, "2026-06-23T00:00:00.000Z");
+  assert.deepEqual(events.map((event) => event.id).sort(), [
+    "uw-earnings:AVAV:2026-06-23:postmarket",
+    "uw-earnings:ONLY:2026-06-23:unknown"
+  ]);
 });
