@@ -2,7 +2,7 @@ import { refreshYahooMarketQuotes } from "../../lib/data/adapters/yahoo-finance"
 import { finishJobRun, recordJobRun, startJobRun } from "../../lib/status/job-runs";
 import { shouldRunInTorontoWindow } from "../../lib/schedule/toronto";
 
-export const config = { schedule: "*/5 * * * 0-5" };
+export const config = { schedule: "*/5 * * * *" };
 
 function json(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json" } });
@@ -11,14 +11,7 @@ function json(body: unknown, status = 200) {
 export default async function handler() {
   const startedAt = new Date().toISOString();
   const runWindow = shouldRunInTorontoWindow({
-    windows: [
-      { day: 0, startTime: "18:00", endTime: "20:00" },
-      { day: 1, startTime: "04:00", endTime: "20:00" },
-      { day: 2, startTime: "04:00", endTime: "20:00" },
-      { day: 3, startTime: "04:00", endTime: "20:00" },
-      { day: 4, startTime: "04:00", endTime: "20:00" },
-      { day: 5, startTime: "04:00", endTime: "17:00" }
-    ],
+    days: [0, 1, 2, 3, 4, 5],
     intervalMinutes: 5,
     minuteOffset: 0
   });
@@ -27,7 +20,7 @@ export default async function handler() {
     await recordJobRun({ jobName: "Market Overview", functionName: "refresh-market-quotes", source: "Finnhub", status: "skipped", startedAt, metadata: { reason: runWindow.reason, torontoTime: runWindow.torontoTime } });
     return json({ ok: true, skipped: true, job: "refresh-market-quotes", startedAt, reason: runWindow.reason, torontoTime: runWindow.torontoTime });
   }
-  console.log("scheduled_refresh_start", { job: "refresh-market-quotes", source: "yahoo_market_quotes", startedAt, torontoTime: runWindow.torontoTime });
+  console.log("scheduled_refresh_start", { job: "refresh-market-quotes", source: "Finnhub", startedAt, torontoTime: runWindow.torontoTime });
   const runId = await startJobRun({ jobName: "Market Overview", functionName: "refresh-market-quotes", source: "Finnhub" });
   try {
     const result = await refreshYahooMarketQuotes();

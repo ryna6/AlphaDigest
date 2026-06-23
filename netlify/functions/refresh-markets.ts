@@ -11,14 +11,14 @@ function json(body: unknown, status = 200) {
 
 export default async function handler() {
   const startedAt = new Date().toISOString();
-  const runWindow = shouldRunInTorontoWindow({ days: [1, 2, 3, 4, 5], startTime: "09:00", endTime: "16:00", intervalMinutes: 5, minuteOffset: 0 });
+  const runWindow = shouldRunInTorontoWindow({ days: [1, 2, 3, 4, 5], intervalMinutes: 5, minuteOffset: 0 });
   if (!runWindow.shouldRun) {
     console.info("scheduled_refresh_skipped", { job: "refresh-markets", reason: runWindow.reason, torontoTime: runWindow.torontoTime });
-    await recordJobRun({ jobName: "Indices/Heatmaps", functionName: "refresh-markets", source: "Yahoo Finance", status: "skipped", startedAt, metadata: { reason: runWindow.reason, torontoTime: runWindow.torontoTime } });
+    await recordJobRun({ jobName: "Indices/Heatmaps", functionName: "refresh-markets", source: "Yahoo Finance, Finnhub", status: "skipped", startedAt, metadata: { reason: runWindow.reason, torontoTime: runWindow.torontoTime } });
     return json({ ok: true, skipped: true, job: "refresh-markets", startedAt, reason: runWindow.reason, torontoTime: runWindow.torontoTime });
   }
   console.log("scheduled_refresh_start", { job: "refresh-markets", startedAt, sources: ["yahoo_market_quotes"], snapshotKey: "markets:latest", torontoTime: runWindow.torontoTime });
-  const runId = await startJobRun({ jobName: "Indices/Heatmaps", functionName: "refresh-markets", source: "Yahoo Finance" });
+  const runId = await startJobRun({ jobName: "Indices/Heatmaps", functionName: "refresh-markets", source: "Yahoo Finance, Finnhub" });
   try {
     const marketQuotes = await refreshYahooMarketQuotes();
     const snapshot = await refreshDashboardSnapshot("markets:latest");

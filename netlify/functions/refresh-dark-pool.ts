@@ -9,13 +9,13 @@ const json = (body: unknown, status = 200) => new Response(JSON.stringify(body),
 export default async function handler(request: Request) {
   const startedAt = new Date().toISOString();
   const force = new URL(request.url).searchParams.get("force") === "true";
-  const runWindow = shouldRunInTorontoWindow({ days: [1, 2, 3, 4, 5], startTime: "04:00", endTime: "20:00", intervalMinutes: 120, minuteOffset: 0 });
+  const runWindow = shouldRunInTorontoWindow({ days: [1, 2, 3, 4, 5], intervalMinutes: 60, minuteOffset: 0 });
   if (!force && !runWindow.shouldRun) {
     console.info("scheduled_refresh_skipped", { job: "refresh-dark-pool", reason: runWindow.reason, torontoTime: runWindow.torontoTime });
     await recordJobRun({ jobName: "Dark Pool", functionName: "refresh-dark-pool", source: "Unusual Whales", status: "skipped", startedAt, metadata: { reason: runWindow.reason, torontoTime: runWindow.torontoTime } });
     return json({ ok: true, skipped: true, job: "refresh-dark-pool", startedAt, reason: runWindow.reason, torontoTime: runWindow.torontoTime });
   }
-  console.log("scheduled_refresh_start", { job: "refresh-dark-pool", startedAt, schedule: "Every 2 hours Mon-Fri 4 AM-8 PM America/Toronto", torontoTime: runWindow.torontoTime });
+  console.log("scheduled_refresh_start", { job: "refresh-dark-pool", startedAt, schedule: "Every hour Mon-Fri", torontoTime: runWindow.torontoTime });
   const runId = await startJobRun({ jobName: "Dark Pool", functionName: "refresh-dark-pool", source: "Unusual Whales" });
   try {
     const result = await refreshDarkPoolFlows();

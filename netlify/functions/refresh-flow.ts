@@ -5,18 +5,18 @@ import { refreshWhaleFeed } from "../../lib/data/adapters/unusual-whales-whale-f
 import { shouldRunInTorontoWindow } from "../../lib/schedule/toronto";
 import { finishJobRun, recordJobRun, startJobRun } from "../../lib/status/job-runs";
 
-export const config = { schedule: "5 * * * 1-5" };
+export const config = { schedule: "5 * * * *" };
 const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json" } });
 
 export default async function handler() {
   const startedAt = new Date().toISOString();
-  const runWindow = shouldRunInTorontoWindow({ days: [1, 2, 3, 4, 5], startTime: "04:05", endTime: "20:05", intervalMinutes: 120, minuteOffset: 5 });
+  const runWindow = shouldRunInTorontoWindow({ intervalMinutes: 60, minuteOffset: 5 });
   if (!runWindow.shouldRun) {
     console.info("scheduled_refresh_skipped", { job: "refresh-flow", reason: runWindow.reason, torontoTime: runWindow.torontoTime });
     await recordJobRun({ jobName: "Flow Snapshot", functionName: "refresh-flow", source: "Supabase", status: "skipped", startedAt, metadata: { reason: runWindow.reason, torontoTime: runWindow.torontoTime } });
     return json({ ok: true, skipped: true, job: "refresh-flow", startedAt, reason: runWindow.reason, torontoTime: runWindow.torontoTime });
   }
-  console.log("scheduled_refresh_start", { job: "refresh-flow", startedAt, schedule: "Every 2 hours Mon-Fri 4:05 AM-8:05 PM America/Toronto", torontoTime: runWindow.torontoTime });
+  console.log("scheduled_refresh_start", { job: "refresh-flow", startedAt, schedule: "Every hour daily at :05", torontoTime: runWindow.torontoTime });
   const runId = await startJobRun({ jobName: "Flow Snapshot", functionName: "refresh-flow", source: "Supabase" });
   try {
   const [darkPool, insiderTrades, whaleFeed] = await Promise.all([refreshDarkPoolFlows(), refreshInsiderTrades(), refreshWhaleFeed()]);
