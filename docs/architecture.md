@@ -49,8 +49,6 @@ supabase/                    Schema and migrations
 | `/ownership`                      | Ownership dashboard.                                   | `ownershipMock` fixture / optional `ownership:latest`.                       |
 | `/flow-ownership`                 | Legacy redirect.                                       | Redirects to `/flow`.                                                        |
 | `/economy-sentiment`              | Economy/sentiment dashboard.                           | `economyMock` fixture.                                                       |
-| `/ticker-explorer`                | Symbol lookup entry page.                              | `TickerExplorerView`.                                                        |
-| `/ticker/[symbol]`                | Ticker detail page.                                    | `TickerDetailView`, currently fixture-backed.                                |
 | `/sources-methodology`            | Source reference table.                                | Static page-level source list.                                               |
 | `/status`                         | Job/component monitoring page.                         | Server-rendered status rows from `lib/status/jobs.ts` and Supabase metadata. |
 | `/settings`                       | Legacy redirect.                                       | Redirects to `/status`.                                                      |
@@ -82,7 +80,6 @@ All API responses that use `dashboardJson()` are wrapped with:
 | `/api/flow/insider-trades/[ticker]`           | Returns cached insider detail rows for one ticker.                                      |
 | `/api/flow-ownership`                         | Legacy redirect to `/api/flow`.                                                         |
 | `/api/economy-sentiment`                      | Returns `economyMock`.                                                                  |
-| `/api/ticker/[symbol]`                        | Returns `tickerMock(symbol)`.                                                           |
 | `/api/sources/status`                         | Returns configured/missing booleans for environment variables, never secret values.     |
 
 ## Data orchestration
@@ -165,7 +162,6 @@ Placeholder functions:
 - `refresh-markets.ts`
 - `refresh-flow.ts`
 - `refresh-economy.ts`
-- `refresh-ticker.ts`
 - `refresh-sources-status.ts`
 
 The placeholder functions only return JSON that describes future ingestion flow. Do not document them as active refresh pipelines until they are implemented.

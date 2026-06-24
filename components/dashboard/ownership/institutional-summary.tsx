@@ -78,7 +78,7 @@ const sectorMeta = [
     aliases: ["Consumer Discretionary", "Consumer Cyclical", "Discretionary"]
   },
   {
-    label: "XLC (Communication Services)",
+    label: "XLC (Communications)",
     etf: "XLC",
     name: "Communication Services",
     color: "#22d3ee",
@@ -209,9 +209,15 @@ function SummaryTile({
 }) {
   return (
     <div className="flex min-h-64 flex-col rounded-none border border-borderStrong bg-sidebar p-4 shadow-panel">
-      <div className="mb-3 flex items-start justify-between gap-3">
-        <p className="text-sm font-semibold leading-6 text-textPrimary">{title}</p>
-        {action}
+      <div className="mb-4 flex min-h-14 flex-col gap-2">
+        <p className="whitespace-nowrap text-sm font-semibold leading-6 text-textPrimary">
+          {title}
+        </p>
+        {action ? (
+          <div className="flex justify-end">{action}</div>
+        ) : (
+          <div className="h-7" aria-hidden="true" />
+        )}
       </div>
       {children}
     </div>
@@ -580,7 +586,7 @@ export function InstitutionalSummary() {
           action={
             <select
               aria-label="Select position change"
-              className="border border-borderStrong bg-panel px-2 py-1 text-[11px] text-textSecondary outline-none hover:border-accentBlue/50 hover:text-textPrimary focus:border-accentBlue"
+              className="border border-borderStrong bg-panel px-3 py-1 text-[11px] text-textSecondary outline-none hover:border-accentBlue/50 hover:text-textPrimary focus:border-accentBlue"
               value={positionChange}
               onChange={(event) => setPositionChange(event.target.value as PositionChange)}
             >

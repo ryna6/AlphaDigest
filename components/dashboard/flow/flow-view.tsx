@@ -95,6 +95,7 @@ function SummaryCard({ metric }: { metric: any }) {
 
 const summaryOrder = [
   "Insider sentiment",
+  "Largest Dark Pool Print (14D)",
   "Dark Pool Print",
   "Largest Dark Pool Print (7D)",
   "Largest Dark Pool Print (30D)",

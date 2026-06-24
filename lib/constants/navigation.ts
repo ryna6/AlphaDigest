@@ -6,7 +6,6 @@ import {
   MapPin,
   ScrollText,
   Landmark,
-  Search,
   Settings
 } from "lucide-react";
 
@@ -16,8 +15,7 @@ export const mainNavigation = [
   { label: "News & Calendar", href: "/news-calendar", icon: CalendarDays },
   { label: "Flow", href: "/flow", icon: ScrollText },
   { label: "Ownership", href: "/ownership", icon: Landmark },
-  { label: "Economy & Sentiment", href: "/economy-sentiment", icon: Activity },
-  { label: "Ticker Explorer", href: "/ticker-explorer", icon: Search }
+  { label: "Economy & Sentiment", href: "/economy-sentiment", icon: Activity }
 ];
 
 export const utilityNavigation = [

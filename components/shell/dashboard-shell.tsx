@@ -1,9 +1,14 @@
+import { Suspense } from "react";
 import { AppMobileNav, AppSidebar } from "./app-sidebar";
 import { AppLogo } from "./app-logo";
+import { TopLoadingBar } from "./top-loading-bar";
 
 export function DashboardShell({ children }: { children: React.ReactNode }) {
   return (
     <div className="min-h-screen bg-page text-textPrimary">
+      <Suspense fallback={null}>
+        <TopLoadingBar />
+      </Suspense>
       <div className="flex min-h-screen">
         <AppSidebar />
         <main className="min-w-0 flex-1">
