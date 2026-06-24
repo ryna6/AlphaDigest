@@ -18,7 +18,7 @@ function NavItem({ item, compact = false }: { item: NavigationItem; compact?: bo
       href={item.href}
       className={cn(
         "flex items-center rounded-none border transition",
-        compact ? "shrink-0 gap-2 px-3 py-2 text-xs" : "gap-3 px-3 py-2 text-sm",
+        compact ? "shrink-0 gap-2 px-3 py-2 text-xs" : "gap-2 px-2.5 py-2 text-sm",
         active
           ? "border-accentBlue/30 bg-accentBlue/10 text-textPrimary"
           : "border-transparent text-textMuted hover:border-borderStrong hover:bg-panel"
@@ -42,7 +42,7 @@ export function AppMobileNav() {
 
 export function AppSidebar() {
   return (
-    <aside className="sticky top-0 hidden h-screen w-56 shrink-0 border-r border-borderStrong bg-sidebar p-3 lg:flex lg:flex-col">
+    <aside className="sticky top-0 hidden h-screen w-48 shrink-0 border-r border-borderStrong bg-sidebar p-3 lg:flex lg:flex-col">
       <Link
         href="/overview/today"
         className="mb-5 flex min-h-12 items-center gap-2 rounded-none border border-borderStrong bg-panel px-2.5 py-2"
