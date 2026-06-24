@@ -131,8 +131,8 @@ Important behavior:
 ## Ownership tab
 
 - Page route: `app/ownership/page.tsx`; API route: `/api/ownership`.
-- Contains Institutional/13F positioning and Congressional Trades.
-- Both sections remain fixture-backed placeholders until live providers/endpoints are added.
+- Contains an Institutional Summary UI with a shared investor-type selector (Value by default, plus Activist, 13D Activist, and Tiger Cub) and a click-to-open Investor Types modal.
+- Contains Institutional positioning and Congressional Trades; these data tables remain fixture-backed placeholders until live providers/endpoints are added.
 
 #### Flow cache behavior
 
