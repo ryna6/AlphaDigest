@@ -19,6 +19,48 @@ export const TOP_HOLDINGS_ORDER = "holding_count";
 const SOURCE_TICKER_FLOW = "unusual_whales_institutional_ticker_flow";
 const SOURCE_SECTOR_EXPOSURE = "unusual_whales_institutional_sector_exposure";
 
+const stateStreetSectorMeta = [
+  { label: "XLB (Materials)", name: "Materials", codes: ["XLB", "MATERIALS", "BASIC MATERIALS"] },
+  { label: "XLE (Energy)", name: "Energy", codes: ["XLE", "ENERGY"] },
+  {
+    label: "XLF (Financials)",
+    name: "Financials",
+    codes: ["XLF", "FINAN", "FINANCIALS", "FINANCIAL SERVICES", "FINANCE"]
+  },
+  { label: "XLI (Industrials)", name: "Industrials", codes: ["XLI", "INDUSTRIALS"] },
+  {
+    label: "XLK (Technology)",
+    name: "Technology",
+    codes: ["XLK", "TECHNOLOGY", "TECH", "INFORMATION TECHNOLOGY"]
+  },
+  {
+    label: "XLP (Consumer Staples)",
+    name: "Consumer Staples",
+    codes: ["XLP", "CONSUMER STAPLES", "STAPLES", "CONSUMER DEFENSIVE"]
+  },
+  { label: "XLU (Utilities)", name: "Utilities", codes: ["XLU", "UTILITIES"] },
+  { label: "XLV (Health Care)", name: "Health Care", codes: ["XLV", "HEALTH CARE", "HEALTHCARE"] },
+  {
+    label: "XLY (Consumer Discretionary)",
+    name: "Consumer Discretionary",
+    codes: ["XLY", "CONSUMER DISCRETIONARY", "CONSUMER CYCLICAL", "DISCRETIONARY"]
+  },
+  { label: "XLRE (Real Estate)", name: "Real Estate", codes: ["XLRE", "REAL ESTATE", "REALESTATE"] }
+] as const;
+
+function normalizeSectorLabel(value: string) {
+  const cleaned = value
+    .replace(/\([^)]*\)/g, " ")
+    .replace(/[^a-zA-Z0-9]+/g, " ")
+    .trim()
+    .toUpperCase();
+  const compact = cleaned.replace(/\s+/g, " ");
+  const match = stateStreetSectorMeta.find((sector) =>
+    sector.codes.some((code) => compact === code || compact.includes(code))
+  );
+  return match?.label ?? null;
+}
+
 type Rec = Record<string, unknown>;
 const isRec = (v: unknown): v is Rec => !!v && typeof v === "object" && !Array.isArray(v);
 const str = (r: Rec, keys: string[]) =>
@@ -121,9 +163,17 @@ function normalizeSectorRow(
   const sector = str(raw, ["sector", "name"]);
   const reportDate = str(raw, ["report_date", "date"]);
   if (!sector || !reportDate) return null;
+  const normalizedSector = normalizeSectorLabel(sector);
+  if (!normalizedSector) return null;
   const isoDate = reportDate.slice(0, 10);
-  if (!isQuarterEnd(isoDate) || isoDate < latestQuarterEndCutoff()) return null;
-  return { investorType, sector, value: num(raw.value), reportDate: isoDate, fetchedAt };
+  if (!isQuarterEnd(isoDate)) return null;
+  return {
+    investorType,
+    sector: normalizedSector,
+    value: num(raw.value),
+    reportDate: isoDate,
+    fetchedAt
+  };
 }
 
 function tickerFlowUrl(slug: string, order: string) {
@@ -164,7 +214,7 @@ function toTickerDb(row: InstitutionalTickerFlowRow) {
 function toSectorDb(row: InstitutionalSectorExposureRow) {
   return {
     investor_type: row.investorType,
-    sector: row.sector,
+    sector: normalizeSectorLabel(row.sector) ?? row.sector,
     value: row.value,
     report_date: row.reportDate,
     fetched_at: row.fetchedAt,
@@ -198,18 +248,43 @@ export async function refreshInstitutionalData() {
         .filter(Boolean) as InstitutionalSectorExposureRow[])
     );
   }
+  const retainedSectorRows = institutionalInvestorTypes.flatMap((investor) => {
+    const investorRows = sectorRows.filter((row) => row.investorType === investor.value);
+    const keepDates = Array.from(new Set(investorRows.map((row) => row.reportDate)))
+      .sort()
+      .reverse()
+      .slice(0, 4);
+    return investorRows.filter((row) => keepDates.includes(row.reportDate));
+  });
+
   if (tickerRows.length) {
     const { error } = await supabase.client
       .from(SOURCE_TICKER_FLOW)
       .upsert(tickerRows.map(toTickerDb), { onConflict: "investor_type,order,ticker" });
     if (error) throw new Error(`Institutional ticker-flow upsert failed: ${error.message}`);
   }
-  if (sectorRows.length) {
-    const cutoff = latestQuarterEndCutoff();
-    await supabase.client.from(SOURCE_SECTOR_EXPOSURE).delete().lt("report_date", cutoff);
+  if (retainedSectorRows.length) {
+    await Promise.all(
+      institutionalInvestorTypes.map(async (investor) => {
+        const keepDates = Array.from(
+          new Set(
+            retainedSectorRows
+              .filter((row) => row.investorType === investor.value)
+              .map((row) => row.reportDate)
+          )
+        );
+        if (!keepDates.length) return;
+        await supabase.client
+          .from(SOURCE_SECTOR_EXPOSURE)
+          .delete()
+          .eq("investor_type", investor.value);
+      })
+    );
     const { error } = await supabase.client
       .from(SOURCE_SECTOR_EXPOSURE)
-      .upsert(sectorRows.map(toSectorDb), { onConflict: "investor_type,sector,report_date" });
+      .upsert(retainedSectorRows.map(toSectorDb), {
+        onConflict: "investor_type,sector,report_date"
+      });
     if (error) throw new Error(`Institutional sector exposure upsert failed: ${error.message}`);
   }
   return {
@@ -218,8 +293,8 @@ export async function refreshInstitutionalData() {
     upserted: tickerRows.length + sectorRows.length,
     meta: {
       tickerRows: tickerRows.length,
-      sectorRows: sectorRows.length,
-      sectorCutoff: latestQuarterEndCutoff()
+      sectorRows: retainedSectorRows.length,
+      sectorReportDatesRetained: 4
     }
   };
 }
@@ -241,7 +316,7 @@ function fromTickerDb(row: any): InstitutionalTickerFlowRow {
 function fromSectorDb(row: any): InstitutionalSectorExposureRow {
   return {
     investorType: row.investor_type,
-    sector: row.sector,
+    sector: normalizeSectorLabel(row.sector) ?? row.sector,
     value: row.value == null ? null : Number(row.value),
     reportDate: row.report_date,
     fetchedAt: row.fetched_at
@@ -268,7 +343,6 @@ export async function getCachedInstitutionalSummary(): Promise<InstitutionalSumm
     supabase.client
       .from(SOURCE_SECTOR_EXPOSURE)
       .select("investor_type,sector,value,report_date,fetched_at")
-      .gte("report_date", latestQuarterEndCutoff())
       .order("report_date", { ascending: false })
   ]);
   const notices: string[] = [];
