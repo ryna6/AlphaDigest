@@ -47,7 +47,7 @@ const stateStreetSectorMeta = [
     codes: ["XLY", "CONSUMER DISCRETIONARY", "CONSUMER CYCLICAL", "DISCRETIONARY"]
   },
   {
-    label: "XLC (Communication Services)",
+    label: "XLC (Communications)",
     name: "Communication Services",
     codes: ["XLC", "COMMUNICATION SERVICES", "COMMUNICATIONS", "COMM SERVICES", "COMMUNICATION"]
   },

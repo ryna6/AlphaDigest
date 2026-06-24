@@ -17,7 +17,6 @@ Current primary tabs:
 4. Flow
 5. Ownership
 6. Economy & Sentiment
-7. Ticker Explorer
 
 Current utility tabs:
 
@@ -188,5 +187,9 @@ Status schedule notes: Market Overview / `refresh-market-quotes` runs every 5m f
 - Institutional Summary now reads cached Supabase rows through `/api/ownership/institutional`; browser code does not call Unusual Whales or receive service-role credentials.
 - The daily Netlify `refresh-institutional` function (`0 8 * * *`) fetches Unusual Whales institutional ticker-flow and sector-exposure endpoints server-side, then upserts `unusual_whales_institutional_ticker_flow` and `unusual_whales_institutional_sector_exposure`.
 - Ticker-flow persistence is limited to `investor_type`, `order`, `ticker`, `value`, `increased_positions`, `decreased_positions`, `holding_count`, `units`, `prev_units`, and freshness metadata. Sector exposure persistence is limited to `investor_type`, normalized State Street `sector` labels, `value`, `report_date`, and freshness metadata, filtered to each investor type's latest five valid quarter-end report dates before Supabase writes.
-- The Institutional Summary investor-type dropdown updates holdings, position-change, and sector cards. The middle card has its own Increased/Decreased/New/Sold Out control that only changes the position card. Holdings and position cards render compact tables with Ticker, Value, # Firms, and QoQ Δ columns, with QoQ Δ calculated as `units - prev_units`. The sector card renders a legend-free pie chart whose tooltip stays outside the pie and shows only the normalized State Street sector label plus percentage share. Its compact list uses exact State Street sector ETF labels such as `XLF (Financials)`, `XLY (Consumer Discretionary)`, and `XLC (Communication Services)`, and its QoQ/YoY columns show percentage-point share changes (`current share - comparison share`) when cached history is available.
+- The Institutional Summary investor-type dropdown updates holdings, position-change, and sector cards. The middle card has its own compact Increased/Decreased/New/Sold Out control in the title row that only changes the position card. Holdings and position cards render compact tables with Ticker, Value, # Firms, and QoQ Δ columns, share tighter matching title spacing, and calculate QoQ Δ as `units - prev_units`. The sector card renders a legend-free pie chart without the extra Holdings/Positions table spacing; its tooltip stays outside the pie and shows only the normalized State Street sector label plus percentage share. Its compact list uses exact State Street sector ETF labels such as `XLF (Financials)`, `XLY (Consumer Discretionary)`, and `XLC (Communications)`, and its QoQ/YoY columns show percentage-point share changes (`current share - comparison share`) when cached history is available.
 - The desktop sidebar was narrowed while retaining padding for tab labels and leaving mobile navigation unchanged.
+
+### Removed Ticker Explorer
+
+Ticker Explorer has been removed from the user-facing app, including navigation, app routes, the ticker API route, and the placeholder Netlify ticker refresh function. Shared fixture utilities remain only where they are still used by other dashboard areas.

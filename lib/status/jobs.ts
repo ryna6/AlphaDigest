@@ -10,8 +10,7 @@ export type StatusGroup =
   | "News & Calendar"
   | "Flow"
   | "Ownership"
-  | "Economy & Sentiment"
-  | "Ticker Explorer";
+  | "Economy & Sentiment";
 
 export type StatusJob = {
   id: string;
