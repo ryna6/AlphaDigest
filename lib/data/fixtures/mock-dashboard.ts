@@ -406,9 +406,7 @@ export const ownershipMock: OwnershipPayload = {
       "https://sec-api.io/docs/form-13-f-filings-institutional-holdings-api"
     )
   ],
-  notices: [
-    "Institutional/13F and Congressional sections remain fixture-backed until live providers are added."
-  ]
+  notices: []
 };
 
 export const economyMock: EconomyPayload = {
