@@ -59,7 +59,7 @@ export function MarketsView({ data }: { data: MarketsPayload }) {
                 {metric.iconPath ? (
                   <MarketMetricIcon src={metric.iconPath} label={metric.label} />
                 ) : null}
-                <p className="text-xs font-semibold uppercase tracking-[0.2em] text-textMuted">
+                <p className="text-sm font-semibold uppercase tracking-[0.18em] text-textMuted">
                   {metric.label}
                 </p>
               </div>

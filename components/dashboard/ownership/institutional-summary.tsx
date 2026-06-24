@@ -78,6 +78,13 @@ const sectorMeta = [
     aliases: ["Consumer Discretionary", "Consumer Cyclical", "Discretionary"]
   },
   {
+    label: "XLC (Communication Services)",
+    etf: "XLC",
+    name: "Communication Services",
+    color: "#22d3ee",
+    aliases: ["Communication Services", "Communications", "Comm Services", "Communication"]
+  },
+  {
     label: "XLRE (Real Estate)",
     etf: "XLRE",
     name: "Real Estate",
@@ -228,7 +235,7 @@ function TickerTable({ rows, mode }: { rows: TickerRow[]; mode: "holdings" | "po
   if (!rows.length) return <EmptyRows message="No cached institutional rows are available yet." />;
   return (
     <div className="overflow-x-auto">
-      <table className="w-full text-left text-xs">
+      <table className="w-full text-left text-sm">
         <thead className="text-textMuted">
           <tr>
             <th className="pb-2 font-medium">Ticker</th>
@@ -240,14 +247,14 @@ function TickerTable({ rows, mode }: { rows: TickerRow[]; mode: "holdings" | "po
         <tbody>
           {rows.slice(0, 10).map((row) => (
             <tr key={`${row.order}-${row.ticker}`} className="border-t border-borderStrong/60">
-              <td className="py-1.5 font-semibold text-textPrimary">{row.ticker}</td>
-              <td className="py-1.5 text-right text-textSecondary">{formatMarketCap(row.value)}</td>
-              <td className="py-1.5 text-right text-textSecondary">
+              <td className="py-2 font-semibold text-textPrimary">{row.ticker}</td>
+              <td className="py-2 text-right text-textSecondary">{formatMarketCap(row.value)}</td>
+              <td className="py-2 text-right text-textSecondary">
                 {formatCompactNumber(firmCount(row, mode))}
               </td>
               <td
                 className={cn(
-                  "py-1.5 text-right",
+                  "py-2 text-right",
                   (qoqUnitsChange(row) ?? 0) > 0
                     ? "text-green-300"
                     : (qoqUnitsChange(row) ?? 0) < 0
@@ -286,6 +293,7 @@ function SectorBreakdown({ rows }: { rows: SectorRow[] }) {
       );
     };
     const prevShares = shareByDate(previous);
+    // Retaining five quarter-end report dates should make this same-quarter-prior-year lookup available; if YoY is still blank, inspect provider report_date normalization or Supabase query coverage.
     const yoyShares = shareByDate(yoyDate);
     const latestRows = Array.from(
       rows
@@ -529,7 +537,7 @@ export function InstitutionalSummary() {
       ) : null}
       <div className="mb-3 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div>
-          <h2 className="text-sm font-semibold tracking-wide text-textPrimary">
+          <h2 className="text-base font-semibold tracking-wide text-textPrimary">
             Institutional Summary
           </h2>
           <p className="mt-1 text-xs text-textMuted">

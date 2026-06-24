@@ -48,8 +48,8 @@ export function Heatmap({ tiles }: { tiles: HeatmapTile[] }) {
                 </span>
               ) : null}
               <div className="min-w-0">
-                <p className="truncate text-sm font-semibold text-textPrimary">{tile.label}</p>
-                <p className="text-[11px] uppercase tracking-wide text-white/65">{tile.symbol}</p>
+                <p className="truncate text-base font-semibold text-textPrimary">{tile.label}</p>
+                <p className="text-xs uppercase tracking-wide text-white/65">{tile.symbol}</p>
               </div>
             </div>
             <p
