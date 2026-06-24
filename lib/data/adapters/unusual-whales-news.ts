@@ -75,29 +75,42 @@ function stripHtmlChrome(value: string) {
     .replace(/<style\b[^>]*>[\s\S]*?<\/style>/gi, " ");
 }
 
-const WANT_MORE_MARKET_INTELLIGENCE_PROMO = String.raw`<p(?:\s+[^>]*)?>\s*<strong>\s*Want\s+more\s+market\s+intelligence\?\s*<\/strong>\s*<a\s+href=["']https:\/\/unusualwhales\.com\/login\?ref=blubber["']>\s*Create\s+your\s+free\s+Unusual\s+Whales\s+account\s*(?:<\/a>)?\s+for\s+options\s+flow,\s+market\s+tide,\s+GEX,\s+and\s+the\s+full\s+toolkit\.\s*<\/p>`;
+const UNUSUAL_WHALES_PROMO_TEXT_SNIPPETS = [
+  "For more market-moving headlines, see other news.",
+  "Want more market intelligence? Create your free Unusual Whales account for options flow, market tide, GEX, and the full toolkit.",
+  "Do you want to see how to make more plays? Do you want to find gains yourself?",
+  "Unusual Whales helps you find market opportunities through our market tide, historical options flow, GEX, and much, much more.",
+  "Create a free account here to start conquering the market with Unusual Whales."
+] as const;
 
-const TRAILING_UNUSUAL_WHALES_PROMO_REGEXES = [
-  new RegExp(
-    String.raw`\s*<p(?:\s+[^>]*)?>\s*Keep\s+an\s+eye\s+on\s+the\s+<a\s+href=["']https:\/\/unusualwhales\.com\/news\?ref=unusual-whales\.ghost\.io["']>\s*rest\s+of\s+the\s+news\s+flow\s*<\/a>\s+for\s+any\s+follow-on\s+reporting\s+from\s+the\s+New\s+Yorker\s+piece\.\s*<\/p>\s*${WANT_MORE_MARKET_INTELLIGENCE_PROMO}\s*$`,
-    "i"
-  ),
-  new RegExp(
-    String.raw`\s*<p(?:\s+[^>]*)?>\s*For\s+more,\s+see\s+<a\s+href=["']https:\/\/unusualwhales\.com\/news\?ref=unusual-whales\.ghost\.io["']>\s*other\s+news\s+on\s+Unusual\s+Whales\s*<\/a>\s*\.\s*<\/p>\s*${WANT_MORE_MARKET_INTELLIGENCE_PROMO}\s*$`,
-    "i"
-  ),
-  new RegExp(String.raw`\s*${WANT_MORE_MARKET_INTELLIGENCE_PROMO}\s*$`, "i")
-];
+function escapeRegex(value: string) {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function promoSnippetRegex(value: string) {
+  return new RegExp(
+    value
+      .trim()
+      .split(/\s+/)
+      .map(escapeRegex)
+      .join(String.raw`(?:\s|&nbsp;|<[^>]+>)+`),
+    "gi"
+  );
+}
+
+const UNUSUAL_WHALES_PROMO_TEXT_REGEXES = UNUSUAL_WHALES_PROMO_TEXT_SNIPPETS.map(promoSnippetRegex);
+
+function removeUnusualWhalesPromoText(value: string) {
+  return UNUSUAL_WHALES_PROMO_TEXT_REGEXES.reduce(
+    (cleaned, promoRegex) => cleaned.replace(promoRegex, " "),
+    value
+  );
+}
 
 export function stripUnusualWhalesAdSection(html: string) {
-  const adBlockRegex = /<hr\s*\/?\s*>\s*<p(?:\s+[^>]*)?>\s*<strong>[\s\S]*?<hr\s*\/?\s*>/i;
-  const withoutInlineAd = html.replace(adBlockRegex, (block) =>
-    /unusual\s*whales|unusualwhales\.com|want\s+more\s+market\s+intelligence/i.test(block) ? "" : block
-  );
-  return TRAILING_UNUSUAL_WHALES_PROMO_REGEXES.reduce(
-    (cleaned, promoRegex) => cleaned.replace(promoRegex, ""),
-    withoutInlineAd
-  );
+  return removeUnusualWhalesPromoText(html)
+    .replace(/<p(?:\s+[^>]*)?>\s*<\/p>/gi, " ")
+    .replace(/<p(?:\s+[^>]*)?>\s*(?:<strong(?:\s+[^>]*)?>\s*<\/strong>\s*)?<\/p>/gi, " ");
 }
 
 function truncateBeforeFeaturedAd(value: string) {

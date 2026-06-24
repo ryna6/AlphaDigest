@@ -4,18 +4,18 @@ This document records active and placeholder data sources. Accuracy matters: do 
 
 ## Source status summary
 
-| Source/provider                                                                     | Active use today                                                                                        | Files                                                                         |
-| ----------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------- |
-| Finnhub quote API                                                                   | Active for market metrics, heatmaps, and optional company logos when keys exist.                        | `lib/data/live-dashboard.ts`, `lib/data/adapters/finnhub-key-router.ts`       |
-| Yahoo Finance public chart/quote endpoints                                          | Active for selected quotes such as `^VIX`, `^VIX3M`, and `ES=F`; has optional Supabase refresh helpers. | `lib/data/adapters/yahoo-finance.ts`                                          |
-| Unusual Whales featured news page/Next data                                         | Active for Today featured articles and Top News pages.                                                  | `lib/data/adapters/unusual-whales-news.ts`, `lib/data/live-dashboard.ts`      |
-| Unusual Whales headline feed PHX endpoint                                           | Active for News & Calendar latest market news.                                                          | `lib/data/adapters/unusual-whales-news.ts`, `lib/data/live-dashboard.ts`      |
-| Unusual Whales earnings PHX endpoint                                                | Active for Today and News & Calendar earnings, with Supabase/live/static fallback flow.                 | `lib/data/adapters/unusual-whales-earnings.ts`                                |
-| Investing.com economic calendar endpoint                                            | Active for Today and News & Calendar economic events.                                                   | `lib/data/adapters/investing-economic-calendar.ts`                            |
-| Cboe U.S. Options Market Statistics                                                 | Active server-side parser for intraday equity, index, and total put/call ratios.                        | `lib/data/adapters/cboe-put-call.ts`, `netlify/functions/refresh-put-call.ts` |
-| Supabase                                                                            | Optional durable cache for supported refresh helpers, including put/call observations.                  | `lib/db/supabase.ts`, `supabase/`                                             |
-| Static earnings fallback JSON                                                       | Active fallback when Supabase/live earnings paths are unavailable.                                      | `public/data/unusual-whales/earnings-calendar.json`                           |
-| FRED, Twelve Data, CoinGecko, sec-api.io, Capitol Trades, CBOE, AAII, HormuzTracker | Listed/planned or placeholder only unless future code wires them into live flows.                       | Methodology/Status pages and fixtures currently reference some of these names.   |
+| Source/provider                                                                     | Active use today                                                                                        | Files                                                                          |
+| ----------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------ |
+| Finnhub quote API                                                                   | Active for market metrics, heatmaps, and optional company logos when keys exist.                        | `lib/data/live-dashboard.ts`, `lib/data/adapters/finnhub-key-router.ts`        |
+| Yahoo Finance public chart/quote endpoints                                          | Active for selected quotes such as `^VIX`, `^VIX3M`, and `ES=F`; has optional Supabase refresh helpers. | `lib/data/adapters/yahoo-finance.ts`                                           |
+| Unusual Whales featured news page/Next data                                         | Active for Today featured articles and Top News pages.                                                  | `lib/data/adapters/unusual-whales-news.ts`, `lib/data/live-dashboard.ts`       |
+| Unusual Whales headline feed PHX endpoint                                           | Active for News & Calendar latest market news.                                                          | `lib/data/adapters/unusual-whales-news.ts`, `lib/data/live-dashboard.ts`       |
+| Unusual Whales earnings PHX endpoint                                                | Active for Today and News & Calendar earnings, with Supabase/live/static fallback flow.                 | `lib/data/adapters/unusual-whales-earnings.ts`                                 |
+| Investing.com economic calendar endpoint                                            | Active for Today and News & Calendar economic events.                                                   | `lib/data/adapters/investing-economic-calendar.ts`                             |
+| Cboe U.S. Options Market Statistics                                                 | Active server-side parser for intraday equity, index, and total put/call ratios.                        | `lib/data/adapters/cboe-put-call.ts`, `netlify/functions/refresh-put-call.ts`  |
+| Supabase                                                                            | Optional durable cache for supported refresh helpers, including put/call observations.                  | `lib/db/supabase.ts`, `supabase/`                                              |
+| Static earnings fallback JSON                                                       | Active fallback when Supabase/live earnings paths are unavailable.                                      | `public/data/unusual-whales/earnings-calendar.json`                            |
+| FRED, Twelve Data, CoinGecko, sec-api.io, Capitol Trades, CBOE, AAII, HormuzTracker | Listed/planned or placeholder only unless future code wires them into live flows.                       | Methodology/Status pages and fixtures currently reference some of these names. |
 
 ## Environment variables
 
@@ -320,14 +320,14 @@ The production failure mode was metadata drift: `data_refresh_metadata` could re
 
 Active source refresh functions:
 
-| Function                    | Table                              | Schedule                                             |
-| --------------------------- | ---------------------------------- | ---------------------------------------------------- |
-| `fetch-uw-earnings`         | `unusual_whales_earnings_events`   | `0 */6 * * *`                                          |
-| `refresh-news-feed`         | `unusual_whales_news_feed`         | `*/30 * * * *`                                      |
-| `refresh-featured-articles` | `unusual_whales_featured_articles` | `*/30 * * * *`                                      |
-| `refresh-economic-events`   | `investing_economic_events`        | `0 */6 * * *`                                 |
-| `refresh-market-quotes`     | `market_quotes`                    | `*/5 * * * *` with Toronto Sun–Fri guard                                 |
-| `refresh-put-call`          | `put_call_observations`            | `*/30 * * * 1-5` |
+| Function                    | Table                              | Schedule                                 |
+| --------------------------- | ---------------------------------- | ---------------------------------------- |
+| `fetch-uw-earnings`         | `unusual_whales_earnings_events`   | `0 */6 * * *`                            |
+| `refresh-news-feed`         | `unusual_whales_news_feed`         | `*/30 * * * *`                           |
+| `refresh-featured-articles` | `unusual_whales_featured_articles` | `*/30 * * * *`                           |
+| `refresh-economic-events`   | `investing_economic_events`        | `0 */6 * * *`                            |
+| `refresh-market-quotes`     | `market_quotes`                    | `*/5 * * * *` with Toronto Sun–Fri guard |
+| `refresh-put-call`          | `put_call_observations`            | `*/30 * * * 1-5`                         |
 
 ## Cache schema expectation map
 
@@ -378,10 +378,9 @@ Dark Pool source rows remain stored as UTC/timestamptz where applicable in `unus
 
 Unusual Whales calls for Flow remain server-side in Netlify functions/adapters; Supabase stores normalized/cache rows only, and browser components consume cached payloads rather than provider APIs or service-role credentials.
 
-
 ### Flow Whale Feed and Dark Pool size fields
 
-Whale Feed replaces the former Whale Trades label in the Flow UI. Netlify wakes `refresh-whale-feed` on weekdays; a Toronto runtime guard runs provider work every hour Monday-Friday and calls the Unusual Whales `lit-trades?tab=whale` endpoint server-side only; browser components never call Unusual Whales and never receive `SUPABASE_SERVICE_ROLE_KEY`. Rows are normalized into `unusual_whales_whale_feed` with only `size`, `ticker`, `price`, `nbbo_ask`, `nbbo_bid`, `executed_at`, `premium`, `sector`, `volume`, `avg30_volume`, and internal `external_id`, `side`, `sentiment`, `fetched_at`, `created_at`, `updated_at` fields. The expanded Whale Feed page initially shows 15 server-loaded rows and supports client-side View more in batches of 15 after the server has loaded cached rows.
+Whale Feed replaces the former Whale Trades label in the Flow UI. Netlify wakes `refresh-whale-feed` on weekdays; a Toronto runtime guard runs provider work every hour Monday-Friday and calls the Unusual Whales `lit-trades?tab=whale` endpoint server-side only; browser components never call Unusual Whales and never receive `SUPABASE_SERVICE_ROLE_KEY`. Rows are upserted into `unusual_whales_whale_feed` without replacing recent history, pruned only when `executed_at` is older than 14 days, and normalized with only `size`, `ticker`, `price`, `nbbo_ask`, `nbbo_bid`, `executed_at`, `premium`, `sector`, `volume`, `avg30_volume`, and internal `external_id`, `side`, `sentiment`, `fetched_at`, `created_at`, `updated_at` fields. The expanded Whale Feed page initially shows 15 server-loaded rows and supports client-side View more in batches of 15 after the server has loaded cached rows.
 
 Dark Pool ingestion stores `size` and `avg30_volume` in addition to existing normalized fields, but does not store NBBO, side, or sentiment. Flow displays Dark Pool individual trade size from `size`; `volume` is retained as total same-day ticker volume for `% Vol = size / volume`, and `avg30_volume` powers `% 30D Vol = size / avg30_volume`.
 

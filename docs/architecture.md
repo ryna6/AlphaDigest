@@ -35,26 +35,25 @@ supabase/                    Schema and migrations
 
 ### User pages
 
-| Route                             | Purpose                                                | Main component/data source                                                 |
-| --------------------------------- | ------------------------------------------------------ | -------------------------------------------------------------------------- |
-| `/`                               | Redirects to Today.                                    | `app/page.tsx` redirects to `/overview/today`.                             |
-| `/overview/today`                 | Daily briefing.                                        | `getTodayPayload()` and `TodayView`.                                       |
-| `/overview/today/top-news`        | Paginated featured article list.                       | `getTodayPayload()` and `TopNewsListClient`.                               |
-| `/overview/today/top-news/[slug]` | Featured article detail.                               | Today featured article payload.                                            |
-| `/markets`                        | Market strip and heatmaps.                             | `getMarketsPayload()` and `MarketsView`.                                   |
-| `/news-calendar`                  | Latest news, economic calendar, and earnings calendar. | `getNewsCalendarPayload()` and `NewsCalendarView`.                         |
-| `/news-calendar/news`             | Expanded latest-news list.                             | `AllNewsView`.                                                             |
-| `/news-calendar/earnings`         | Expanded earnings calendar.                            | `AllEarningsView`.                                                         |
-| `/flow`                           | Flow dashboard.                                        | `getFlowPayload()` reads `flow:latest`, Flow source tables, then fixtures. |
-| `/ownership`                      | Ownership dashboard.                                   | `ownershipMock` fixture / optional `ownership:latest`.                     |
-| `/flow-ownership`                 | Legacy redirect.                                       | Redirects to `/flow`.                                                      |
-| `/economy-sentiment`              | Economy/sentiment dashboard.                           | `economyMock` fixture.                                                     |
-| `/ticker-explorer`                | Symbol lookup entry page.                              | `TickerExplorerView`.                                                      |
-| `/ticker/[symbol]`                | Ticker detail page.                                    | `TickerDetailView`, currently fixture-backed.                              |
-| `/sources-methodology`            | Source reference table.                                | Static page-level source list.                                             |
+| Route                             | Purpose                                                | Main component/data source                                                   |
+| --------------------------------- | ------------------------------------------------------ | ---------------------------------------------------------------------------- |
+| `/`                               | Redirects to Today.                                    | `app/page.tsx` redirects to `/overview/today`.                               |
+| `/overview/today`                 | Daily briefing.                                        | `getTodayPayload()` and `TodayView`.                                         |
+| `/overview/today/top-news`        | Paginated featured article list.                       | `getTodayPayload()` and `TopNewsListClient`.                                 |
+| `/overview/today/top-news/[slug]` | Featured article detail.                               | Today featured article payload.                                              |
+| `/markets`                        | Market strip and heatmaps.                             | `getMarketsPayload()` and `MarketsView`.                                     |
+| `/news-calendar`                  | Latest news, economic calendar, and earnings calendar. | `getNewsCalendarPayload()` and `NewsCalendarView`.                           |
+| `/news-calendar/news`             | Expanded latest-news list.                             | `AllNewsView`.                                                               |
+| `/news-calendar/earnings`         | Expanded earnings calendar.                            | `AllEarningsView`.                                                           |
+| `/flow`                           | Flow dashboard.                                        | `getFlowPayload()` reads `flow:latest`, Flow source tables, then fixtures.   |
+| `/ownership`                      | Ownership dashboard.                                   | `ownershipMock` fixture / optional `ownership:latest`.                       |
+| `/flow-ownership`                 | Legacy redirect.                                       | Redirects to `/flow`.                                                        |
+| `/economy-sentiment`              | Economy/sentiment dashboard.                           | `economyMock` fixture.                                                       |
+| `/ticker-explorer`                | Symbol lookup entry page.                              | `TickerExplorerView`.                                                        |
+| `/ticker/[symbol]`                | Ticker detail page.                                    | `TickerDetailView`, currently fixture-backed.                                |
+| `/sources-methodology`            | Source reference table.                                | Static page-level source list.                                               |
 | `/status`                         | Job/component monitoring page.                         | Server-rendered status rows from `lib/status/jobs.ts` and Supabase metadata. |
-| `/settings`                       | Legacy redirect.                                       | Redirects to `/status`.                                                    |
-
+| `/settings`                       | Legacy redirect.                                       | Redirects to `/status`.                                                      |
 
 The Status page groups automated jobs by dashboard tab and uses `lib/status/jobs.ts` as the central registry for user-facing names, Netlify function/job names, metadata keys, confirmed schedules, and freshness windows. Its visible columns are Job, Status, Source, Schedule, Last Run, and Next Run, with the Status content center-aligned and Source limited to short safe provider names. Last Run and health use fresh Supabase `job_runs` telemetry queried at request/refetch time as the source of truth; Next Run is calculated from the registry schedule rule when the automatic schedule is known. Status times are rendered with America/Toronto calculations under the page-level note “All times are shown in Eastern Standard Time.” rather than per-cell ET/EST/EDT suffixes. Netlify cron wakes in UTC for several jobs, so `lib/schedule/toronto.ts` guards provider fetches inside the intended Eastern/Toronto windows without fixed EST offsets. `refresh-news-feed` runs every 30 minutes every day on the hour and half-hour. Flow source jobs run hourly Monday-Friday where guarded, while `refresh-flow` wakes at five minutes after the hour and runs inside the Monday-Friday Toronto guard to support source-to-snapshot sequencing. TBD rows represent planned or unimplemented jobs and remain Unknown until a real schedule and metadata source exist.
 
@@ -79,7 +78,7 @@ All API responses that use `dashboardJson()` are wrapped with:
 | `/api/uw-earnings`                            | Frontend-safe earnings endpoint around `getCachedUnusualWhalesEarnings()`.              |
 | `/api/flow`                                   | Reads `flow:latest`, source Flow tables, then fixtures.                                 |
 | `/api/ownership`                              | Returns Ownership fixture/snapshot payload.                                             |
-| `/api/flow/insider-trades`                    | Returns up to top 50 cached insider company aggregates.                                       |
+| `/api/flow/insider-trades`                    | Returns up to top 50 cached insider company aggregates.                                 |
 | `/api/flow/insider-trades/[ticker]`           | Returns cached insider detail rows for one ticker.                                      |
 | `/api/flow-ownership`                         | Legacy redirect to `/api/flow`.                                                         |
 | `/api/economy-sentiment`                      | Returns `economyMock`.                                                                  |
@@ -250,10 +249,9 @@ The Flow page now lays out Flow Summary, Insider Trades, Dark Pool, and Whale Fe
 
 Dark Pool ticker drilldowns use `/flow/dark-pool/[ticker]` as the primary detail route. The server-side loader queries Supabase/source rows by ticker and sorts ticker detail rows by `executed_at` descending, falling back to fixtures only when cached rows are unavailable. Browser components still do not call Unusual Whales and never receive the Supabase service role key.
 
-
 ### Flow Whale Feed and Dark Pool size fields
 
-Whale Feed replaces the former Whale Trades label in the Flow UI. Netlify wakes `refresh-whale-feed` on weekdays; a Toronto runtime guard runs provider work every hour Monday-Friday and calls the Unusual Whales `lit-trades?tab=whale` endpoint server-side only; browser components never call Unusual Whales and never receive `SUPABASE_SERVICE_ROLE_KEY`. Rows are normalized into `unusual_whales_whale_feed` with only `size`, `ticker`, `price`, `nbbo_ask`, `nbbo_bid`, `executed_at`, `premium`, `sector`, `volume`, `avg30_volume`, and internal `external_id`, `side`, `sentiment`, `fetched_at`, `created_at`, `updated_at` fields. The expanded Whale Feed page supports client-side View more in batches of 10 after the server has loaded cached rows.
+Whale Feed replaces the former Whale Trades label in the Flow UI. Netlify wakes `refresh-whale-feed` on weekdays; a Toronto runtime guard runs provider work every hour Monday-Friday and calls the Unusual Whales `lit-trades?tab=whale` endpoint server-side only; browser components never call Unusual Whales and never receive `SUPABASE_SERVICE_ROLE_KEY`. Rows are upserted into `unusual_whales_whale_feed` without replacing recent history, pruned only when `executed_at` is older than 14 days, and normalized with only `size`, `ticker`, `price`, `nbbo_ask`, `nbbo_bid`, `executed_at`, `premium`, `sector`, `volume`, `avg30_volume`, and internal `external_id`, `side`, `sentiment`, `fetched_at`, `created_at`, `updated_at` fields. The expanded Whale Feed page supports client-side View more in batches of 10 after the server has loaded cached rows.
 
 Dark Pool ingestion stores `size` and `avg30_volume` in addition to existing normalized fields, but does not store NBBO, side, or sentiment. Flow displays Dark Pool individual trade size from `size`; `volume` is retained as total same-day ticker volume for `% Vol = size / volume`, and `avg30_volume` powers `% 30D Vol = size / avg30_volume`.
 
@@ -266,6 +264,5 @@ Flow Summary now labels the Whale Feed mini card as `Whale Feed (7D)` and explic
 ### Status job telemetry boundary
 
 Status no longer depends on Netlify function-log APIs or Netlify auth tokens. Scheduled functions write start/end rows to Supabase `job_runs` through `lib/status/job-runs.ts`, including status, row counts, warnings, errors, and safe metadata. The `/status` page and `/api/cache/status` are dynamic/no-store, read `job_runs` server-side, expose only safe operational fields plus a Supabase read-health diagnostic, and the Status page auto-refreshes every 5 minutes while open so current telemetry is visible without redeploy. Component status labels render as Good/Healthy, Warning/Delayed or missing, Critical/Action required, and Offline/No status available. Netlify logs remain useful for manual debugging in the Netlify UI/CLI, but they are not a dashboard data source. Future automated jobs must be added to `lib/status/jobs.ts` and instrumented with job telemetry. Rows older than 24 hours are pruned server-side from `job_runs` during telemetry writes via the tracked Supabase retention helper.
-
 
 Status schedule notes: Market Overview / `refresh-market-quotes` runs every 5m from the start of Sunday through the end of Friday in Toronto/Eastern time (`*/5 * * * *` with a Toronto weekday guard); Put/Call Ratio / `refresh-put-call` runs every 30m Monday-Friday (`*/30 * * * 1-5`); Top News / `refresh-featured-articles` and Unusual Whales News Feed / `refresh-news-feed` run every 30m daily (`*/30 * * * *`); Today’s Economic Events / `refresh-economic-events` and Today’s Earnings / `fetch-uw-earnings` run every 6h daily (`0 */6 * * *`); Indices/Heatmaps / `refresh-markets` runs every 5m Monday-Friday (`*/5 * * * 1-5`); Insider Trades, Dark Pool, and Whale Feed run hourly Monday-Friday (`0 * * * 1-5`); `refresh-flow` wakes hourly at :05 (`5 * * * *`) and its Toronto weekday guard allows Monday-Friday provider work; source labels stay short and safe; and the Status note says `All times are shown in Eastern Standard Time.` Netlify may show platform-generated wording for cron expressions, so docs record both the actual cron and intended human-readable schedule.
