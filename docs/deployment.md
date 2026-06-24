@@ -123,7 +123,6 @@ These currently return placeholder JSON and should not be described as productio
 - `refresh-markets.ts`
 - `refresh-flow.ts`
 - `refresh-economy.ts`
-- `refresh-ticker.ts`
 - `refresh-sources-status.ts`
 
 If any placeholder becomes real, update `docs/architecture.md`, `docs/data-sources.md`, this deployment file, and README if user-visible freshness behavior changes.
@@ -240,3 +239,7 @@ The Status table column formerly labeled `Endpoint` is now `Source`. Source valu
 
 
 Status schedule notes: Market Overview / `refresh-market-quotes` runs every 5m from the start of Sunday through the end of Friday in Toronto/Eastern time (`*/5 * * * *` with a Toronto weekday guard); Put/Call Ratio / `refresh-put-call` runs every 30m Monday-Friday (`*/30 * * * 1-5`); Top News / `refresh-featured-articles` and Unusual Whales News Feed / `refresh-news-feed` run every 30m daily (`*/30 * * * *`); Today’s Economic Events / `refresh-economic-events` and Today’s Earnings / `fetch-uw-earnings` run every 6h daily (`0 */6 * * *`); Indices/Heatmaps / `refresh-markets` runs every 5m Monday-Friday (`*/5 * * * 1-5`); Insider Trades, Dark Pool, and Whale Feed run hourly Monday-Friday (`0 * * * 1-5`); `refresh-flow` wakes hourly at :05 (`5 * * * *`) and its Toronto weekday guard allows Monday-Friday provider work; source labels stay short and safe; and the Status note says `All times are shown in Eastern Standard Time.` Netlify may show platform-generated wording for cron expressions, so docs record both the actual cron and intended human-readable schedule.
+
+### Job run retention RPC
+
+`public.cleanup_old_job_runs()` is tracked as a no-argument Supabase RPC for server-side scheduled-function telemetry. It deletes `job_runs` rows whose `started_at` is older than 24 hours and grants execution to the service role only. Deploy the Supabase migration before relying on scheduled jobs to call the RPC; if PostgREST still reports the old schema cache immediately after deployment, refresh/reload the Supabase schema cache before rechecking Netlify logs.

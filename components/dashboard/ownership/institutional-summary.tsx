@@ -78,7 +78,7 @@ const sectorMeta = [
     aliases: ["Consumer Discretionary", "Consumer Cyclical", "Discretionary"]
   },
   {
-    label: "XLC (Communication Services)",
+    label: "XLC (Communications)",
     etf: "XLC",
     name: "Communication Services",
     color: "#22d3ee",
@@ -201,17 +201,26 @@ const sectorInfo = (sector: string, index = 0) => {
 function SummaryTile({
   title,
   children,
-  action
+  action,
+  alignTableHeader = false
 }: {
   title: string;
   children: ReactNode;
   action?: ReactNode;
+  alignTableHeader?: boolean;
 }) {
   return (
     <div className="flex min-h-64 flex-col rounded-none border border-borderStrong bg-sidebar p-4 shadow-panel">
-      <div className="mb-3 flex items-start justify-between gap-3">
-        <p className="text-sm font-semibold leading-6 text-textPrimary">{title}</p>
-        {action}
+      <div
+        className={cn(
+          "flex items-start justify-between gap-2",
+          alignTableHeader ? "mb-3 min-h-7" : "mb-2"
+        )}
+      >
+        <p className="min-w-0 whitespace-nowrap text-sm font-semibold leading-6 text-textPrimary">
+          {title}
+        </p>
+        {action ? <div className="flex shrink-0 justify-end">{action}</div> : null}
       </div>
       {children}
     </div>
@@ -572,24 +581,40 @@ export function InstitutionalSummary() {
         </div>
       </div>
       <div className="grid gap-3 lg:grid-cols-3">
-        <SummaryTile title={`Top Holdings by ${label} Investors`}>
+        <SummaryTile title={`Top Holdings by ${label} Investors`} alignTableHeader>
           {state ?? <TickerTable rows={holdings} mode="holdings" />}
         </SummaryTile>
         <SummaryTile
           title={`Top ${positionLabel} Positions by ${label} Investors`}
+          alignTableHeader
           action={
-            <select
-              aria-label="Select position change"
-              className="border border-borderStrong bg-panel px-2 py-1 text-[11px] text-textSecondary outline-none hover:border-accentBlue/50 hover:text-textPrimary focus:border-accentBlue"
-              value={positionChange}
-              onChange={(event) => setPositionChange(event.target.value as PositionChange)}
-            >
-              {positionChanges.map((change) => (
-                <option key={change.value} value={change.value}>
-                  {change.label}
-                </option>
-              ))}
-            </select>
+            <div className="relative">
+              <select
+                aria-label="Select position change"
+                className="appearance-none border border-borderStrong bg-panel py-1 pl-1.5 pr-4 text-[11px] text-textSecondary outline-none hover:border-accentBlue/50 hover:text-textPrimary focus:border-accentBlue"
+                value={positionChange}
+                onChange={(event) => setPositionChange(event.target.value as PositionChange)}
+              >
+                {positionChanges.map((change) => (
+                  <option key={change.value} value={change.value}>
+                    {change.label}
+                  </option>
+                ))}
+              </select>
+              <svg
+                aria-hidden="true"
+                className="pointer-events-none absolute right-1 top-1/2 h-3 w-3 -translate-y-1/2 text-textMuted"
+                viewBox="0 0 12 12"
+                fill="none"
+              >
+                <path
+                  d="M3 4.5L6 7.5L9 4.5"
+                  stroke="currentColor"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+              </svg>
+            </div>
           }
         >
           {state ?? <TickerTable rows={positions} mode="positions" />}
