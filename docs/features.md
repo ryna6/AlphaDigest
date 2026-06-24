@@ -131,8 +131,9 @@ Important behavior:
 ## Ownership tab
 
 - Page route: `app/ownership/page.tsx`; API route: `/api/ownership`.
-- Contains an Institutional Summary UI with a shared investor-type selector (Value by default, plus Activist, 13D Activist, and Tiger Cub) and a click-to-open Investor Types modal.
-- Contains Institutional positioning and Congressional Trades; these data tables remain fixture-backed placeholders until live providers/endpoints are added.
+- Contains an Institutional Summary UI with a shared investor-type selector (Value by default, plus Activist, 13D Activist, and Tiger Cub), a visible latest cached report date, compact holdings/position tables, and a sector-exposure pie chart with a compact ETF/sector share breakdown.
+- The Investor Types modal opens from the Institutional Summary header, scroll-locks the page background while open, and closes via the X button, Escape, or outside click.
+- Contains Institutional positioning and Congressional Trades data tables below the summary.
 
 #### Flow cache behavior
 
@@ -183,8 +184,9 @@ Status reads fresh Supabase `job_runs` telemetry written by scheduled functions.
 Status schedule notes: Market Overview / `refresh-market-quotes` runs every 5m from the start of Sunday through the end of Friday in Toronto/Eastern time (`*/5 * * * *` with a Toronto weekday guard); Put/Call Ratio / `refresh-put-call` runs every 30m Monday-Friday (`*/30 * * * 1-5`); Top News / `refresh-featured-articles` and Unusual Whales News Feed / `refresh-news-feed` run every 30m daily (`*/30 * * * *`); Today’s Economic Events / `refresh-economic-events` and Today’s Earnings / `fetch-uw-earnings` run every 6h daily (`0 */6 * * *`); Indices/Heatmaps / `refresh-markets` runs every 5m Monday-Friday (`*/5 * * * 1-5`); Insider Trades, Dark Pool, and Whale Feed run hourly Monday-Friday (`0 * * * 1-5`); `refresh-flow` wakes hourly at :05 (`5 * * * *`) and its Toronto weekday guard allows Monday-Friday provider work; source labels stay short and safe; and the Status note says `All times are shown in Eastern Standard Time.` Netlify may show platform-generated wording for cron expressions, so docs record both the actual cron and intended human-readable schedule.
 
 ### Ownership Institutional data wiring
+
 - Institutional Summary now reads cached Supabase rows through `/api/ownership/institutional`; browser code does not call Unusual Whales or receive service-role credentials.
 - The daily Netlify `refresh-institutional` function (`0 8 * * *`) fetches Unusual Whales institutional ticker-flow and sector-exposure endpoints server-side, then upserts `unusual_whales_institutional_ticker_flow` and `unusual_whales_institutional_sector_exposure`.
-- Ticker-flow persistence is limited to `investor_type`, `order`, `ticker`, `value`, `increased_positions`, `decreased_positions`, `holding_count`, `units`, `prev_units_change`, and freshness metadata. Sector exposure persistence is limited to `investor_type`, `sector`, `value`, `report_date`, and freshness metadata, filtered to the most recent one year of quarter-end report dates before Supabase writes.
-- The Institutional Summary investor-type dropdown updates holdings, position-change, and sector cards. The middle card has its own Increased/Decreased/New/Sold Out control that only changes the position card.
+- Ticker-flow persistence is limited to `investor_type`, `order`, `ticker`, `value`, `increased_positions`, `decreased_positions`, `holding_count`, `units`, `prev_units`, and freshness metadata. Sector exposure persistence is limited to `investor_type`, `sector`, `value`, `report_date`, and freshness metadata, filtered to the most recent one year of quarter-end report dates before Supabase writes.
+- The Institutional Summary investor-type dropdown updates holdings, position-change, and sector cards. The middle card has its own Increased/Decreased/New/Sold Out control that only changes the position card. Holdings and position cards render compact tables with Ticker, Value, # Firms, and QoQ Δ columns, with QoQ Δ calculated as `units - prev_units`. The sector card renders a legend-free pie chart whose tooltip shows only sector name and percentage share, followed by a compact list of sector ETF ticker, sector name, share, QoQ share change, and YoY share change when cached history is available.
 - The desktop sidebar was narrowed while retaining padding for tab labels and leaving mobile navigation unchanged.

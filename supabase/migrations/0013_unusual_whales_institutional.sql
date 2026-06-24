@@ -7,7 +7,7 @@ create table if not exists public.unusual_whales_institutional_ticker_flow (
   decreased_positions numeric,
   holding_count numeric,
   units numeric,
-  prev_units_change numeric,
+  prev_units numeric,
   fetched_at timestamptz not null default now(),
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
