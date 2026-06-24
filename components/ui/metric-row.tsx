@@ -17,7 +17,8 @@ function signedValueClass(value?: string) {
   return undefined;
 }
 
-export function MetricRow({ metric }: { metric: Metric }) {
+export function MetricRow({ metric, density = "default" }: { metric: Metric; density?: "default" | "roomy" }) {
+  const roomy = density === "roomy";
   const changeText = [metric.change, metric.changePercent].filter(Boolean).join(" ");
   const changeClass = signedValueClass(changeText) ?? tone[metric.tone];
 
@@ -36,19 +37,19 @@ export function MetricRow({ metric }: { metric: Metric }) {
           </span>
         ) : null}
         <div className="min-w-0">
-          <p className="truncate text-xs text-textMuted">{metric.label}</p>
+          <p className={cn("truncate text-textMuted", roomy ? "text-sm" : "text-xs")}>{metric.label}</p>
         </div>
       </div>
       <div className="text-right tabular">
         <p
           className={cn(
-            "text-sm font-semibold",
+            roomy ? "text-base font-semibold" : "text-sm font-semibold",
             signedValueClass(metric.value) ?? "text-textPrimary"
           )}
         >
           {metric.value}
         </p>
-        {changeText ? <p className={cn("text-xs", changeClass)}>{changeText}</p> : null}
+        {changeText ? <p className={cn(roomy ? "text-sm" : "text-xs", changeClass)}>{changeText}</p> : null}
       </div>
     </div>
   );

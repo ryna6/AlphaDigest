@@ -18,6 +18,7 @@ export const institutionalPositionOrders = [
 export const TOP_HOLDINGS_ORDER = "holding_count";
 const SOURCE_TICKER_FLOW = "unusual_whales_institutional_ticker_flow";
 const SOURCE_SECTOR_EXPOSURE = "unusual_whales_institutional_sector_exposure";
+const SECTOR_EXPOSURE_QUARTERS_RETAINED = 5;
 
 const stateStreetSectorMeta = [
   { label: "XLB (Materials)", name: "Materials", codes: ["XLB", "MATERIALS", "BASIC MATERIALS"] },
@@ -44,6 +45,11 @@ const stateStreetSectorMeta = [
     label: "XLY (Consumer Discretionary)",
     name: "Consumer Discretionary",
     codes: ["XLY", "CONSUMER DISCRETIONARY", "CONSUMER CYCLICAL", "DISCRETIONARY"]
+  },
+  {
+    label: "XLC (Communication Services)",
+    name: "Communication Services",
+    codes: ["XLC", "COMMUNICATION SERVICES", "COMMUNICATIONS", "COMM SERVICES", "COMMUNICATION"]
   },
   { label: "XLRE (Real Estate)", name: "Real Estate", codes: ["XLRE", "REAL ESTATE", "REALESTATE"] }
 ] as const;
@@ -123,7 +129,7 @@ function latestQuarterEndCutoff(now = new Date()) {
   ]
     .filter((date) => date <= now)
     .sort((a, b) => b.getTime() - a.getTime());
-  const keep = quarters.slice(0, 4);
+  const keep = quarters.slice(0, SECTOR_EXPOSURE_QUARTERS_RETAINED);
   return keep[keep.length - 1]?.toISOString().slice(0, 10) ?? `${year - 1}-12-31`;
 }
 
@@ -253,7 +259,7 @@ export async function refreshInstitutionalData() {
     const keepDates = Array.from(new Set(investorRows.map((row) => row.reportDate)))
       .sort()
       .reverse()
-      .slice(0, 4);
+      .slice(0, SECTOR_EXPOSURE_QUARTERS_RETAINED);
     return investorRows.filter((row) => keepDates.includes(row.reportDate));
   });
 
@@ -294,7 +300,7 @@ export async function refreshInstitutionalData() {
     meta: {
       tickerRows: tickerRows.length,
       sectorRows: retainedSectorRows.length,
-      sectorReportDatesRetained: 4
+      sectorReportDatesRetained: SECTOR_EXPOSURE_QUARTERS_RETAINED
     }
   };
 }

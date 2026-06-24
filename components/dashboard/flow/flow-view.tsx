@@ -45,7 +45,7 @@ function SummaryCard({ metric }: { metric: any }) {
       )}
     >
       <div className="flex items-center gap-2">
-        <p className="text-xs font-semibold uppercase tracking-[0.2em] text-textMuted">
+        <p className="text-sm font-semibold uppercase tracking-[0.18em] text-textMuted">
           {displayLabel}
         </p>
         {displayLabel === "Insider sentiment" ? (
@@ -56,7 +56,7 @@ function SummaryCard({ metric }: { metric: any }) {
         <div className="flex items-baseline gap-12">
           <p
             className={cn(
-              "text-lg font-semibold tabular",
+              "text-2xl font-semibold tabular",
               displayLabel === "Insider sentiment"
                 ? toneClass[metric.tone as keyof typeof toneClass]
                 : "text-textPrimary"
@@ -67,7 +67,7 @@ function SummaryCard({ metric }: { metric: any }) {
           {metric.subtext ? (
             <p
               className={cn(
-                "text-xs font-medium",
+                "text-sm font-medium",
                 toneClass[metric.tone as keyof typeof toneClass]
               )}
             >
@@ -76,7 +76,7 @@ function SummaryCard({ metric }: { metric: any }) {
           ) : null}
         </div>
         {metric.change ? (
-          <p className="mt-1 line-clamp-2 text-xs text-textSecondary">{metric.change}</p>
+          <p className="mt-1 line-clamp-2 text-sm text-textSecondary">{metric.change}</p>
         ) : null}
       </div>
     </div>
@@ -136,7 +136,7 @@ export async function FlowView() {
             action={viewAll("/flow/insider-trades")}
           />
           <div className="scrollbar-thin overflow-auto rounded-none border border-borderStrong">
-            <table className="w-full min-w-[860px] border-collapse text-left text-xs">
+            <table className="w-full min-w-[860px] border-collapse text-left text-[13px]">
               <thead className="bg-sidebar text-textMuted">
                 <tr>
                   {[

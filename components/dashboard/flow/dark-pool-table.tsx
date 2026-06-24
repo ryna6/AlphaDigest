@@ -13,7 +13,7 @@ export function DarkPoolTable({
 }) {
   return (
     <div className="scrollbar-thin overflow-auto rounded-none border border-borderStrong">
-      <table className="w-full min-w-[760px] border-collapse text-left text-xs">
+      <table className="w-full min-w-[760px] border-collapse text-left text-[13px]">
         <thead className="bg-sidebar text-textMuted">
           <tr>
             {["Time", "Ticker", "Sector", "Price", "Premium", "Size", "% Vol", "% 30D Vol"].map((h) => (
