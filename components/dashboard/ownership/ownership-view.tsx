@@ -24,19 +24,11 @@ export async function OwnershipView() {
         <InstitutionalSummary />
       </Panel>
       <Panel className="mt-4">
-        <SectionHeader
-          title="Institutional"
-          subtitle="Fixture-backed placeholder; 13F filings are quarterly and delayed."
-          info="No live institutional/13F endpoint was provided for this task."
-        />
+        <SectionHeader title="Institutional" />
         <DataTable rows={payload.institutionalPositioning} />
       </Panel>
       <Panel className="mt-4">
-        <SectionHeader
-          title="Congressional Trades"
-          subtitle="Fixture-backed placeholder; disclosure date may lag trade date."
-          info="No live congressional trades endpoint was provided for this task."
-        />
+        <SectionHeader title="Congressional Trades" />
         <DataTable rows={payload.congressionalTrades} />
       </Panel>
     </>
