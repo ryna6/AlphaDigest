@@ -9,6 +9,21 @@ export const CBOE_SOURCE_TIMEZONE = "America/Chicago";
 export const CBOE_DISPLAY_TIMEZONE = "America/Toronto";
 const FRESH_CACHE_MS = 35 * 60 * 1000;
 
+export function torontoDateKey(now = new Date()) {
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone: CBOE_DISPLAY_TIMEZONE,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit"
+  }).format(now);
+}
+
+export function cboeDailyPutCallUrl(now = new Date()) {
+  const url = new URL(CBOE_DAILY_PUT_CALL_SOURCE_URL);
+  url.searchParams.set("dt", torontoDateKey(now));
+  return url.toString();
+}
+
 type PutCallRatios = { equity: number | null; index: number | null; total: number | null };
 type PutCallSource = "cboe" | "supabase_cache" | "fixture" | "unavailable";
 type PutCallFreshness =
@@ -501,7 +516,7 @@ export async function fetchCboePutCallRatio() {
       label: "intraday_exchange_market_statistics"
     },
     {
-      url: CBOE_DAILY_PUT_CALL_SOURCE_URL,
+      url: cboeDailyPutCallUrl(),
       parse: parseCboeDailyPutCallFromHtml,
       label: "daily_market_statistics"
     }
