@@ -248,7 +248,6 @@ Fixture data lives in `lib/data/fixtures/mock-dashboard.ts` and currently backs:
 
 - Flow reads Supabase cached dark pool, whale feed, and insider tables, then section-level fixtures; Ownership remains fixture-backed for Institutional/13F and Congressional sections.
 - Economy & Sentiment page and API.
-- Ticker Explorer detail page and API.
 - Fallback market/today/news/earnings values when live data is unavailable.
 
 When replacing fixture-backed sections with live data:
@@ -312,7 +311,7 @@ The active tab APIs now prefer Supabase `dashboard_snapshots` before provider-sp
 | `markets:latest`       | `netlify/functions/refresh-markets.ts` | `getMarketsPayload()` and `/api/markets`            | Existing market quote/crypto/live builder, then mock market fixture                 |
 | `news-calendar:latest` | `netlify/functions/refresh-news.ts`    | `getNewsCalendarPayload()` and `/api/news-calendar` | Existing UW news, UW earnings, Investing calendar, and fixture fallback behavior    |
 
-Source-specific cache status remains mixed: Unusual Whales earnings and Cboe put/call are active Supabase-backed flows; Unusual Whales news/articles, Yahoo quotes, and Investing economic events have adapter-level Supabase helpers but are only dashboard-fast after the scheduled snapshot job writes the combined payload. Generic `refresh-flow`, `refresh-economy`, `refresh-ticker`, and `refresh-sources-status` remain placeholders until implemented.
+Source-specific cache status remains mixed: Unusual Whales earnings and Cboe put/call are active Supabase-backed flows; Unusual Whales news/articles, Yahoo quotes, and Investing economic events have adapter-level Supabase helpers but are only dashboard-fast after the scheduled snapshot job writes the combined payload. Generic `refresh-flow`, `refresh-economy`, and `refresh-sources-status` remain placeholders until implemented.
 
 ## Source table refresh corrections
 
