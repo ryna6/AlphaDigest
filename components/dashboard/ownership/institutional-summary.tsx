@@ -19,21 +19,72 @@ const positionChanges = [
   { value: "sold_out", label: "Sold Out", order: "sold_out_positions" }
 ] as const;
 
-const sectorMeta: Record<string, { etf: string; name: string; color: string }> = {
-  Technology: { etf: "XLK", name: "Technology", color: "#6ee7b7" },
-  Financials: { etf: "XLF", name: "Financials", color: "#86efac" },
-  "Health Care": { etf: "XLV", name: "Health Care", color: "#c084fc" },
-  Healthcare: { etf: "XLV", name: "Health Care", color: "#c084fc" },
-  Energy: { etf: "XLE", name: "Energy", color: "#f97316" },
-  Industrials: { etf: "XLI", name: "Industrials", color: "#94a3b8" },
-  "Consumer Discretionary": { etf: "XLY", name: "Consumer Discretionary", color: "#facc15" },
-  "Consumer Staples": { etf: "XLP", name: "Consumer Staples", color: "#60a5fa" },
-  Utilities: { etf: "XLU", name: "Utilities", color: "#f472b6" },
-  Materials: { etf: "XLB", name: "Materials", color: "#a16207" },
-  "Communication Services": { etf: "XLC", name: "Communication Services", color: "#22d3ee" },
-  Communications: { etf: "XLC", name: "Communication Services", color: "#22d3ee" },
-  "Real Estate": { etf: "XLRE", name: "Real Estate", color: "#0f766e" }
-};
+const sectorMeta = [
+  {
+    label: "XLB (Materials)",
+    etf: "XLB",
+    name: "Materials",
+    color: "#a16207",
+    aliases: ["Materials", "Basic Materials"]
+  },
+  { label: "XLE (Energy)", etf: "XLE", name: "Energy", color: "#f97316", aliases: ["Energy"] },
+  {
+    label: "XLF (Financials)",
+    etf: "XLF",
+    name: "Financials",
+    color: "#86efac",
+    aliases: ["Financials", "Financial Services", "FINAN", "Finance"]
+  },
+  {
+    label: "XLI (Industrials)",
+    etf: "XLI",
+    name: "Industrials",
+    color: "#94a3b8",
+    aliases: ["Industrials"]
+  },
+  {
+    label: "XLK (Technology)",
+    etf: "XLK",
+    name: "Technology",
+    color: "#6ee7b7",
+    aliases: ["Technology", "Tech", "Information Technology"]
+  },
+  {
+    label: "XLP (Consumer Staples)",
+    etf: "XLP",
+    name: "Consumer Staples",
+    color: "#60a5fa",
+    aliases: ["Consumer Staples", "Consumer Defensive", "Staples"]
+  },
+  {
+    label: "XLU (Utilities)",
+    etf: "XLU",
+    name: "Utilities",
+    color: "#f472b6",
+    aliases: ["Utilities"]
+  },
+  {
+    label: "XLV (Health Care)",
+    etf: "XLV",
+    name: "Health Care",
+    color: "#c084fc",
+    aliases: ["Health Care", "Healthcare"]
+  },
+  {
+    label: "XLY (Consumer Discretionary)",
+    etf: "XLY",
+    name: "Consumer Discretionary",
+    color: "#facc15",
+    aliases: ["Consumer Discretionary", "Consumer Cyclical", "Discretionary"]
+  },
+  {
+    label: "XLRE (Real Estate)",
+    etf: "XLRE",
+    name: "Real Estate",
+    color: "#0f766e",
+    aliases: ["Real Estate"]
+  }
+] as const;
 
 const fallbackColors = [
   "#6ee7b7",
@@ -100,7 +151,7 @@ const qoqUnitsChange = (row: TickerRow) =>
 const signedCompact = (value: number | null) =>
   value == null ? "—" : `${value > 0 ? "+" : ""}${formatCompactNumber(value)}`;
 const formatPct = (value: number | null | undefined) =>
-  value == null || !Number.isFinite(value) ? "—" : `${value > 0 ? "+" : ""}${value.toFixed(1)}pp`;
+  value == null || !Number.isFinite(value) ? "—" : `${value > 0 ? "+" : ""}${value.toFixed(1)}%`;
 const formatShare = (value: number) => `${value.toFixed(1)}%`;
 const formatDate = (value: string) =>
   new Intl.DateTimeFormat("en-US", {
@@ -109,12 +160,36 @@ const formatDate = (value: string) =>
     year: "numeric",
     timeZone: "UTC"
   }).format(new Date(`${value}T00:00:00Z`));
-const sectorInfo = (sector: string, index = 0) =>
-  sectorMeta[sector] ?? {
-    etf: sector.toUpperCase().slice(0, 5),
-    name: sector,
-    color: fallbackColors[index % fallbackColors.length]
-  };
+function normalizedSectorLabel(value: string) {
+  const cleaned = value
+    .replace(/\([^)]*\)/g, " ")
+    .replace(/[^a-zA-Z0-9]+/g, " ")
+    .trim()
+    .toUpperCase();
+  const compact = cleaned.replace(/\s+/g, " ");
+  return (
+    sectorMeta.find(
+      (sector) =>
+        compact === sector.etf ||
+        compact === sector.name.toUpperCase() ||
+        sector.aliases.some(
+          (alias) => compact === alias.toUpperCase() || compact.includes(alias.toUpperCase())
+        )
+    )?.label ?? value
+  );
+}
+const sectorInfo = (sector: string, index = 0) => {
+  const label = normalizedSectorLabel(sector);
+  return (
+    sectorMeta.find((item) => item.label === label) ?? {
+      label,
+      etf: label.toUpperCase().slice(0, 5),
+      name: label,
+      color: fallbackColors[index % fallbackColors.length],
+      aliases: []
+    }
+  );
+};
 
 function SummaryTile({
   title,
@@ -153,7 +228,7 @@ function TickerTable({ rows, mode }: { rows: TickerRow[]; mode: "holdings" | "po
   if (!rows.length) return <EmptyRows message="No cached institutional rows are available yet." />;
   return (
     <div className="overflow-x-auto">
-      <table className="w-full text-left text-[11px]">
+      <table className="w-full text-left text-xs">
         <thead className="text-textMuted">
           <tr>
             <th className="pb-2 font-medium">Ticker</th>
@@ -203,13 +278,30 @@ function SectorBreakdown({ rows }: { rows: SectorRow[] }) {
     const shareByDate = (date?: string) => {
       const slice = rows.filter((r) => r.reportDate === date);
       const total = slice.reduce((sum, r) => sum + (r.value ?? 0), 0);
-      return new Map(slice.map((r) => [r.sector, total > 0 ? ((r.value ?? 0) / total) * 100 : 0]));
+      return new Map(
+        slice.map((r) => [
+          normalizedSectorLabel(r.sector),
+          total > 0 ? ((r.value ?? 0) / total) * 100 : 0
+        ])
+      );
     };
     const prevShares = shareByDate(previous);
     const yoyShares = shareByDate(yoyDate);
-    const latestRows = rows
-      .filter((r) => r.reportDate === latest)
-      .sort((a, b) => (b.value ?? 0) - (a.value ?? 0));
+    const latestRows = Array.from(
+      rows
+        .filter((r) => r.reportDate === latest)
+        .reduce((map, row) => {
+          const sector = normalizedSectorLabel(row.sector);
+          const existing = map.get(sector);
+          map.set(sector, {
+            ...row,
+            sector,
+            value: (existing?.value ?? 0) + (row.value ?? 0)
+          });
+          return map;
+        }, new Map<string, SectorRow>())
+        .values()
+    ).sort((a, b) => (b.value ?? 0) - (a.value ?? 0));
     const total = latestRows.reduce((sum, r) => sum + (r.value ?? 0), 0);
     return latestRows.map((row, index) => {
       const share = total > 0 ? ((row.value ?? 0) / total) * 100 : 0;
@@ -219,10 +311,11 @@ function SectorBreakdown({ rows }: { rows: SectorRow[] }) {
         share,
         color: meta.color,
         etf: meta.etf,
-        name: meta.name,
+        name: meta.label,
+        sectorName: meta.name,
         qoq:
-          previous && prevShares.has(row.sector) ? share - (prevShares.get(row.sector) ?? 0) : null,
-        yoy: yoyDate && yoyShares.has(row.sector) ? share - (yoyShares.get(row.sector) ?? 0) : null
+          previous && prevShares.has(meta.label) ? share - (prevShares.get(meta.label) ?? 0) : null,
+        yoy: yoyDate && yoyShares.has(meta.label) ? share - (yoyShares.get(meta.label) ?? 0) : null
       };
     });
   }, [rows]);
@@ -232,7 +325,7 @@ function SectorBreakdown({ rows }: { rows: SectorRow[] }) {
     <div>
       <div className="h-40">
         <ResponsiveContainer width="100%" height="100%">
-          <PieChart>
+          <PieChart margin={{ top: 4, right: 4, bottom: 4, left: 4 }}>
             <Pie
               data={data}
               dataKey="share"
@@ -247,38 +340,71 @@ function SectorBreakdown({ rows }: { rows: SectorRow[] }) {
               ))}
             </Pie>
             <Tooltip
-              content={({ active, payload }) =>
-                active && payload?.[0] ? (
-                  <div className="border border-borderStrong bg-panel px-2 py-1 text-xs shadow-panel">
+              cursor={false}
+              offset={24}
+              wrapperStyle={{ pointerEvents: "none" }}
+              content={(props) => {
+                const { active, coordinate, payload, viewBox } = props as any;
+                if (!active || !payload?.[0]) return null;
+                const chartWidth =
+                  viewBox && "width" in viewBox && typeof viewBox.width === "number"
+                    ? viewBox.width
+                    : 0;
+                const placeLeft = chartWidth > 0 && (coordinate?.x ?? 0) > chartWidth / 2;
+                return (
+                  <div
+                    className={cn(
+                      "-translate-y-1/2 border border-borderStrong bg-panel px-2 py-1 text-xs shadow-panel",
+                      placeLeft ? "-translate-x-[calc(100%+1.5rem)]" : "translate-x-6"
+                    )}
+                  >
                     <p className="text-textPrimary">{payload[0].payload.name}</p>
                     <p className="text-textSecondary">{formatShare(payload[0].payload.share)}</p>
                   </div>
-                ) : null
-              }
+                );
+              }}
             />
           </PieChart>
         </ResponsiveContainer>
       </div>
-      <div className="mt-2 space-y-1">
-        {data.map((row) => (
-          <div
-            key={`${row.sector}-${row.reportDate}`}
-            className="grid grid-cols-[minmax(0,1fr)_auto_auto_auto] items-center gap-2 text-[11px]"
-          >
-            <div className="flex min-w-0 items-center gap-1.5">
-              <span
-                className="h-2.5 w-2.5 shrink-0 rounded-full"
-                style={{ backgroundColor: row.color }}
-              />
-              <span className="truncate text-textPrimary">
-                {row.etf} <span className="text-textMuted">({row.name})</span>
-              </span>
-            </div>
-            <span className="text-right text-textSecondary">{formatShare(row.share)}</span>
-            <span className="text-right text-textMuted">{formatPct(row.qoq)}</span>
-            <span className="text-right text-textMuted">{formatPct(row.yoy)}</span>
-          </div>
-        ))}
+      <div className="mt-2 overflow-x-auto">
+        <table className="w-full table-fixed text-left text-[11px]">
+          <colgroup>
+            <col className="w-[46%]" />
+            <col className="w-[22%]" />
+            <col className="w-[16%]" />
+            <col className="w-[16%]" />
+          </colgroup>
+          <thead className="text-textMuted">
+            <tr>
+              <th className="pb-1.5 font-medium">Sectors</th>
+              <th className="pb-1.5 text-right font-medium">% of Portfolio</th>
+              <th className="pb-1.5 text-right font-medium">QoQ Δ</th>
+              <th className="pb-1.5 text-right font-medium">YoY Δ</th>
+            </tr>
+          </thead>
+          <tbody>
+            {data.map((row) => (
+              <tr
+                key={`${row.sector}-${row.reportDate}`}
+                className="border-t border-borderStrong/50"
+              >
+                <td className="py-1 pr-2">
+                  <div className="flex min-w-0 items-center gap-1.5">
+                    <span
+                      className="h-2.5 w-2.5 shrink-0 rounded-full"
+                      style={{ backgroundColor: row.color }}
+                    />
+                    <span className="truncate text-textPrimary">{row.name}</span>
+                  </div>
+                </td>
+                <td className="py-1 text-right text-textSecondary">{formatShare(row.share)}</td>
+                <td className="py-1 text-right text-textMuted">{formatPct(row.qoq)}</td>
+                <td className="py-1 text-right text-textMuted">{formatPct(row.yoy)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
       </div>
     </div>
   );
