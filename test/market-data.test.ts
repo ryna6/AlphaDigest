@@ -14,41 +14,58 @@ import {
 } from "../lib/data/adapters/coingecko-crypto";
 import { shouldRunInTorontoWindow } from "../lib/schedule/toronto";
 import { normalizeUnusualWhalesEarningsRows } from "../lib/data/adapters/unusual-whales-earnings";
-import { stripUnusualWhalesAdSection } from "../lib/data/adapters/unusual-whales-news";
+import {
+  articleTextFromHtml,
+  stripUnusualWhalesAdSection
+} from "../lib/data/adapters/unusual-whales-news";
+import { WHALE_FEED_RETENTION_DAYS } from "../lib/data/adapters/unusual-whales-whale-feed";
+import { INSIDER_TRADES_LOOKBACK_MONTHS } from "../lib/data/insider-window";
 
-
-
-test("Unusual Whales ad stripper removes only the double-hr ad block and preserves article body", () => {
+test("Unusual Whales ad stripper removes known promo text across tag boundaries", () => {
   const html = `<p>Lead section.</p>
-    <hr>
-    <p><strong>Want more market intelligence?</strong> <a href="https://unusualwhales.com/login?ref=blubber">Create your free Unusual Whales account</a></p>
-    <hr/>
+    <p>For more market-moving <em>headlines,</em> see other news.</p>
+    <p><strong>Want more market intelligence?</strong> <a href="https://unusualwhales.com/login?ref=blubber">Create your free Unusual Whales account</a>
+    for options flow, market tide, GEX, and the full toolkit.</p>
     <p>Follow-up section remains.</p>`;
   const cleaned = stripUnusualWhalesAdSection(html);
   assert.match(cleaned, /Lead section/);
   assert.match(cleaned, /Follow-up section remains/);
+  assert.doesNotMatch(cleaned, /For more market-moving/);
+  assert.doesNotMatch(cleaned, /Want more market intelligence/);
   assert.doesNotMatch(cleaned, /Create your free Unusual Whales account/);
 });
 
-test("Unusual Whales ad stripper removes exact trailing promo HTML", () => {
-  const promo = `<p>Keep an eye on the <a href="https://unusualwhales.com/news?ref=unusual-whales.ghost.io">rest of the news flow</a> for any follow-on reporting from the New Yorker piece.</p><p><strong>Want more market intelligence?</strong> <a href="https://unusualwhales.com/login?ref=blubber">Create your free Unusual Whales account</a> for options flow, market tide, GEX, and the full toolkit.</p>`;
-  const cleaned = stripUnusualWhalesAdSection(`<p>Real ending.</p>${promo}`);
-  assert.equal(cleaned, `<p>Real ending.</p>`);
+test("Unusual Whales article text removes all known promo snippets and preserves surrounding article text", () => {
+  const html = `<p>Valid intro before ads.</p>
+    <p>Do you want to see how to make more plays?<br>Do you want to find gains yourself?</p>
+    <p>Important article middle remains.</p>
+    <p>Unusual Whales helps you find market opportunities through our market tide, historical options flow, GEX, and much, much more.</p>
+    <p>Create a free <a href="https://unusualwhales.com/login">account here</a> to start conquering the market with Unusual Whales.</p>
+    <p>Valid ending after ads.</p>`;
+  const text = articleTextFromHtml(html);
+  assert.match(text, /Valid intro before ads/);
+  assert.match(text, /Important article middle remains/);
+  assert.match(text, /Valid ending after ads/);
+  assert.doesNotMatch(text, /Do you want to see how to make more plays/);
+  assert.doesNotMatch(text, /market tide, historical options flow/);
+  assert.doesNotMatch(text, /start conquering the market/);
 });
 
-test("Unusual Whales ad stripper removes trailing promo variants only at the end", () => {
-  const variantOne = `<p>Real ending.</p>
-    <p>For more, see <a href="https://unusualwhales.com/news?ref=unusual-whales.ghost.io">other news on Unusual Whales</a>.</p>
-    <p><strong>Want more market intelligence?</strong> <a href="https://unusualwhales.com/login?ref=blubber">Create your free Unusual Whales account</a> for options flow, market tide, GEX, and the full toolkit.</p>
-  `;
-  const variantTwo = `<p>Real ending.</p>
-    <p><strong>Want more market intelligence?</strong> <a href="https://unusualwhales.com/login?ref=blubber">Create your free Unusual Whales account</a> for options flow, market tide, GEX, and the full toolkit.</p>
-  `;
-  const internalPromoText = `<p><strong>Want more market intelligence?</strong> was discussed by analysts.</p><p>Real ending.</p>`;
+test("Unusual Whales article cleanup keeps valid text around hr sections", () => {
+  const html = `<p>Opening remains.</p>
+    <hr>
+    <p>Valid middle section after an hr remains.</p>
+    <hr>
+    <p>Valid ending section after paired hr tags remains.</p>`;
+  const text = articleTextFromHtml(html);
+  assert.match(text, /Opening remains/);
+  assert.match(text, /Valid middle section after an hr remains/);
+  assert.match(text, /Valid ending section after paired hr tags remains/);
+});
 
-  assert.equal(stripUnusualWhalesAdSection(variantOne).trim(), `<p>Real ending.</p>`);
-  assert.equal(stripUnusualWhalesAdSection(variantTwo).trim(), `<p>Real ending.</p>`);
-  assert.equal(stripUnusualWhalesAdSection(internalPromoText), internalPromoText);
+test("Flow retention constants match requested source-table windows", () => {
+  assert.equal(WHALE_FEED_RETENTION_DAYS, 14);
+  assert.equal(INSIDER_TRADES_LOOKBACK_MONTHS, 6);
 });
 
 test("Cboe daily fallback URL includes Toronto date query", () => {
@@ -140,9 +157,30 @@ test("CoinGecko normalization requires every configured current USD crypto quote
 
 test("Unusual Whales earnings normalization suppresses duplicate same-ticker unknown variants only when a dated row exists", () => {
   const rows = [
-    { symbol: "AVAV", full_name: "AeroVironment", report_date: "2026-06-23", report_time: null, marketcap: 5_000_000_000, country_code: "US" },
-    { symbol: "AVAV", full_name: "AeroVironment", report_date: "2026-06-23", report_time: "postmarket", marketcap: 5_000_000_000, country_code: "US" },
-    { symbol: "ONLY", full_name: "Only Unknown", report_date: "2026-06-23", report_time: null, marketcap: 5_000_000_000, country_code: "US" }
+    {
+      symbol: "AVAV",
+      full_name: "AeroVironment",
+      report_date: "2026-06-23",
+      report_time: null,
+      marketcap: 5_000_000_000,
+      country_code: "US"
+    },
+    {
+      symbol: "AVAV",
+      full_name: "AeroVironment",
+      report_date: "2026-06-23",
+      report_time: "postmarket",
+      marketcap: 5_000_000_000,
+      country_code: "US"
+    },
+    {
+      symbol: "ONLY",
+      full_name: "Only Unknown",
+      report_date: "2026-06-23",
+      report_time: null,
+      marketcap: 5_000_000_000,
+      country_code: "US"
+    }
   ];
 
   const events = normalizeUnusualWhalesEarningsRows(rows, "2026-06-23T00:00:00.000Z");

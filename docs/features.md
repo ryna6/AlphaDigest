@@ -52,7 +52,7 @@ Important behavior:
 - Today shares market data with the Markets tab by calling `getMarketsPayload()`.
 - Today earnings are filtered to the current ET date and ranked by `getMajorEarningsForDate()`.
 - Today featured articles are separate from the News & Calendar headline feed. Do not accidentally replace one with the other.
-- The Top News routes use the Today featured article payload, not the News & Calendar headline payload. Featured article HTML cleanup removes the Unusual Whales promo block between paired `<hr>` separators and the repeated trailing promo variants while preserving real article sections before and after the ad.
+- The Top News routes use the Today featured article payload, not the News & Calendar headline payload. Featured article cleanup removes known Unusual Whales promo/ad text snippets after normalization, robust to whitespace and tag-boundary differences, while preserving real article sections before and after the promo text.
 
 Related routes:
 
@@ -125,8 +125,8 @@ Important behavior:
 - Contains Flow Summary, Dark Pool, Whale Feed, and Insider Trades.
 - Flow Summary replaces Big Money Flow Summary and no longer includes Top 13F accumulation because 13F data moved to Ownership.
 - Dark Pool is Supabase-backed from the provided Unusual Whales dark-pool endpoint, refreshed once daily, expected to be delayed by roughly two days, and retained for 14 days.
-- Insider Trades is Supabase-backed from up to four server-side pages of the provided Unusual Whales insider endpoint, filtered to the past 6 months, aggregated by ticker, with top 5 on the main Flow tab, initial top 25 and View more up to top 50 at `/flow/insider-trades`, and detail rows at `/flow/insider-trades/[ticker]`.
-- Whale Feed is Supabase-backed from the server-side Unusual Whales lit-trades whale endpoint, with fixture fallback only when cached rows are unavailable.
+- Insider Trades is Supabase-backed from up to four server-side pages of the provided Unusual Whales insider endpoint, filtered and pruned to the past 6 months by `transaction_date`, aggregated by ticker, with top 5 on the main Flow tab, initial top 25 and View more up to top 50 at `/flow/insider-trades`, and detail rows at `/flow/insider-trades/[ticker]`.
+- Whale Feed is Supabase-backed from the server-side Unusual Whales lit-trades whale endpoint, retains rows for 14 days, and uses fixture fallback only when cached rows are unavailable.
 
 ## Ownership tab
 
@@ -136,7 +136,7 @@ Important behavior:
 
 #### Flow cache behavior
 
-The Flow tab reads cached Supabase rows/snapshots first and never calls Unusual Whales from browser components. Dark Pool keeps up to 14 days of normalized large-print rows and may show zero fresh rows when the provider is delayed, the plan returns an empty/paywalled response, filters match nothing, or the response shape changes; `/api/cache/status` and Supabase job telemetry expose a safe `emptyReason` instead of treating unexplained zero rows as a silent success. Insider Trades are filtered to the past 6 months, deduped before Supabase upsert, and keyed with stable deterministic IDs. `flow:latest` can be written with notices when one Flow source succeeds and another fails, but refresh logs identify partial snapshots versus fully fresh snapshots.
+The Flow tab reads cached Supabase rows/snapshots first and never calls Unusual Whales from browser components. Dark Pool keeps up to 14 days of normalized large-print rows and may show zero fresh rows when the provider is delayed, the plan returns an empty/paywalled response, filters match nothing, or the response shape changes; `/api/cache/status` and Supabase job telemetry expose a safe `emptyReason` instead of treating unexplained zero rows as a silent success. Insider Trades are filtered to the past 6 months, deduped before Supabase upsert, pruned by `transaction_date` after refresh, and keyed with stable deterministic IDs. `flow:latest` can be written with notices when one Flow source succeeds and another fails, but refresh logs identify partial snapshots versus fully fresh snapshots.
 
 ### Flow revision details
 
@@ -162,10 +162,9 @@ The Flow tab reads cached Supabase rows/snapshots first and never calls Unusual 
 
 - Flow card subtexts were cleaned up for Insider Trades, Dark Pool, and Whale Feed; technical fallback/provider notices continue to use existing mode/notices patterns.
 
-
 ### Flow Whale Feed and Dark Pool size fields
 
-Whale Feed replaces the former Whale Trades label in the Flow UI. Netlify wakes `refresh-whale-feed` on weekdays; a Toronto runtime guard runs provider work every hour Monday-Friday and calls the Unusual Whales `lit-trades?tab=whale` endpoint server-side only; browser components never call Unusual Whales and never receive `SUPABASE_SERVICE_ROLE_KEY`. Rows are normalized into `unusual_whales_whale_feed` with only `size`, `ticker`, `price`, `nbbo_ask`, `nbbo_bid`, `executed_at`, `premium`, `sector`, `volume`, `avg30_volume`, and internal `external_id`, `side`, `sentiment`, `fetched_at`, `created_at`, `updated_at` fields. The expanded Whale Feed page initially shows 15 server-loaded rows and supports client-side View more in batches of 15 after the server has loaded cached rows.
+Whale Feed replaces the former Whale Trades label in the Flow UI. Netlify wakes `refresh-whale-feed` on weekdays; a Toronto runtime guard runs provider work every hour Monday-Friday and calls the Unusual Whales `lit-trades?tab=whale` endpoint server-side only; browser components never call Unusual Whales and never receive `SUPABASE_SERVICE_ROLE_KEY`. Rows are upserted into `unusual_whales_whale_feed` without replacing recent history, pruned only when `executed_at` is older than 14 days, and normalized with only `size`, `ticker`, `price`, `nbbo_ask`, `nbbo_bid`, `executed_at`, `premium`, `sector`, `volume`, `avg30_volume`, and internal `external_id`, `side`, `sentiment`, `fetched_at`, `created_at`, `updated_at` fields. The expanded Whale Feed page initially shows 15 server-loaded rows and supports client-side View more in batches of 15 after the server has loaded cached rows.
 
 Dark Pool ingestion stores `size` and `avg30_volume` in addition to existing normalized fields, but does not store NBBO, side, or sentiment. Flow displays Dark Pool individual trade size from `size`; `volume` is retained as total same-day ticker volume for `% Vol = size / volume`, and `avg30_volume` powers `% 30D Vol = size / avg30_volume`.
 
@@ -180,6 +179,5 @@ Flow Summary now labels the Whale Feed mini card as `Whale Feed (7D)` and explic
 The Status tab presents grouped automated jobs with the columns Job, Status, Source, Schedule, Last Run, and Next Run. The Source column replaces the former Endpoint label and uses short provider names rather than exact URLs or API paths. The component status legend is centered in its card with wider spacing and preserves the Healthy, Warning, Error, Unknown order. Unusual Whales News Feed / `refresh-news-feed` displays `Every 30m, Daily` and runs every 30 minutes on the hour and half-hour; Put/Call Ratio displays `Every 30m, Mon–Fri`; Flow source jobs display hourly Monday-Friday and `refresh-flow` displays `Every 1h at :05, Mon–Fri`.
 
 Status reads fresh Supabase `job_runs` telemetry written by scheduled functions. Last Run and status come from job metadata, Next Run remains schedule-based, and TBD or not-yet-run jobs remain Unknown. The Status page and `/api/cache/status` are dynamic/no-store so a browser refresh fetches current telemetry without redeploy, and the Status page auto-refreshes every 5 minutes while open. Component status labels render as Good/Healthy, Warning/Delayed or missing, Critical/Action required, and Offline/No status available. `job_runs` rows older than 24 hours are pruned server-side during telemetry writes via the tracked Supabase retention helper. Netlify logs are only for manual debugging in the Netlify UI/CLI and no Netlify auth token is required for Status.
-
 
 Status schedule notes: Market Overview / `refresh-market-quotes` runs every 5m from the start of Sunday through the end of Friday in Toronto/Eastern time (`*/5 * * * *` with a Toronto weekday guard); Put/Call Ratio / `refresh-put-call` runs every 30m Monday-Friday (`*/30 * * * 1-5`); Top News / `refresh-featured-articles` and Unusual Whales News Feed / `refresh-news-feed` run every 30m daily (`*/30 * * * *`); Today’s Economic Events / `refresh-economic-events` and Today’s Earnings / `fetch-uw-earnings` run every 6h daily (`0 */6 * * *`); Indices/Heatmaps / `refresh-markets` runs every 5m Monday-Friday (`*/5 * * * 1-5`); Insider Trades, Dark Pool, and Whale Feed run hourly Monday-Friday (`0 * * * 1-5`); `refresh-flow` wakes hourly at :05 (`5 * * * *`) and its Toronto weekday guard allows Monday-Friday provider work; source labels stay short and safe; and the Status note says `All times are shown in Eastern Standard Time.` Netlify may show platform-generated wording for cron expressions, so docs record both the actual cron and intended human-readable schedule.
