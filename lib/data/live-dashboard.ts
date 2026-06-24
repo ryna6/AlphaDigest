@@ -994,6 +994,15 @@ export async function buildFlowPayload(): Promise<{
   };
 }
 
+async function readDarkPoolRowsFromFlowSnapshot(ticker: string, limit: number) {
+  const cached = await getSnapshotOrNull<FlowPayload>("flow:latest");
+  const upperTicker = ticker.toUpperCase();
+  return (cached.snapshot?.payload.darkPool ?? [])
+    .filter((row) => row.ticker.toUpperCase() === upperTicker)
+    .sort((a, b) => Date.parse(b.executedAt) - Date.parse(a.executedAt))
+    .slice(0, limit);
+}
+
 export async function getDarkPoolPayload(
   limit = 100,
   ticker?: string
@@ -1017,17 +1026,25 @@ export async function getDarkPoolPayload(
     };
   try {
     const rows = await readDarkPoolRows(supabase.client, limit, ticker);
+    const snapshotRows = ticker && !rows.length ? await readDarkPoolRowsFromFlowSnapshot(ticker, limit) : [];
+    const resolvedRows = rows.length
+      ? rows
+      : snapshotRows.length
+        ? snapshotRows
+        : ticker
+          ? flowMock.darkPool.filter((r) => r.ticker === ticker.toUpperCase()).slice(0, limit)
+          : flowMock.darkPool.slice(0, limit);
     return {
       payload: {
-        rows: rows.length
-          ? rows
-          : ticker
-            ? flowMock.darkPool.filter((r) => r.ticker === ticker.toUpperCase()).slice(0, limit)
-            : flowMock.darkPool.slice(0, limit),
+        rows: resolvedRows,
         sourceMeta: flowMock.sourceMeta,
-        notices: rows.length ? [] : ["No cached dark pool rows found; using fixture fallback."]
+        notices: rows.length
+          ? []
+          : snapshotRows.length
+            ? ["No ticker rows found in the source table; using cached Flow snapshot rows."]
+            : ["No cached dark pool rows found; using fixture fallback."]
       },
-      mode: rows.length ? "live" : "mock",
+      mode: rows.length || snapshotRows.length ? "live" : "mock",
       notices: []
     };
   } catch (error) {
