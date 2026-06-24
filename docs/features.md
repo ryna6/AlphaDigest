@@ -39,7 +39,7 @@ The Today page displays:
 - Market Summary cards:
   - Leading Sectors from the Markets sector heatmap.
   - Risk On / Risk Off from live VIX3M divided by live VIX when both valid positive values are available.
-  - Put/Call Ratio from the Cboe Exchange Market Statistics section, displaying Equity, Index, and Total ratios with Eastern release time.
+  - Put/Call Ratio from the Cboe Exchange Market Statistics section, displaying Equity, Index, and Total ratios with Eastern release time; the server-side daily fallback requests Cboe daily statistics with a Toronto-date `?dt=YYYY-MM-DD` query.
   - Today's Earnings count from the Unusual Whales earnings flow.
   - Today's Economic Events count from the Investing.com calendar flow.
 - Featured Unusual Whales articles with title, tags, timestamp, and excerpt.
@@ -52,7 +52,7 @@ Important behavior:
 - Today shares market data with the Markets tab by calling `getMarketsPayload()`.
 - Today earnings are filtered to the current ET date and ranked by `getMajorEarningsForDate()`.
 - Today featured articles are separate from the News & Calendar headline feed. Do not accidentally replace one with the other.
-- The Top News routes use the Today featured article payload, not the News & Calendar headline payload.
+- The Top News routes use the Today featured article payload, not the News & Calendar headline payload. Featured article HTML cleanup removes the Unusual Whales promo block between paired `<hr>` separators and the repeated trailing promo while preserving real article sections before and after the ad.
 
 Related routes:
 
@@ -124,7 +124,7 @@ Important behavior:
 - Page route: `app/flow/page.tsx`; API route: `/api/flow`.
 - Contains Flow Summary, Dark Pool, Whale Feed, and Insider Trades.
 - Flow Summary replaces Big Money Flow Summary and no longer includes Top 13F accumulation because 13F data moved to Ownership.
-- Dark Pool is Supabase-backed from the provided Unusual Whales dark-pool endpoint, refreshed once daily, expected to be delayed by roughly two days, and retained for 7 days.
+- Dark Pool is Supabase-backed from the provided Unusual Whales dark-pool endpoint, refreshed once daily, expected to be delayed by roughly two days, and retained for 14 days.
 - Insider Trades is Supabase-backed from up to four server-side pages of the provided Unusual Whales insider endpoint, filtered to the past 6 months, aggregated by ticker, with top 5 on the main Flow tab, initial top 25 and View more up to top 50 at `/flow/insider-trades`, and detail rows at `/flow/insider-trades/[ticker]`.
 - Whale Feed is Supabase-backed from the server-side Unusual Whales lit-trades whale endpoint, with fixture fallback only when cached rows are unavailable.
 
@@ -136,7 +136,7 @@ Important behavior:
 
 #### Flow cache behavior
 
-The Flow tab reads cached Supabase rows/snapshots first and never calls Unusual Whales from browser components. Dark Pool keeps up to 7 days of normalized large-print rows and may show zero fresh rows when the provider is delayed, the plan returns an empty/paywalled response, filters match nothing, or the response shape changes; `/api/cache/status` and Supabase job telemetry expose a safe `emptyReason` instead of treating unexplained zero rows as a silent success. Insider Trades are filtered to the past 6 months, deduped before Supabase upsert, and keyed with stable deterministic IDs. `flow:latest` can be written with notices when one Flow source succeeds and another fails, but refresh logs identify partial snapshots versus fully fresh snapshots.
+The Flow tab reads cached Supabase rows/snapshots first and never calls Unusual Whales from browser components. Dark Pool keeps up to 14 days of normalized large-print rows and may show zero fresh rows when the provider is delayed, the plan returns an empty/paywalled response, filters match nothing, or the response shape changes; `/api/cache/status` and Supabase job telemetry expose a safe `emptyReason` instead of treating unexplained zero rows as a silent success. Insider Trades are filtered to the past 6 months, deduped before Supabase upsert, and keyed with stable deterministic IDs. `flow:latest` can be written with notices when one Flow source succeeds and another fails, but refresh logs identify partial snapshots versus fully fresh snapshots.
 
 ### Flow revision details
 
@@ -155,9 +155,9 @@ The Flow tab reads cached Supabase rows/snapshots first and never calls Unusual 
 ### Flow UI revision
 
 - `/flow` keeps Flow Summary near the top, then renders Insider Trades, Dark Pool, and Whale Feed as separate full-width rows so Dark Pool and Whale Feed text has desktop room while mobile remains stacked.
-- Flow Summary now uses three responsive mini cards: Insider sentiment, `Largest Dark Pool Print (7D)`, and Whale Feed. Summary cards link only when a reliable drilldown exists, such as Dark Pool ticker detail, Whale Feed expanded view, or Insider Trades expanded view, and clickable cards use the same hover-lift cursor behavior as Markets heatmap tiles.
+- Flow Summary now uses three responsive mini cards: Insider sentiment, `Largest Dark Pool Print (14D)`, and Whale Feed. Summary cards link only when a reliable drilldown exists, such as Dark Pool ticker detail, Whale Feed expanded view, or Insider Trades expanded view, and clickable cards use the same hover-lift cursor behavior as Markets heatmap tiles.
 - Dark Pool timestamps display in Eastern Time as `MM/DD HH:mm` (for example `06/15 16:00`) on the card, expanded page, and ticker detail views.
-- `/flow/dark-pool/[ticker]` is ticker-level: it shows all available same-ticker dark-pool prints from the cache/source rows, sorted by most recent `executed_at` first, with the Back action returning to `/flow/dark-pool`.
+- `/flow/dark-pool/[ticker]` is ticker-level: it shows all available same-ticker dark-pool prints from the Supabase source rows, then the cached `flow:latest` snapshot for that ticker when needed, sorted by most recent `executed_at` first, with the Back action returning to `/flow/dark-pool`.
 - `Top insider activity` was replaced with `Insider sentiment`. Insider Sentiment uses the same full Supabase-backed 6-month insider row population as the main and expanded Insider Trades views and calculates `purchaseValue / (purchaseValue + saleValue)`, where sale value is absolute sale value. The UI labels ratios `> 0.505` Bullish, `< 0.495` Bearish, and the small documented neutral band around 0.5 Neutral, with matching color and an info tooltip.
 
 - Flow card subtexts were cleaned up for Insider Trades, Dark Pool, and Whale Feed; technical fallback/provider notices continue to use existing mode/notices patterns.
@@ -173,7 +173,7 @@ When the Whale Feed provider does not send a direct side, Whale Feed uses a limi
 
 Apply `supabase/manual/apply-whale-feed-dark-pool-flow.sql` in production Supabase SQL Editor before running `refresh-whale-feed`, `refresh-dark-pool`, and `refresh-flow`; the SQL is idempotent and reloads the PostgREST schema cache.
 
-Flow Summary now labels the Whale Feed mini card as `Whale Feed (7D)` and explicitly selects the largest-premium Whale Feed row whose `executed_at` is within the past 7 days. When that summary row has a ticker, the card drills into `/flow/whale-feed/[ticker]`; otherwise it falls back to the expanded Whale Feed page only when a reliable destination exists. The Whale Feed summary subtext displays the row sentiment (`Bullish`, `Bearish`, or `Unknown`) with sentiment color, while the premium remains default text styling. The `Largest Dark Pool Print (7D)` summary subtext displays explanatory `% of 30D Vol` text using `size / avg30_volume` instead of sector. Whale Feed ticker detail pages show same-ticker rows sorted newest first from a fresh `flow:latest` snapshot when available, then the Supabase `unusual_whales_whale_feed` table, then fixtures only when no real rows are available. Stock/security prices use the shared full-price formatter (`$1,234.56` style) rather than compact currency, while premium/notional/market-cap values may remain compact. Supabase/serverless architecture is unchanged; browser components still do not call Unusual Whales or receive `SUPABASE_SERVICE_ROLE_KEY`.
+Flow Summary now labels the Whale Feed mini card as `Whale Feed (7D)` and explicitly selects the largest-premium Whale Feed row whose `executed_at` is within the past 7 days. When that summary row has a ticker, the card drills into `/flow/whale-feed/[ticker]`; otherwise it falls back to the expanded Whale Feed page only when a reliable destination exists. The Whale Feed summary subtext displays the row sentiment (`Bullish`, `Bearish`, or `Unknown`) with sentiment color, while the premium remains default text styling. The `Largest Dark Pool Print (14D)` summary subtext displays explanatory `% of 30D Vol` text using `size / avg30_volume` instead of sector. Whale Feed ticker detail pages show same-ticker rows sorted newest first from a fresh `flow:latest` snapshot when available, then the Supabase `unusual_whales_whale_feed` table, then fixtures only when no real rows are available. Stock/security prices use the shared full-price formatter (`$1,234.56` style) rather than compact currency, while premium/notional/market-cap values may remain compact. Supabase/serverless architecture is unchanged; browser components still do not call Unusual Whales or receive `SUPABASE_SERVICE_ROLE_KEY`.
 
 ## Status tab operations
 

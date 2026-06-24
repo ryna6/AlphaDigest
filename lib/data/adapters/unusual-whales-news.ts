@@ -75,11 +75,14 @@ function stripHtmlChrome(value: string) {
     .replace(/<style\b[^>]*>[\s\S]*?<\/style>/gi, " ");
 }
 
+const TRAILING_UNUSUAL_WHALES_PROMO_REGEX = /\s*<p>\s*Keep\s+an\s+eye\s+on\s+the\s+<a\s+href=["']https:\/\/unusualwhales\.com\/news\?ref=unusual-whales\.ghost\.io["']>\s*rest\s+of\s+the\s+news\s+flow\s*<\/a>\s+for\s+any\s+follow-on\s+reporting\s+from\s+the\s+New\s+Yorker\s+piece\.\s*<\/p>\s*<p>\s*<strong>\s*Want\s+more\s+market\s+intelligence\?\s*<\/strong>\s*<a\s+href=["']https:\/\/unusualwhales\.com\/login\?ref=blubber["']>\s*Create\s+your\s+free\s+Unusual\s+Whales\s+account\s*<\/a>\s+for\s+options\s+flow,\s+market\s+tide,\s+GEX,\s+and\s+the\s+full\s+toolkit\.\s*<\/p>\s*$/i;
+
 export function stripUnusualWhalesAdSection(html: string) {
-  const markerRegex = /<hr\s*\/?\s*>\s*<p(?:\s+[^>]*)?>\s*<strong>/i;
-  const match = html.match(markerRegex);
-  if (!match || match.index == null) return html;
-  return html.slice(0, match.index);
+  const adBlockRegex = /<hr\s*\/?\s*>\s*<p(?:\s+[^>]*)?>\s*<strong>[\s\S]*?<hr\s*\/?\s*>/i;
+  const withoutInlineAd = html.replace(adBlockRegex, (block) =>
+    /unusual\s*whales|unusualwhales\.com|want\s+more\s+market\s+intelligence/i.test(block) ? "" : block
+  );
+  return withoutInlineAd.replace(TRAILING_UNUSUAL_WHALES_PROMO_REGEX, "");
 }
 
 function truncateBeforeFeaturedAd(value: string) {

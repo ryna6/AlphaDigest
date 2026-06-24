@@ -5,7 +5,8 @@ import {
   centralTimestampToEasternIso,
   isExpectedCboeFetchWindow,
   parseCboePutCallFromHtml,
-  parseCboeDailyPutCallFromHtml
+  parseCboeDailyPutCallFromHtml,
+  cboeDailyPutCallUrl
 } from "../lib/data/adapters/cboe-put-call";
 import {
   normalizeCoinGeckoCryptoResponse,
@@ -13,7 +14,34 @@ import {
 } from "../lib/data/adapters/coingecko-crypto";
 import { shouldRunInTorontoWindow } from "../lib/schedule/toronto";
 import { normalizeUnusualWhalesEarningsRows } from "../lib/data/adapters/unusual-whales-earnings";
+import { stripUnusualWhalesAdSection } from "../lib/data/adapters/unusual-whales-news";
 
+
+
+test("Unusual Whales ad stripper removes only the double-hr ad block and preserves article body", () => {
+  const html = `<p>Lead section.</p>
+    <hr>
+    <p><strong>Want more market intelligence?</strong> <a href="https://unusualwhales.com/login?ref=blubber">Create your free Unusual Whales account</a></p>
+    <hr/>
+    <p>Follow-up section remains.</p>`;
+  const cleaned = stripUnusualWhalesAdSection(html);
+  assert.match(cleaned, /Lead section/);
+  assert.match(cleaned, /Follow-up section remains/);
+  assert.doesNotMatch(cleaned, /Create your free Unusual Whales account/);
+});
+
+test("Unusual Whales ad stripper removes exact trailing promo HTML", () => {
+  const promo = `<p>Keep an eye on the <a href="https://unusualwhales.com/news?ref=unusual-whales.ghost.io">rest of the news flow</a> for any follow-on reporting from the New Yorker piece.</p><p><strong>Want more market intelligence?</strong> <a href="https://unusualwhales.com/login?ref=blubber">Create your free Unusual Whales account</a> for options flow, market tide, GEX, and the full toolkit.</p>`;
+  const cleaned = stripUnusualWhalesAdSection(`<p>Real ending.</p>${promo}`);
+  assert.equal(cleaned, `<p>Real ending.</p>`);
+});
+
+test("Cboe daily fallback URL includes Toronto date query", () => {
+  assert.equal(
+    cboeDailyPutCallUrl(new Date("2026-06-23T15:00:00.000Z")),
+    "https://www.cboe.com/markets/us/options/market-statistics/daily/?dt=2026-06-23"
+  );
+});
 
 test("Cboe parser reads equity, index, and total ratios from the market-statistics section only", () => {
   const html = readFileSync("test/fixtures/cboe-market-statistics.html", "utf8");
@@ -24,7 +52,7 @@ test("Cboe parser reads equity, index, and total ratios from the market-statisti
   assert.equal(parsed?.value, 0.91);
   assert.equal(parsed?.raw?.heading, "Cboe Exchange Market Statistics for Friday, June 12, 2026");
   assert.equal(parsed?.raw?.sourceTimezone, "America/Chicago");
-  assert.equal(parsed?.raw?.displayTimezone, "America/New_York");
+  assert.equal(parsed?.raw?.displayTimezone, "America/Toronto");
   assert.equal(parsed?.raw?.sourceAsOfCentral, "2026-06-12T09:30:00[America/Chicago]");
   assert.equal(parsed?.raw?.asOfEastern, "2026-06-12T14:30:00.000Z");
 });
@@ -55,8 +83,8 @@ test("Cboe daily parser reads official ratio table as fallback", () => {
   `;
   const parsed = parseCboeDailyPutCallFromHtml(html, "2026-06-19T02:30:00.000Z");
   assert.equal(parsed?.freshness, "previous_close");
-  assert.deepEqual(parsed?.ratios, { equity: 0.58, index: 1.17, total: 0.91 });
-  assert.equal(parsed?.value, 0.91);
+  assert.deepEqual(parsed?.ratios, { equity: 0.55, index: 1.11, total: 0.69 });
+  assert.equal(parsed?.value, 0.69);
 });
 
 test("Central to Eastern conversion handles standard time and daylight time", () => {
@@ -64,13 +92,13 @@ test("Central to Eastern conversion handles standard time and daylight time", ()
   assert.equal(centralTimestampToEasternIso("2026-06-12", "9:30 AM"), "2026-06-12T14:30:00.000Z");
 });
 
-test("Cboe scheduler gate allows only 9:05 AM through 3:35 PM Central on weekdays", () => {
-  assert.equal(isExpectedCboeFetchWindow(new Date("2026-06-12T14:05:00.000Z")), true);
-  assert.equal(isExpectedCboeFetchWindow(new Date("2026-06-12T20:35:00.000Z")), true);
-  assert.equal(isExpectedCboeFetchWindow(new Date("2026-06-12T14:00:00.000Z")), false);
-  assert.equal(isExpectedCboeFetchWindow(new Date("2026-06-12T13:35:00.000Z")), false);
-  assert.equal(isExpectedCboeFetchWindow(new Date("2026-06-12T21:05:00.000Z")), false);
-  assert.equal(isExpectedCboeFetchWindow(new Date("2026-06-13T14:05:00.000Z")), false);
+test("Cboe scheduler gate allows half-hour fetches from 9:00 AM through 3:30 PM Central on weekdays", () => {
+  assert.equal(isExpectedCboeFetchWindow(new Date("2026-06-12T14:00:00.000Z")), true);
+  assert.equal(isExpectedCboeFetchWindow(new Date("2026-06-12T20:30:00.000Z")), true);
+  assert.equal(isExpectedCboeFetchWindow(new Date("2026-06-12T14:05:00.000Z")), false);
+  assert.equal(isExpectedCboeFetchWindow(new Date("2026-06-12T13:30:00.000Z")), false);
+  assert.equal(isExpectedCboeFetchWindow(new Date("2026-06-12T21:00:00.000Z")), false);
+  assert.equal(isExpectedCboeFetchWindow(new Date("2026-06-13T14:00:00.000Z")), false);
 });
 
 test("Toronto weekday-only Flow guard allows late hourly wakes without interval skips", () => {
