@@ -180,7 +180,7 @@ The placeholder functions only return JSON that describes future ingestion flow.
 
 - Global styles and font import live in `app/globals.css`.
 - Tailwind custom colors and `Space Grotesk` font configuration live in `tailwind.config.ts`.
-- Core visual primitives are intentionally square/compact: `Panel`, `MetricRow`, `DataTable`, `Heatmap`, `SectionHeader`, `InfoTooltip`, `ErrorState`, and `EmptyState`.
+- Core visual primitives are intentionally square/compact: `Panel`, `MetricRow`, `DataTable`, `Heatmap`, `SectionHeader`, `InfoTooltip`, `ErrorState`, and `EmptyState`. `SectionHeader` is the shared high-level card/container title style and should stay larger than nested KPI labels.
 - Large layouts generally use responsive grids with `xl:` breakpoints and mobile-first stacking.
 - The desktop sidebar is sticky at the viewport top, and below `lg` a sticky mobile header exposes the primary tabs in a horizontally scrollable tab bar.
 
