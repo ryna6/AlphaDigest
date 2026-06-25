@@ -196,4 +196,4 @@ Ticker Explorer has been removed from the user-facing app, including navigation,
 
 ### Market Summary 24h changes
 
-Risk On / Risk Off and Put/Call Ratio show a same-row signed whole-percentage 24h change when compact Supabase history has a valid comparison. Positive changes are green, negative changes are red, zero changes are grey, and unavailable comparisons display a muted dash using the existing muted-card convention. Put/Call displays only the total numeric value in the Today card; Index and Equity put/call values continue to be fetched and stored server-side.
+Risk On / Risk Off and Put/Call Ratio show a same-row signed whole-percentage 24h change when compact Supabase history has a valid comparison. Positive changes are green, negative changes are red, zero changes are grey, and unavailable comparisons display a muted dash using the existing muted-card convention. Put/Call displays only `Total: [value]` in the Today card; Index and Equity put/call values continue to be fetched and stored server-side.

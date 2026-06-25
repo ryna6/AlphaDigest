@@ -222,8 +222,12 @@ function cellsFromRow(rowHtml: string) {
   );
 }
 
-function extractTableLabel(sectionHtml: string, tableStart: number) {
-  const before = sectionHtml.slice(Math.max(0, tableStart - 800), tableStart);
+function extractTableLabel(sectionHtml: string, tableStart: number, tableHtml?: string) {
+  const caption = tableHtml?.match(/<caption[^>]*>([\s\S]*?)<\/caption>/i)?.[1];
+  const captionKey = caption ? ratioKeyFromLabel(cellText(caption)) : null;
+  if (captionKey) return captionKey;
+
+  const before = sectionHtml.slice(Math.max(0, tableStart - 1200), tableStart);
   const labels = Array.from(
     before.matchAll(/<(?:h[1-6]|caption|p|div|span)[^>]*>([\s\S]*?)<\/(?:h[1-6]|caption|p|div|span)>/gi)
   ).map((match) => cellText(match[1]));
@@ -240,6 +244,10 @@ function parseRatiosFromCurrentTables(sectionHtml: string, marketDate: string) {
   const ratios: PutCallRatios = { equity: null, index: null, total: null };
   const latestTimes: Partial<Record<keyof PutCallRatios, string>> = {};
   const labelsFound: string[] = [];
+  const candidates: Array<{
+    key: keyof PutCallRatios | null;
+    latest: { timeLabel: string; value: number | null; time: number | null };
+  }> = [];
   const tables = Array.from(sectionHtml.matchAll(/<table[^>]*class=["'][^"']*data-table[^"']*["'][^>]*>([\s\S]*?)<\/table>/gi));
 
   for (const table of tables) {
@@ -255,9 +263,6 @@ function parseRatiosFromCurrentTables(sectionHtml: string, marketDate: string) {
     const ratioIndex = header.findIndex((cell) => /p\s*\/\s*c\s*ratio/i.test(cell));
     if (timeIndex < 0 || ratioIndex < 0) continue;
 
-    const key = extractTableLabel(sectionHtml, table.index ?? 0);
-    if (!key) continue;
-
     const latest = rows
       .filter((cells) => cells !== header && cells.length > Math.max(timeIndex, ratioIndex))
       .map((cells) => ({
@@ -268,9 +273,23 @@ function parseRatiosFromCurrentTables(sectionHtml: string, marketDate: string) {
       .filter((row) => row.value !== null && row.time !== null)
       .sort((a, b) => (b.time ?? 0) - (a.time ?? 0))[0];
     if (!latest) continue;
+    const key = extractTableLabel(sectionHtml, table.index ?? 0, table[0]);
+    candidates.push({ key, latest });
+  }
+
+  const unlabeled = candidates.filter((candidate) => !candidate.key);
+  const orderedFallbackKeys: Array<keyof PutCallRatios> = ["total", "index", "equity"];
+  for (const [index, candidate] of candidates.entries()) {
+    const key =
+      candidate.key ??
+      (unlabeled.length === candidates.length && candidates.length >= 3
+        ? orderedFallbackKeys[index]
+        : null);
+    if (!key || ratios[key] !== null) continue;
+    const latest = candidate.latest;
     ratios[key] = latest.value;
     latestTimes[key] = latest.timeLabel;
-    labelsFound.push(key);
+    labelsFound.push(candidate.key ? key : `${key}:inferred_by_table_order`);
   }
 
   return { ratios, labelsFound, latestTimes };
@@ -299,6 +318,42 @@ function parseRatiosFromLegacySection(sectionHtml: string) {
 
 function anyRatio(ratios: PutCallRatios) {
   return Object.values(ratios).some((value) => typeof value === "number" && Number.isFinite(value));
+}
+
+function countDataTables(html: string) {
+  return (html.match(/<table[^>]*class=["'][^"']*data-table[^"']*["'][^>]*>/gi) ?? []).length;
+}
+
+function nearbyLabels(html: string) {
+  return Array.from(
+    html.matchAll(/<(?:h[1-6]|caption)[^>]*>([\s\S]*?)<\/(?:h[1-6]|caption)>/gi)
+  )
+    .map((match) => cellText(match[1]))
+    .filter(Boolean)
+    .slice(0, 12);
+}
+
+function diagnosticSnippet(html: string) {
+  const lower = html.toLowerCase();
+  const index = ["p/c ratio", "index options", "equity options", "total", "data-table"]
+    .map((needle) => lower.indexOf(needle))
+    .filter((position) => position >= 0)
+    .sort((a, b) => a - b)[0];
+  if (index === undefined) return null;
+  return cleanText(html.slice(Math.max(0, index - 240), Math.min(html.length, index + 360))).slice(
+    0,
+    500
+  );
+}
+
+function logParserDiagnostics(event: string, html: string, extra: Record<string, unknown> = {}) {
+  console.log(event, {
+    responseLength: html.length,
+    dataTableCount: countDataTables(html),
+    nearbyLabels: nearbyLabels(html),
+    snippet: diagnosticSnippet(html),
+    ...extra
+  });
 }
 
 function firstTimeLabel(text: string) {
@@ -359,8 +414,11 @@ export function parseCboeDailyPutCallFromHtml(
 ): PutCallRatioResponse | null {
   const { ratios, labelsFound } = parseDailyRatiosFromTable(html);
   const parsedKeys = presentRatioKeys(ratios);
+  if (!anyRatio(ratios)) {
+    logParserDiagnostics("cboe_put_call_daily_parse", html, { labelsFound, parsedKeys });
+    return null;
+  }
   console.log("cboe_put_call_daily_parse", { labelsFound, parsedKeys });
-  if (!anyRatio(ratios)) return null;
   const asOf = new Date(scrapedAt).toISOString();
   return {
     asOf,
@@ -387,32 +445,40 @@ export function parseCboePutCallFromHtml(
   sourceUrl = CBOE_PUT_CALL_SOURCE_URL
 ): PutCallRatioResponse | null {
   const section = sectionAfterMarketStatsHeading(html);
-  if (!section) {
-    console.log("cboe_put_call_parse", { sectionFound: false });
-    return null;
-  }
-
-  const marketDate = extractDateKeyFromHeading(section.heading, scrapedAt);
-  const currentTables = parseRatiosFromCurrentTables(section.sectionHtml, marketDate);
+  const targetHtml = section?.sectionHtml ?? html;
+  const heading = section?.heading ?? "Cboe Exchange Market Statistics";
+  const marketDate = section ? extractDateKeyFromHeading(section.heading, scrapedAt) : torontoDateKey(new Date(scrapedAt));
+  const currentTables = parseRatiosFromCurrentTables(targetHtml, marketDate);
   const { ratios, labelsFound, latestTimes } = anyRatio(currentTables.ratios)
     ? currentTables
-    : parseRatiosFromLegacySection(section.sectionHtml);
+    : section
+      ? parseRatiosFromLegacySection(section.sectionHtml)
+      : {
+          ratios: currentTables.ratios,
+          labelsFound: currentTables.labelsFound,
+          latestTimes: currentTables.latestTimes
+        };
   const parsedKeys = Object.entries(ratios)
     .filter(([, value]) => value !== null)
     .map(([key]) => key);
-  const timeLabel = latestTimes.total ?? latestTimes.index ?? latestTimes.equity ?? firstTimeLabel(cleanText(section.sectionHtml));
+  const timeLabel = latestTimes.total ?? latestTimes.index ?? latestTimes.equity ?? firstTimeLabel(cleanText(targetHtml));
   const sourceAsOfCentral = timeLabel ? sourceCentralLabel(marketDate, timeLabel) : null;
   const asOfEastern = timeLabel ? centralTimestampToEasternIso(marketDate, timeLabel) : null;
 
-  console.log("cboe_put_call_parse", {
-    sectionFound: true,
+  const logDetails = {
+    sectionFound: Boolean(section),
     labelsFound,
     parsedKeys,
     sourceAsOfCentral,
     asOfEastern
-  });
+  };
 
-  if (!anyRatio(ratios)) return null;
+  if (!anyRatio(ratios)) {
+    logParserDiagnostics("cboe_put_call_parse", html, logDetails);
+    return null;
+  }
+
+  console.log("cboe_put_call_parse", logDetails);
 
   return {
     asOf: asOfEastern,
@@ -422,7 +488,7 @@ export function parseCboePutCallFromHtml(
     ratios,
     value: ratios.total,
     raw: {
-      heading: section.heading,
+      heading,
       sourceUrl,
       sourceTimezone: CBOE_SOURCE_TIMEZONE,
       displayTimezone: CBOE_DISPLAY_TIMEZONE,
