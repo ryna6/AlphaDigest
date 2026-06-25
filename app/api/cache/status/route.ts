@@ -32,6 +32,7 @@ const EXPECTED_TABLE_COLUMNS = {
   unusual_whales_featured_articles: ["id", "slug", "title", "published_at", "created_at_source", "source_url", "content_hash", "fetched_at", "updated_at"],
   unusual_whales_news_feed: ["id", "headline", "event_time", "source_url", "content_hash", "fetched_at", "updated_at"],
   put_call_observations: ["external_id", "ratio_type", "value", "equity_ratio", "index_ratio", "total_ratio", "market_date", "as_of_eastern", "source_url", "fetched_at", "updated_at"],
+  market_summary_history: ["metric_key", "value", "observed_at", "source", "freshness", "created_at"],
   unusual_whales_dark_pool_flows: ["external_id", "executed_at", "ticker", "sector", "price", "premium", "size", "volume", "avg30_volume", "fetched_at", "updated_at"],
   unusual_whales_whale_feed: ["external_id", "executed_at", "ticker", "sector", "price", "nbbo_ask", "nbbo_bid", "side", "sentiment", "premium", "size", "volume", "avg30_volume", "fetched_at", "created_at", "updated_at"],
   unusual_whales_insider_trades: ["external_id", "ticker", "sector", "amount", "transaction_date", "price", "owner_name", "officer_title", "transaction_code", "shares_owned_after", "fetched_at", "updated_at"],
