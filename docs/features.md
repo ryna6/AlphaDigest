@@ -38,7 +38,7 @@ The Today page displays:
 - Market Summary cards:
   - Leading Sectors from the Markets sector heatmap.
   - Risk On / Risk Off from live VIX3M divided by live VIX when both valid positive values are available.
-  - Put/Call Ratio from the Cboe Exchange Market Statistics section, displaying Equity, Index, and Total ratios with Eastern release time; the server-side daily fallback requests Cboe daily statistics with a Toronto-date `?dt=YYYY-MM-DD` query.
+  - Put/Call Ratio from the Cboe Exchange Market Statistics section, storing Equity, Index, and Total ratios with Eastern release time; the Today Market Summary card displays only the Total ratio plus its 24h change, while Index and Equity remain available in cached backend data for future tabs. The server-side daily fallback requests Cboe daily statistics with a Toronto-date `?dt=YYYY-MM-DD` query only when intraday parsing is unavailable.
   - Today's Earnings count from the Unusual Whales earnings flow.
   - Today's Economic Events count from the Investing.com calendar flow.
 - Featured Unusual Whales articles with title, tags, timestamp, and excerpt.
@@ -193,3 +193,7 @@ Status schedule notes: Market Overview / `refresh-market-quotes` runs every 5m f
 ### Removed Ticker Explorer
 
 Ticker Explorer has been removed from the user-facing app, including navigation, app routes, the ticker API route, and the placeholder Netlify ticker refresh function. Shared fixture utilities remain only where they are still used by other dashboard areas.
+
+### Market Summary 24h changes
+
+Risk On / Risk Off and Put/Call Ratio show a same-row signed whole-percentage 24h change when compact Supabase history has a valid comparison. Positive changes are green, negative changes are red, zero changes are grey, and unavailable comparisons are hidden using the existing muted-card convention. Put/Call displays only `Total: [value]` in the Today card; Index and Equity put/call values continue to be fetched and stored server-side.

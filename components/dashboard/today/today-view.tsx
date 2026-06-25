@@ -37,20 +37,12 @@ function putCallLines(metric: Metric) {
       asOf: metric.putCallAsOf,
       freshness: metric.putCallFreshness
     });
-    return [
-      `Index: ${formatPutCallRatio(metric.putCallRatios.index)}`,
-      `Equity: ${formatPutCallRatio(metric.putCallRatios.equity)}`,
-      `Total: ${formatPutCallRatio(metric.putCallRatios.total)}`
-    ];
+    return [`Total: ${formatPutCallRatio(metric.putCallRatios.total)}`];
   }
 
   console.log("today_put_call_card", { hasRatios: false, asOf: metric.putCallAsOf });
   const lines = metric.value.split("\n");
-  return [
-    lines.find((line) => line.startsWith("Index:")) ?? "Index: --",
-    lines.find((line) => line.startsWith("Equity:")) ?? "Equity: --",
-    lines.find((line) => line.startsWith("Total:")) ?? lines[0] ?? "Total: --"
-  ];
+  return [lines.find((line) => line.startsWith("Total:")) ?? lines[0] ?? "Total: --"];
 }
 
 function signedValueClass(value?: string) {
@@ -275,19 +267,22 @@ export function TodayView({ data }: { data: TodayPayload }) {
                   className={cn("flex flex-1 flex-col justify-center", isLeadingSectors && "mt-4")}
                 >
                   {isPutCallRatio ? (
-                    <div className="mt-3 space-y-1 text-base font-semibold leading-tight text-textPrimary">
-                      {(() => {
-                        const [indexLine, equityLine, totalLine] = putCallLines(metric);
-                        return (
-                          <>
-                            <div className="flex min-w-0 items-center justify-between gap-3">
-                              <span className="min-w-0 truncate">{indexLine}</span>
-                              <span className="min-w-0 truncate text-right">{equityLine}</span>
-                            </div>
-                            <p>{totalLine}</p>
-                          </>
-                        );
-                      })()}
+                    <div className="mt-3 flex min-w-0 items-center justify-between gap-3 text-base font-semibold leading-tight text-textPrimary">
+                      <span className="min-w-0 truncate">{putCallLines(metric)[0]}</span>
+                      {metric.changePercent ? (
+                        <span className={cn("shrink-0 text-right text-sm", signedValueClass(metric.changePercent))}>
+                          {metric.changePercent}
+                        </span>
+                      ) : null}
+                    </div>
+                  ) : isRiskOnRiskOff ? (
+                    <div className="flex min-w-0 items-center justify-between gap-3">
+                      <p className="text-2xl font-semibold text-textPrimary">{metric.value}</p>
+                      {metric.changePercent ? (
+                        <span className={cn("shrink-0 text-right text-sm font-semibold", signedValueClass(metric.changePercent))}>
+                          {metric.changePercent}
+                        </span>
+                      ) : null}
                     </div>
                   ) : (
                     <p

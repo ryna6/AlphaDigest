@@ -189,3 +189,19 @@ test("Unusual Whales earnings normalization suppresses duplicate same-ticker unk
     "uw-earnings:ONLY:2026-06-23:unknown"
   ]);
 });
+
+test("Cboe current-page parser reads latest rows from Total, Index options, and Equity options data tables", () => {
+  const html = `
+    <h2>Cboe Exchange Market Statistics for Wednesday, June 24, 2026</h2>
+    <h3>Total</h3>
+    <table class="data-table"><thead><tr><th>TIME</th><th>P/C RATIO</th></tr></thead><tbody><tr><td>09:00 AM</td><td>0.80</td></tr><tr><td>03:00 PM</td><td>0.94</td></tr></tbody></table>
+    <h3>Index options</h3>
+    <table class="data-table"><thead><tr><th>Time</th><th>P/C Ratio</th></tr></thead><tbody><tr><td>09:00 AM</td><td>1.10</td></tr><tr><td>03:15 PM</td><td>1.36</td></tr></tbody></table>
+    <h3>Equity options</h3>
+    <table class="data-table"><thead><tr><th> time </th><th> p/c ratio </th></tr></thead><tbody><tr><td>09:00 AM</td><td>0.55</td></tr><tr><td>03:00 PM</td><td>0.62</td></tr></tbody></table>
+  `;
+  const parsed = parseCboePutCallFromHtml(html, "2026-06-24T20:20:00.000Z");
+  assert.deepEqual(parsed?.ratios, { equity: 0.62, index: 1.36, total: 0.94 });
+  assert.equal(parsed?.raw?.sourceAsOfCentral, "2026-06-24T15:00:00[America/Chicago]");
+  assert.equal(parsed?.raw?.asOfEastern, "2026-06-24T20:00:00.000Z");
+});

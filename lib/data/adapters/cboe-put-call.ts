@@ -1,5 +1,6 @@
 import { createServerSupabaseClient } from "@/lib/db/supabase";
 import { payloadContentHash, updateRefreshMetadata } from "./supabase-refresh";
+import { recordMarketSummaryHistory } from "../market-summary-history";
 
 export const CBOE_PUT_CALL_SOURCE_URL =
   "https://www.cboe.com/markets/us/options/market-statistics#current";
@@ -48,6 +49,7 @@ export type PutCallRatioResponse = {
     displayTimezone?: typeof CBOE_DISPLAY_TIMEZONE;
     sourceAsOfCentral?: string | null;
     asOfEastern?: string | null;
+    latestTimesCentral?: Partial<Record<keyof PutCallRatios, string>>;
     scrapedAt?: string;
   };
 };
@@ -198,7 +200,9 @@ function sectionAfterMarketStatsHeading(html: string) {
   const headingMatch = headingPattern.exec(html);
   if (!headingMatch || headingMatch.index === undefined) return null;
   const afterHeading = html.slice(headingMatch.index);
-  const nextHeading = afterHeading.slice(headingMatch[0].length).search(/<h[1-6][^>]*>/i);
+  const headingLevel = Number(/<h([1-6])/i.exec(headingMatch[0])?.[1] ?? 6);
+  const nextPeerHeadingPattern = new RegExp(`<h[1-${headingLevel}][^>]*>`, "i");
+  const nextHeading = afterHeading.slice(headingMatch[0].length).search(nextPeerHeadingPattern);
   const sectionHtml =
     nextHeading >= 0 ? afterHeading.slice(0, headingMatch[0].length + nextHeading) : afterHeading;
   return { heading: cellText(headingMatch[0]), sectionHtml };
@@ -218,7 +222,61 @@ function cellsFromRow(rowHtml: string) {
   );
 }
 
-function parseRatiosFromSection(sectionHtml: string) {
+function extractTableLabel(sectionHtml: string, tableStart: number) {
+  const before = sectionHtml.slice(Math.max(0, tableStart - 800), tableStart);
+  const labels = Array.from(
+    before.matchAll(/<(?:h[1-6]|caption|p|div|span)[^>]*>([\s\S]*?)<\/(?:h[1-6]|caption|p|div|span)>/gi)
+  ).map((match) => cellText(match[1]));
+  return labels.reverse().map(ratioKeyFromLabel).find(Boolean) ?? null;
+}
+
+function rowTimeMillis(dateKey: string, timeLabel: string) {
+  const iso = centralTimestampToEasternIso(dateKey, timeLabel);
+  const time = iso ? new Date(iso).getTime() : NaN;
+  return Number.isFinite(time) ? time : null;
+}
+
+function parseRatiosFromCurrentTables(sectionHtml: string, marketDate: string) {
+  const ratios: PutCallRatios = { equity: null, index: null, total: null };
+  const latestTimes: Partial<Record<keyof PutCallRatios, string>> = {};
+  const labelsFound: string[] = [];
+  const tables = Array.from(sectionHtml.matchAll(/<table[^>]*class=["'][^"']*data-table[^"']*["'][^>]*>([\s\S]*?)<\/table>/gi));
+
+  for (const table of tables) {
+    const tableHtml = table[1];
+    const rows = Array.from(tableHtml.matchAll(/<tr[^>]*>([\s\S]*?)<\/tr>/gi)).map((match) =>
+      cellsFromRow(match[1])
+    );
+    const header = rows.find((cells) =>
+      cells.some((cell) => /^time$/i.test(cell.trim())) && cells.some((cell) => /p\s*\/\s*c\s*ratio/i.test(cell))
+    );
+    if (!header) continue;
+    const timeIndex = header.findIndex((cell) => /^time$/i.test(cell.trim()));
+    const ratioIndex = header.findIndex((cell) => /p\s*\/\s*c\s*ratio/i.test(cell));
+    if (timeIndex < 0 || ratioIndex < 0) continue;
+
+    const key = extractTableLabel(sectionHtml, table.index ?? 0);
+    if (!key) continue;
+
+    const latest = rows
+      .filter((cells) => cells !== header && cells.length > Math.max(timeIndex, ratioIndex))
+      .map((cells) => ({
+        timeLabel: cells[timeIndex],
+        value: numberFromText(cells[ratioIndex]),
+        time: rowTimeMillis(marketDate, cells[timeIndex])
+      }))
+      .filter((row) => row.value !== null && row.time !== null)
+      .sort((a, b) => (b.time ?? 0) - (a.time ?? 0))[0];
+    if (!latest) continue;
+    ratios[key] = latest.value;
+    latestTimes[key] = latest.timeLabel;
+    labelsFound.push(key);
+  }
+
+  return { ratios, labelsFound, latestTimes };
+}
+
+function parseRatiosFromLegacySection(sectionHtml: string) {
   const ratios: PutCallRatios = { equity: null, index: null, total: null };
   const labelsFound: string[] = [];
   const rows = Array.from(sectionHtml.matchAll(/<tr[^>]*>([\s\S]*?)<\/tr>/gi)).map((match) =>
@@ -236,7 +294,7 @@ function parseRatiosFromSection(sectionHtml: string) {
     ratios[key] = value;
   }
 
-  return { ratios, labelsFound };
+  return { ratios, labelsFound, latestTimes: {} as Partial<Record<keyof PutCallRatios, string>> };
 }
 
 function anyRatio(ratios: PutCallRatios) {
@@ -334,12 +392,15 @@ export function parseCboePutCallFromHtml(
     return null;
   }
 
-  const { ratios, labelsFound } = parseRatiosFromSection(section.sectionHtml);
+  const marketDate = extractDateKeyFromHeading(section.heading, scrapedAt);
+  const currentTables = parseRatiosFromCurrentTables(section.sectionHtml, marketDate);
+  const { ratios, labelsFound, latestTimes } = anyRatio(currentTables.ratios)
+    ? currentTables
+    : parseRatiosFromLegacySection(section.sectionHtml);
   const parsedKeys = Object.entries(ratios)
     .filter(([, value]) => value !== null)
     .map(([key]) => key);
-  const marketDate = extractDateKeyFromHeading(section.heading, scrapedAt);
-  const timeLabel = firstTimeLabel(cleanText(section.sectionHtml));
+  const timeLabel = latestTimes.total ?? latestTimes.index ?? latestTimes.equity ?? firstTimeLabel(cleanText(section.sectionHtml));
   const sourceAsOfCentral = timeLabel ? sourceCentralLabel(marketDate, timeLabel) : null;
   const asOfEastern = timeLabel ? centralTimestampToEasternIso(marketDate, timeLabel) : null;
 
@@ -367,6 +428,7 @@ export function parseCboePutCallFromHtml(
       displayTimezone: CBOE_DISPLAY_TIMEZONE,
       sourceAsOfCentral,
       asOfEastern,
+      latestTimesCentral: latestTimes,
       scrapedAt
     }
   };
@@ -379,7 +441,7 @@ export function isExpectedCboeFetchWindow(now = new Date()) {
     weekday: "short"
   }).format(now);
   if (["Sat", "Sun"].includes(weekday)) return false;
-  return (central.minute === 0 || central.minute === 30) && central.hour >= 9 && central.hour <= 15;
+  return (central.minute === 0 || central.minute === 30 || (central.hour === 15 && central.minute === 15)) && central.hour >= 9 && central.hour <= 15;
 }
 
 function isFreshCachedResponse(response: PutCallRatioResponse, now = Date.now()) {
@@ -412,6 +474,7 @@ function dbRowFromResponse(response: PutCallRatioResponse) {
     source_name: "Cboe Options Market Statistics",
     source_url: response.raw?.sourceUrl ?? CBOE_PUT_CALL_SOURCE_URL,
     fetched_at: response.raw?.scrapedAt ?? new Date().toISOString(),
+    raw: response.raw ?? null,
     updated_at: new Date().toISOString()
   };
 }
@@ -445,6 +508,10 @@ function responseFromDbRow(
       sourceAsOfCentral:
         typeof row.source_as_of_central === "string" ? row.source_as_of_central : null,
       asOfEastern: asOf,
+      latestTimesCentral:
+        row.raw && typeof row.raw === "object" && "latestTimesCentral" in row.raw
+          ? (row.raw as { latestTimesCentral?: Partial<Record<keyof PutCallRatios, string>> }).latestTimesCentral
+          : undefined,
       scrapedAt:
         typeof row.scraped_at === "string"
           ? row.scraped_at
@@ -492,6 +559,32 @@ async function writeCachedPutCallRatio(response: PutCallRatioResponse) {
     .from("put_call_observations")
     .upsert(row, { onConflict: "external_id" });
   if (!error) {
+    const history = await recordMarketSummaryHistory([
+      {
+        metricKey: "put_call_total",
+        value: response.ratios.total,
+        observedAt: response.asOf,
+        source: "Cboe Options Market Statistics",
+        freshness: response.freshness
+      },
+      {
+        metricKey: "put_call_index",
+        value: response.ratios.index,
+        observedAt: response.asOf,
+        source: "Cboe Options Market Statistics",
+        freshness: response.freshness
+      },
+      {
+        metricKey: "put_call_equity",
+        value: response.ratios.equity,
+        observedAt: response.asOf,
+        source: "Cboe Options Market Statistics",
+        freshness: response.freshness
+      }
+    ]);
+    if (!history.ok && history.error) {
+      console.error("put_call_history_error", { error: history.error });
+    }
     try {
       await updateRefreshMetadata(supabase.client, "put_call_observations", {
         ok: true,
