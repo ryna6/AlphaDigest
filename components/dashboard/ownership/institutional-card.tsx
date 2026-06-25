@@ -433,7 +433,7 @@ function DetailTable({
                   "% Portfolio"
                 ]
               : screen === "Option Holdings"
-                ? ["Ticker", "Full Name", "Units", "Type", "% of OI", "As of Date"]
+                ? ["Ticker", "Name", "Units", "Type", "% of OI", "As of Date"]
                 : [
                     "Ticker",
                     "Type",
