@@ -255,7 +255,8 @@ const TRACKED_INFO = "unusual_whales_tracked_institutions";
 const TRACKED_HOLDINGS = "unusual_whales_tracked_institution_holdings";
 const TRACKED_OPTIONS = "unusual_whales_tracked_institution_options";
 const TRACKED_ACTIVITY = "unusual_whales_tracked_institution_activity";
-export const TRACKED_INSTITUTION_INFO_QUARTERS_RETAINED = 20;
+const TRACKED_HISTORY = "unusual_whales_tracked_institution_history";
+export const TRACKED_INSTITUTION_HISTORY_QUARTERS_RETAINED = 20;
 
 type TrackedInstitutionInfo = {
   name: string;
@@ -268,6 +269,14 @@ type TrackedInstitutionInfo = {
   date: string;
   buyValue: number | null;
   sellValue: number | null;
+  spyPrice: number | null;
+  fetchedAt: string;
+};
+type TrackedInstitutionHistory = {
+  institutionSlug: string;
+  institutionName: string;
+  reportDate: string;
+  totalValue: number | null;
   spyPrice: number | null;
   fetchedAt: string;
 };
@@ -429,18 +438,17 @@ function normalizeHistoricalInfo(
   raw: unknown,
   base: TrackedInstitutionInfo,
   fetchedAt: string
-): TrackedInstitutionInfo | null {
+): TrackedInstitutionHistory | null {
   if (!isRec(raw)) return null;
   const reportDate = dateOnly(
     strAny(raw, ["report_date", "date", "period_of_report", "filing_date"])
   );
   if (!reportDate || !isTrackedQuarterEnd(reportDate)) return null;
   return {
-    ...base,
+    institutionSlug: base.slug,
+    institutionName: base.name,
+    reportDate,
     totalValue: numAny(raw, ["total_value", "value", "market_value"]),
-    date: reportDate,
-    buyValue: numAny(raw, ["buy_value"]),
-    sellValue: numAny(raw, ["sell_value"]),
     spyPrice: numAny(raw, ["spy_price"]),
     fetchedAt
   };
@@ -525,6 +533,7 @@ async function upsertTrackedInstitutionData() {
   ];
   const baseInstitutions = resolveTrackedInstitutions(listRows, fetchedAt);
   const institutions = [...baseInstitutions];
+  const history: TrackedInstitutionHistory[] = [];
   const holdings: TrackedStockHolding[] = [],
     options: TrackedOptionHolding[] = [],
     activity: TrackedActivity[] = [];
@@ -538,8 +547,8 @@ async function upsertTrackedInstitutionData() {
     ]);
     const historicalInfos = historicalArray(hist)
       .map((r) => normalizeHistoricalInfo(r, inst, fetchedAt))
-      .filter(Boolean) as TrackedInstitutionInfo[];
-    if (historicalInfos.length) institutions.push(...historicalInfos);
+      .filter(Boolean) as TrackedInstitutionHistory[];
+    if (historicalInfos.length) history.push(...historicalInfos);
     holdings.push(
       ...(firstArray(h)
         .map((r) => normalizeHolding(r, inst.name, inst.date, fetchedAt))
@@ -556,7 +565,7 @@ async function upsertTrackedInstitutionData() {
         .filter(Boolean) as TrackedActivity[])
     );
   }
-  return { institutions, holdings, options, activity };
+  return { institutions, history, holdings, options, activity };
 }
 
 async function persistTrackedData(
@@ -576,24 +585,47 @@ async function persistTrackedData(
         report_date: r.date,
         buy_value: r.buyValue,
         sell_value: r.sellValue,
-        spy_price: r.spyPrice,
         fetched_at: r.fetchedAt,
         updated_at: r.fetchedAt
       })),
       { onConflict: "institution_name,report_date" }
     );
     if (error) throw new Error(`Tracked institution info upsert failed: ${error.message}`);
+    await Promise.all(
+      data.institutions.map((inst) =>
+        client
+          .from(TRACKED_INFO)
+          .delete()
+          .eq("institution_name", inst.name)
+          .neq("report_date", inst.date)
+      )
+    );
+  }
+  if (data.history.length) {
+    const { error } = await client.from(TRACKED_HISTORY).upsert(
+      data.history.map((r) => ({
+        institution_slug: r.institutionSlug,
+        institution_name: r.institutionName,
+        report_date: r.reportDate,
+        total_value: r.totalValue,
+        spy_price: r.spyPrice,
+        fetched_at: r.fetchedAt,
+        updated_at: r.fetchedAt
+      })),
+      { onConflict: "institution_slug,report_date" }
+    );
+    if (error) throw new Error(`Tracked institution history upsert failed: ${error.message}`);
     for (const inst of trackedInstitutionNames) {
       const { data: keep } = await client
-        .from(TRACKED_INFO)
+        .from(TRACKED_HISTORY)
         .select("report_date")
         .eq("institution_name", inst)
         .order("report_date", { ascending: false })
-        .limit(TRACKED_INSTITUTION_INFO_QUARTERS_RETAINED);
+        .limit(TRACKED_INSTITUTION_HISTORY_QUARTERS_RETAINED);
       const keepDates = (keep ?? []).map((r: any) => r.report_date);
       if (keepDates.length)
         await client
-          .from(TRACKED_INFO)
+          .from(TRACKED_HISTORY)
           .delete()
           .eq("institution_name", inst)
           .not("report_date", "in", `(${keepDates.join(",")})`);
@@ -659,30 +691,48 @@ async function persistTrackedData(
 }
 
 function pctReturn(
-  rows: TrackedInstitutionInfo[],
-  latest: TrackedInstitutionInfo,
+  rows: TrackedInstitutionHistory[],
+  latest: TrackedInstitutionHistory,
   targetDate: Date,
   field: "totalValue" | "spyPrice" = "totalValue"
 ) {
   const latestValue = latest[field];
   if (latestValue == null) return null;
   const baseline = rows
-    .filter((r) => r[field] != null && new Date(`${r.date}T00:00:00Z`) <= targetDate)
-    .sort((a, b) => b.date.localeCompare(a.date))[0];
+    .filter((r) => r[field] != null && new Date(`${r.reportDate}T00:00:00Z`) <= targetDate)
+    .sort((a, b) => b.reportDate.localeCompare(a.reportDate))[0];
   const baselineValue = baseline?.[field];
   return baselineValue ? ((latestValue - baselineValue) / baselineValue) * 100 : null;
 }
-function withReturns(institutions: TrackedInstitutionInfo[]) {
+function withReturns(institutions: TrackedInstitutionInfo[], history: TrackedInstitutionHistory[]) {
   return trackedInstitutionNames.flatMap((name) => {
-    const rows = institutions
+    const latestInfo = institutions
       .filter((r) => r.name === name)
-      .sort((a, b) => b.date.localeCompare(a.date));
+      .sort((a, b) => b.date.localeCompare(a.date))[0];
+    if (!latestInfo) return [];
+    const rows = history
+      .filter((r) => r.institutionName === name)
+      .sort((a, b) => b.reportDate.localeCompare(a.reportDate));
     const latest = rows[0];
-    if (!latest) return [];
-    const d = new Date(`${latest.date}T00:00:00Z`);
+    if (!latest)
+      return [
+        {
+          ...latestInfo,
+          ytdReturn: null,
+          oneYearReturn: null,
+          fiveYearReturn: null,
+          spyYtdReturn: null,
+          spyOneYearReturn: null,
+          spyFiveYearReturn: null
+        }
+      ];
+    const d = new Date(`${latest.reportDate}T00:00:00Z`);
     return [
       {
-        ...latest,
+        ...latestInfo,
+        totalValue: latest.totalValue ?? latestInfo.totalValue,
+        spyPrice: latest.spyPrice,
+        date: latest.reportDate,
         ytdReturn: pctReturn(rows, latest, new Date(Date.UTC(d.getUTCFullYear() - 1, 11, 31))),
         oneYearReturn: pctReturn(
           rows,
@@ -727,12 +777,16 @@ export async function getCachedTrackedInstitutions(): Promise<TrackedInstitution
       activity: [],
       notices: [supabase.message]
     };
-  const [info, holdings, options, activity] = await Promise.all([
+  const [info, historyResult, holdings, options, activity] = await Promise.all([
     supabase.client
       .from(TRACKED_INFO)
       .select(
-        "institution_name,provider_name,slug,short_name,description,people,total_value,report_date,buy_value,sell_value,spy_price,fetched_at"
+        "institution_name,provider_name,slug,short_name,description,people,total_value,report_date,buy_value,sell_value,fetched_at"
       )
+      .order("report_date", { ascending: false }),
+    supabase.client
+      .from(TRACKED_HISTORY)
+      .select("institution_slug,institution_name,report_date,total_value,spy_price,fetched_at")
       .order("report_date", { ascending: false }),
     supabase.client
       .from(TRACKED_HOLDINGS)
@@ -756,6 +810,7 @@ export async function getCachedTrackedInstitutions(): Promise<TrackedInstitution
   const notices: string[] = [];
   for (const [label, result] of [
     ["info", info],
+    ["history", historyResult],
     ["holdings", holdings],
     ["options", options],
     ["activity", activity]
@@ -773,11 +828,19 @@ export async function getCachedTrackedInstitutions(): Promise<TrackedInstitution
     date: r.report_date,
     buyValue: r.buy_value == null ? null : Number(r.buy_value),
     sellValue: r.sell_value == null ? null : Number(r.sell_value),
+    spyPrice: null,
+    fetchedAt: r.fetched_at
+  }));
+  const histories = (historyResult.data ?? []).map((r: any) => ({
+    institutionSlug: r.institution_slug,
+    institutionName: r.institution_name,
+    reportDate: r.report_date,
+    totalValue: r.total_value == null ? null : Number(r.total_value),
     spyPrice: r.spy_price == null ? null : Number(r.spy_price),
     fetchedAt: r.fetched_at
   }));
   return {
-    institutions: withReturns(infos),
+    institutions: withReturns(infos, histories),
     holdings: (holdings.data ?? []).map((r: any) => ({
       institutionName: r.institution_name,
       date: r.report_date,
@@ -818,12 +881,41 @@ export async function getCachedTrackedInstitutions(): Promise<TrackedInstitution
   };
 }
 
-export async function refreshInstitutionalData() {
+export async function refreshTrackedInstitutionalPortfolios() {
   const supabase = createServerSupabaseClient();
   if (!supabase.ok)
     return { ok: false as const, error: supabase.message, count: 0, upserted: 0, meta: {} };
   const trackedData = await upsertTrackedInstitutionData();
   await persistTrackedData(supabase.client, trackedData);
+  return {
+    ok: true as const,
+    count:
+      trackedData.institutions.length +
+      trackedData.history.length +
+      trackedData.holdings.length +
+      trackedData.options.length +
+      trackedData.activity.length,
+    upserted:
+      trackedData.institutions.length +
+      trackedData.history.length +
+      trackedData.holdings.length +
+      trackedData.options.length +
+      trackedData.activity.length,
+    meta: {
+      trackedInstitutions: trackedData.institutions.length,
+      trackedHistory: trackedData.history.length,
+      trackedHistoryQuartersRetained: TRACKED_INSTITUTION_HISTORY_QUARTERS_RETAINED,
+      trackedHoldings: trackedData.holdings.length,
+      trackedOptions: trackedData.options.length,
+      trackedActivity: trackedData.activity.length
+    }
+  };
+}
+
+export async function refreshInstitutionalSummaryData() {
+  const supabase = createServerSupabaseClient();
+  if (!supabase.ok)
+    return { ok: false as const, error: supabase.message, count: 0, upserted: 0, meta: {} };
   const fetchedAt = new Date().toISOString();
   const tickerRows: InstitutionalTickerFlowRow[] = [];
   const sectorRows: InstitutionalSectorExposureRow[] = [];
@@ -893,10 +985,7 @@ export async function refreshInstitutionalData() {
       tickerRows: tickerRows.length,
       sectorRows: retainedSectorRows.length,
       sectorReportDatesRetained: SECTOR_EXPOSURE_QUARTERS_RETAINED,
-      trackedInstitutions: trackedData.institutions.length,
-      trackedHoldings: trackedData.holdings.length,
-      trackedOptions: trackedData.options.length,
-      trackedActivity: trackedData.activity.length
+      summaryOnly: true
     }
   };
 }
