@@ -9,10 +9,12 @@ function signedValueClass(value: string) {
 
 export function DataTable({
   rows,
-  empty = "No rows available."
+  empty = "No rows available.",
+  size = "default"
 }: {
   rows: Array<Record<string, string>>;
   empty?: string;
+  size?: "default" | "comfortable";
 }) {
   const columns = rows[0] ? Object.keys(rows[0]) : [];
   if (!rows.length)
@@ -23,7 +25,12 @@ export function DataTable({
     );
   return (
     <div className="scrollbar-thin overflow-auto rounded-none border border-borderStrong">
-      <table className="w-full min-w-[560px] border-collapse text-left text-xs">
+      <table
+        className={cn(
+          "w-full min-w-[560px] border-collapse text-left",
+          size === "comfortable" ? "text-sm" : "text-xs"
+        )}
+      >
         <thead className="sticky top-0 bg-sidebar text-textMuted">
           <tr>
             {columns.map((column) => (
@@ -40,7 +47,8 @@ export function DataTable({
                 <td
                   key={column}
                   className={cn(
-                    "border-b border-borderStrong/50 px-3 py-2 tabular last:border-b-0",
+                    "border-b border-borderStrong/50 px-3 tabular last:border-b-0",
+                    size === "comfortable" ? "py-2.5" : "py-2",
                     signedValueClass(row[column])
                   )}
                 >
