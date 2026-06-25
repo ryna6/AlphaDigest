@@ -791,7 +791,7 @@ const todayData: TodayPayload = {
       label: "Put/Call Ratio",
       value: "0.91",
       change: "Neutral",
-      changePercent: "latest cached",
+      changePercent: "+25%",
       tone: "neutral"
     },
     { label: "Today's Earnings", value: "2 Earnings", tone: "neutral" },
@@ -852,8 +852,8 @@ assert(
   "Today Market Summary card contents should be vertically centered"
 );
 assert(
-  !todayMarkup.includes("latest cached"),
-  "Today Put/Call Ratio card should not render latest cached freshness text"
+  !todayMarkup.includes("latest cached") && todayMarkup.includes("+25%"),
+  "Today Put/Call Ratio card should render the 24h change and not render latest cached freshness text"
 );
 assert(
   todayMarkup.includes("mt-4") &&

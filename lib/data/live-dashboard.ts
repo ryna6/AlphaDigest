@@ -10,6 +10,7 @@ import { fetchYahooMarketQuote } from "./adapters/yahoo-finance";
 import { flowMock, marketsMock, ownershipMock, todayMock } from "./fixtures/mock-dashboard";
 import { fetchCryptoQuotes, cryptoAssets } from "./adapters/coingecko-crypto";
 import { getLatestCboePutCallRatio } from "./adapters/cboe-put-call";
+import { formatSignedWholePercent, recordMarketSummaryHistory } from "./market-summary-history";
 import { formatEtDateKey } from "../utils/time";
 import { getHeatmapIconPath, getMetricIconPath } from "../constants/asset-icons";
 import {
@@ -392,12 +393,7 @@ function putCallRatios(
 }
 
 function putCallValue(response: Awaited<ReturnType<typeof getLatestCboePutCallRatio>>["response"]) {
-  const ratios = putCallRatios(response);
-  return [
-    `Equity: ${formatPutCallRatio(ratios.equity)}`,
-    `Index: ${formatPutCallRatio(ratios.index)}`,
-    `Total: ${formatPutCallRatio(ratios.total)}`
-  ].join("\n");
+  return formatPutCallRatio(putCallRatios(response).total);
 }
 
 function putCallSentiment(total: number | null | undefined) {
@@ -613,6 +609,41 @@ async function buildTodayPayload(): Promise<{
         ? "risk on"
         : "neutral"
     : undefined;
+  const putCallRatioValues = putCallRatios(putCallResult.response);
+  const historyResult = await recordMarketSummaryHistory([
+    {
+      metricKey: "risk_on_off_ratio",
+      value: Number.isFinite(riskRatioValue) ? riskRatioValue : null,
+      source: "Yahoo Finance VIX + VIX3M",
+      freshness: hasValidRiskInputs ? "live" : "unavailable"
+    },
+    {
+      metricKey: "put_call_total",
+      value: putCallRatioValues.total,
+      observedAt: putCallResult.response?.asOf,
+      source: "Cboe Options Market Statistics",
+      freshness: putCallResult.response?.freshness
+    },
+    {
+      metricKey: "put_call_index",
+      value: putCallRatioValues.index,
+      observedAt: putCallResult.response?.asOf,
+      source: "Cboe Options Market Statistics",
+      freshness: putCallResult.response?.freshness
+    },
+    {
+      metricKey: "put_call_equity",
+      value: putCallRatioValues.equity,
+      observedAt: putCallResult.response?.asOf,
+      source: "Cboe Options Market Statistics",
+      freshness: putCallResult.response?.freshness
+    }
+  ]);
+  if (!historyResult.ok && historyResult.error) {
+    console.error("market_summary_history_error", { error: historyResult.error });
+  }
+  const riskChange24h = formatSignedWholePercent(historyResult.changes.risk_on_off_ratio);
+  const putCallChange24h = formatSignedWholePercent(historyResult.changes.put_call_total);
   const [featuredNewsResult, unusualWhalesEarningsResult, todayKeyStats, economicCalendarResult] =
     await Promise.all([
       fetchUnusualWhalesFeaturedNews(50),
@@ -641,15 +672,19 @@ async function buildTodayPayload(): Promise<{
           change: leading.map((item) => formatPercent(item.changePercent)).join(" / "),
           tone: leading[0]?.changePercent >= 0 ? "positive" : "negative"
         },
-        { label: "Risk On / Risk Off", value: riskRatio, change: riskTone, tone: "neutral" },
+        {
+          label: "Risk On / Risk Off",
+          value: riskRatio,
+          change: riskTone,
+          changePercent: riskChange24h,
+          tone: "neutral"
+        },
         {
           label: "Put/Call Ratio",
           value: putCallValue(putCallResult.response),
-          change: putCallSentiment(putCallRatios(putCallResult.response).total),
-          changePercent: putCallResult.response?.asOf
-            ? `${putCallResult.response.freshness === "stale" || putCallResult.response.freshness === "previous_close" ? "Latest cached" : "ET"} ${new Intl.DateTimeFormat("en-US", { timeZone: "America/Toronto", hour: "numeric", minute: "2-digit", timeZoneName: "short" }).format(new Date(putCallResult.response.asOf)).replace(/E[DS]T$/, "ET")}`
-            : undefined,
-          putCallRatios: putCallRatios(putCallResult.response),
+          change: putCallSentiment(putCallRatioValues.total),
+          changePercent: putCallChange24h,
+          putCallRatios: putCallRatioValues,
           putCallAsOf: putCallResult.response?.asOf ?? null,
           putCallFreshness: putCallResult.response?.freshness,
           tone: "neutral"

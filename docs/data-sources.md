@@ -289,7 +289,7 @@ Some tables in the schema are forward-looking and are not wired to current UI fl
 
 ## Cboe Total put/call ratio
 
-`lib/data/adapters/cboe-put-call.ts` fetches Cboe U.S. Options Market Statistics server-side and parses the intraday Exchange Market Statistics table for `Equity Options`, `Index Options`, and `Total Options` put/call ratios. It treats the parsed source timestamp as `America/Chicago` first, records `sourceTimezone`, `displayTimezone`, `sourceAsOfCentral`, `asOfEastern`, and `scrapedAt`, then stores those fields when Supabase is configured. The upsert key is `external_id`, derived from the normalized Eastern release instant, so repeated scheduled runs do not create duplicates. Failed parsing logs a server-side error and does not overwrite the most recent valid Supabase record.
+`lib/data/adapters/cboe-put-call.ts` fetches Cboe U.S. Options Market Statistics server-side and parses the current intraday Exchange Market Statistics section from `https://www.cboe.com/markets/us/options/market-statistics#current`, reading the three `data-table` tables labeled `Total`, `Index options`, and `Equity options` and selecting each table’s latest valid `TIME` / `P/C RATIO` row. It treats the parsed source timestamp as `America/Chicago` first, records `sourceTimezone`, `displayTimezone`, `sourceAsOfCentral`, `asOfEastern`, and `scrapedAt`, then stores those fields when Supabase is configured. The upsert key is `external_id`, derived from the normalized Eastern release instant, so repeated scheduled runs do not create duplicates. Failed parsing logs a server-side error and does not overwrite the most recent valid Supabase record.
 
 `netlify/functions/refresh-put-call.ts` uses the existing Netlify scheduled-function architecture. The cron expression is `*/30 * * * 1-5`, so the function runs on the hour and half-hour Monday through Friday only.
 
@@ -345,7 +345,7 @@ Active source refresh functions:
 
 ## Put/Call fallback behavior
 
-The Cboe Put/Call adapter first parses the current market-statistics page. If that parse/fetch fails, the server-side daily fallback requests `https://www.cboe.com/markets/us/options/market-statistics/daily/?dt=YYYY-MM-DD`, where `YYYY-MM-DD` is generated from the current America/Toronto date. Browser code does not call Cboe privileged paths directly.
+The Cboe Put/Call adapter first parses the current intraday market-statistics page. If that parse/fetch fails, the server-side daily fallback requests `https://www.cboe.com/markets/us/options/market-statistics/daily/?dt=YYYY-MM-DD`, where `YYYY-MM-DD` is generated from the current America/Toronto date. Browser code does not call Cboe privileged paths directly.
 
 ## Unusual Whales Flow sources
 
@@ -388,3 +388,7 @@ When the Whale Feed provider does not send a direct side, Whale Feed uses a limi
 Apply `supabase/manual/apply-whale-feed-dark-pool-flow.sql` in production Supabase SQL Editor before running `refresh-whale-feed`, `refresh-dark-pool`, and `refresh-flow`; the SQL is idempotent and reloads the PostgREST schema cache.
 
 Flow Summary now labels the Whale Feed mini card as `Whale Feed (7D)` and explicitly selects the largest-premium Whale Feed row whose `executed_at` is within the past 7 days. When that summary row has a ticker, the card drills into `/flow/whale-feed/[ticker]`; otherwise it falls back to the expanded Whale Feed page only when a reliable destination exists. The Whale Feed summary subtext displays the row sentiment (`Bullish`, `Bearish`, or `Unknown`) with sentiment color, while the premium remains default text styling. The `Largest Dark Pool Print (14D)` summary subtext displays explanatory `% of 30D Vol` text using `size / avg30_volume` instead of sector. Whale Feed ticker detail pages show same-ticker rows sorted newest first from a fresh `flow:latest` snapshot when available, then the Supabase `unusual_whales_whale_feed` table, then fixtures only when no real rows are available. Stock/security prices use the shared full-price formatter (`$1,234.56` style) rather than compact currency, while premium/notional/market-cap values may remain compact. Supabase/serverless architecture is unchanged; browser components still do not call Unusual Whales or receive `SUPABASE_SERVICE_ROLE_KEY`.
+
+## Market Summary 24h history
+
+The Today Market Summary writes compact server-side history rows to `market_summary_history` for `risk_on_off_ratio`, `put_call_total`, `put_call_index`, and `put_call_equity`. The table stores `metric_key`, numeric `value`, `observed_at`, `source`, optional `freshness`, and `created_at`. Server code calculates the displayed 24h percentage change from the closest available row around 24 hours earlier and safely suppresses the change when the comparison row is missing or zero. Each write prunes rows older than 96 hours so Friday observations remain available for Monday/weekend comparisons without keeping an unbounded history.
