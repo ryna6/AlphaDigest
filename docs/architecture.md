@@ -223,7 +223,7 @@ The current cache contract is captured by migrations through `0007_fix_cache_sch
 
 The former `/flow-ownership` product area is split into `/flow` and `/ownership`; `/flow-ownership` redirects safely to `/flow`. Netlify scheduled functions fetch the provided Unusual Whales dark-pool and insider endpoints server-side, upsert normalized rows into Supabase Cloud, and write `flow:latest` dashboard snapshots. No browser/client component calls Unusual Whales or receives `SUPABASE_SERVICE_ROLE_KEY`.
 
-Flow reads `flow:latest` first only when the snapshot is non-mock and includes current 6-month insider diagnostics, then source tables `unusual_whales_dark_pool_flows`, `unusual_whales_whale_feed`, and `unusual_whales_insider_trades`, then section-level fixtures. Ownership may read `ownership:latest`, but its Institutional/13F and Congressional sections remain fixture-backed because no live endpoints were provided. This preserves the GitHub + Netlify + Supabase serverless architecture with no self-hosted services, Docker, production Node server, or always-on backend.
+Flow reads `flow:latest` first only when the snapshot is non-mock and includes current 6-month insider diagnostics, then source tables `unusual_whales_dark_pool_flows`, `unusual_whales_whale_feed`, and `unusual_whales_insider_trades`, then section-level fixtures. Ownership may read `ownership:latest`, but its Congressional sections remain fixture-backed while Institutional uses the tracked-institution cache because no live endpoints were provided. This preserves the GitHub + Netlify + Supabase serverless architecture with no self-hosted services, Docker, production Node server, or always-on backend.
 
 ### Flow refresh integrity
 

@@ -197,3 +197,11 @@ Ticker Explorer has been removed from the user-facing app, including navigation,
 ### Market Summary 24h changes
 
 Risk On / Risk Off and Put/Call Ratio show a same-row signed whole-percentage 24h change when compact Supabase history has a valid comparison. Positive changes are green, negative changes are red, zero changes are grey, and unavailable comparisons display a muted dash using the existing muted-card convention. Put/Call displays only the numeric total value in the Today card; Index and Equity put/call values continue to be fetched and stored server-side.
+
+### Tracked institutional Ownership card
+
+- The Ownership Institutional card is backed by 20 curated tracked institutions. Browser code fetches only `/api/ownership/institutional`; Unusual Whales calls and Supabase writes run server-side in the Netlify `refresh-institutional` function.
+- The refresh resolves provider names from `https://phx.unusualwhales.com/api/institutions?limit=500` and `https://phx.unusualwhales.com/api/institutions?limit=500&page=1`, URL-encodes the resolved provider name, then fetches stock/fund holdings with `security_types[]=Share`, `security_types[]=Fund`, `page=0`, and `slim=true`; option holdings with `security_types[]=Option` and `slim=true`; and activity with `page=0&limit=35&ticker=`.
+- Supabase stores only requested institution info, stock/fund holding, option holding, and activity fields in `unusual_whales_tracked_institutions`, `unusual_whales_tracked_institution_holdings`, `unusual_whales_tracked_institution_options`, and `unusual_whales_tracked_institution_activity`. Institution info history is pruned to the trailing 20 quarter-end reports / 5 years per institution.
+- The main Institutional table renders Institution, Total Value, YTD Returns, Buy Value, Sell Value, and Report Period. Return metrics are calculated from cached historical `total_value` when enough history exists; otherwise they render `—`.
+- Clicking an institution opens the expanded view with a compact info card and screens ordered Stock Holdings, Option Holdings, and Activity. Option Holdings calculates `% of OI` from put or call open interest denominators and renders `—` when the denominator is unavailable.
