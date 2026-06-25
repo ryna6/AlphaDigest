@@ -856,6 +856,10 @@ assert(
   "Today Put/Call Ratio card should render the 24h change and not render latest cached freshness text"
 );
 assert(
+  todayMarkup.includes("0.91") && !todayMarkup.includes("Total: 0.91"),
+  "Today Put/Call Ratio card should render the bare numeric total value without a Total label"
+);
+assert(
   todayMarkup.includes("mt-4") &&
     todayMarkup.includes("text-[1.2rem] leading-tight") &&
     todayMarkup.includes("text-[0.7rem]"),
