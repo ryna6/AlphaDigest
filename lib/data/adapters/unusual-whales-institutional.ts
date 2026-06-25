@@ -359,7 +359,7 @@ function optionsUrl(slug: string) {
   return `https://phx.unusualwhales.com/api/institutions/${encodeURIComponent(slug)}/holdings?security_types[]=Option&slim=true`;
 }
 function activityUrl(slug: string) {
-  return `https://phx.unusualwhales.com/api/institutions/${encodeURIComponent(slug)}/activity?page=0&limit=35&ticker=`;
+  return `https://phx.unusualwhales.com/api/institutions/${encodeURIComponent(slug)}/activity?page=0&limit=50&ticker=`;
 }
 
 function resolveTrackedInstitutions(rows: unknown[], fetchedAt: string): TrackedInstitutionInfo[] {
