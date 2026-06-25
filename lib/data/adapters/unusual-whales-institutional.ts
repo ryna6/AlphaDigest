@@ -268,6 +268,7 @@ type TrackedInstitutionInfo = {
   date: string;
   buyValue: number | null;
   sellValue: number | null;
+  spyPrice: number | null;
   fetchedAt: string;
 };
 type TrackedStockHolding = {
@@ -313,6 +314,9 @@ export type TrackedInstitutionPayload = {
       ytdReturn: number | null;
       oneYearReturn: number | null;
       fiveYearReturn: number | null;
+      spyYtdReturn: number | null;
+      spyOneYearReturn: number | null;
+      spyFiveYearReturn: number | null;
     }
   >;
   holdings: TrackedStockHolding[];
@@ -349,6 +353,20 @@ const numAny = (r: Rec, keys: string[]) => {
 function firstArray(payload: unknown) {
   return extractArrayFromUnusualWhalesResponse(payload).rows;
 }
+function historicalArray(payload: unknown) {
+  const rows = firstArray(payload);
+  if (rows.length || !isRec(payload)) return rows;
+  const nested = isRec(payload.data) ? payload.data : payload;
+  for (const key of ["history", "holdings", "institution", "reports", "quarters"]) {
+    const value = nested[key];
+    if (Array.isArray(value)) return value;
+    if (isRec(value)) {
+      const nestedRows = firstArray(value);
+      if (nestedRows.length) return nestedRows;
+    }
+  }
+  return [];
+}
 function institutionListUrl(page?: number) {
   return `https://phx.unusualwhales.com/api/institutions?limit=500${page == null ? "" : `&page=${page}`}`;
 }
@@ -360,6 +378,9 @@ function optionsUrl(slug: string) {
 }
 function activityUrl(slug: string) {
   return `https://phx.unusualwhales.com/api/institutions/${encodeURIComponent(slug)}/activity?page=0&limit=50&ticker=`;
+}
+function historicalUrl(slug: string) {
+  return `https://phx.unusualwhales.com/api/institutions/${encodeURIComponent(slug)}`;
 }
 
 function resolveTrackedInstitutions(rows: unknown[], fetchedAt: string): TrackedInstitutionInfo[] {
@@ -398,11 +419,33 @@ function resolveTrackedInstitutions(rows: unknown[], fetchedAt: string): Tracked
         date,
         buyValue: numAny(match, ["buy_value"]),
         sellValue: numAny(match, ["sell_value"]),
+        spyPrice: numAny(match, ["spy_price"]),
         fetchedAt
       }
     ];
   });
 }
+function normalizeHistoricalInfo(
+  raw: unknown,
+  base: TrackedInstitutionInfo,
+  fetchedAt: string
+): TrackedInstitutionInfo | null {
+  if (!isRec(raw)) return null;
+  const reportDate = dateOnly(
+    strAny(raw, ["report_date", "date", "period_of_report", "filing_date"])
+  );
+  if (!reportDate || !isTrackedQuarterEnd(reportDate)) return null;
+  return {
+    ...base,
+    totalValue: numAny(raw, ["total_value", "value", "market_value"]),
+    date: reportDate,
+    buyValue: numAny(raw, ["buy_value"]),
+    sellValue: numAny(raw, ["sell_value"]),
+    spyPrice: numAny(raw, ["spy_price"]),
+    fetchedAt
+  };
+}
+
 function normalizeHolding(
   raw: unknown,
   institutionName: string,
@@ -480,17 +523,23 @@ async function upsertTrackedInstitutionData() {
     ...firstArray(await fetchJson(institutionListUrl())),
     ...firstArray(await fetchJson(institutionListUrl(1)))
   ];
-  const institutions = resolveTrackedInstitutions(listRows, fetchedAt);
+  const baseInstitutions = resolveTrackedInstitutions(listRows, fetchedAt);
+  const institutions = [...baseInstitutions];
   const holdings: TrackedStockHolding[] = [],
     options: TrackedOptionHolding[] = [],
     activity: TrackedActivity[] = [];
-  for (const inst of institutions) {
+  for (const inst of baseInstitutions) {
     const slug = inst.providerName || inst.slug;
-    const [h, o, a] = await Promise.all([
+    const [h, o, a, hist] = await Promise.all([
       fetchJson(holdingsUrl(slug)),
       fetchJson(optionsUrl(slug)),
-      fetchJson(activityUrl(slug))
+      fetchJson(activityUrl(slug)),
+      fetchJson(historicalUrl(slug))
     ]);
+    const historicalInfos = historicalArray(hist)
+      .map((r) => normalizeHistoricalInfo(r, inst, fetchedAt))
+      .filter(Boolean) as TrackedInstitutionInfo[];
+    if (historicalInfos.length) institutions.push(...historicalInfos);
     holdings.push(
       ...(firstArray(h)
         .map((r) => normalizeHolding(r, inst.name, inst.date, fetchedAt))
@@ -527,6 +576,7 @@ async function persistTrackedData(
         report_date: r.date,
         buy_value: r.buyValue,
         sell_value: r.sellValue,
+        spy_price: r.spyPrice,
         fetched_at: r.fetchedAt,
         updated_at: r.fetchedAt
       })),
@@ -611,15 +661,16 @@ async function persistTrackedData(
 function pctReturn(
   rows: TrackedInstitutionInfo[],
   latest: TrackedInstitutionInfo,
-  targetDate: Date
+  targetDate: Date,
+  field: "totalValue" | "spyPrice" = "totalValue"
 ) {
-  if (latest.totalValue == null) return null;
+  const latestValue = latest[field];
+  if (latestValue == null) return null;
   const baseline = rows
-    .filter((r) => r.totalValue != null && new Date(`${r.date}T00:00:00Z`) <= targetDate)
+    .filter((r) => r[field] != null && new Date(`${r.date}T00:00:00Z`) <= targetDate)
     .sort((a, b) => b.date.localeCompare(a.date))[0];
-  return baseline?.totalValue
-    ? ((latest.totalValue - baseline.totalValue) / baseline.totalValue) * 100
-    : null;
+  const baselineValue = baseline?.[field];
+  return baselineValue ? ((latestValue - baselineValue) / baselineValue) * 100 : null;
 }
 function withReturns(institutions: TrackedInstitutionInfo[]) {
   return trackedInstitutionNames.flatMap((name) => {
@@ -642,6 +693,24 @@ function withReturns(institutions: TrackedInstitutionInfo[]) {
           rows,
           latest,
           new Date(Date.UTC(d.getUTCFullYear() - 5, d.getUTCMonth(), d.getUTCDate()))
+        ),
+        spyYtdReturn: pctReturn(
+          rows,
+          latest,
+          new Date(Date.UTC(d.getUTCFullYear() - 1, 11, 31)),
+          "spyPrice"
+        ),
+        spyOneYearReturn: pctReturn(
+          rows,
+          latest,
+          new Date(Date.UTC(d.getUTCFullYear() - 1, d.getUTCMonth(), d.getUTCDate())),
+          "spyPrice"
+        ),
+        spyFiveYearReturn: pctReturn(
+          rows,
+          latest,
+          new Date(Date.UTC(d.getUTCFullYear() - 5, d.getUTCMonth(), d.getUTCDate())),
+          "spyPrice"
         )
       }
     ];
@@ -662,7 +731,7 @@ export async function getCachedTrackedInstitutions(): Promise<TrackedInstitution
     supabase.client
       .from(TRACKED_INFO)
       .select(
-        "institution_name,provider_name,slug,short_name,description,people,total_value,report_date,buy_value,sell_value,fetched_at"
+        "institution_name,provider_name,slug,short_name,description,people,total_value,report_date,buy_value,sell_value,spy_price,fetched_at"
       )
       .order("report_date", { ascending: false }),
     supabase.client
@@ -704,6 +773,7 @@ export async function getCachedTrackedInstitutions(): Promise<TrackedInstitution
     date: r.report_date,
     buyValue: r.buy_value == null ? null : Number(r.buy_value),
     sellValue: r.sell_value == null ? null : Number(r.sell_value),
+    spyPrice: r.spy_price == null ? null : Number(r.spy_price),
     fetchedAt: r.fetched_at
   }));
   return {
