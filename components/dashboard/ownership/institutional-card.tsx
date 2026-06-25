@@ -151,7 +151,7 @@ function ReturnValue({ value, spy }: { value: number | null; spy: number | null 
   return (
     <span className="group relative inline-block">
       <span className={deltaClass(value)}>{pct(value)}</span>
-      <span className="pointer-events-none absolute left-0 top-6 z-20 hidden min-w-44 border border-borderStrong bg-background p-2 text-xs text-textSecondary shadow-xl group-hover:block">
+      <span className="pointer-events-none absolute left-0 top-6 z-50 hidden min-w-44 border border-borderStrong bg-sidebar p-2 text-xs text-textSecondary opacity-100 shadow-xl shadow-black/40 group-hover:block">
         <span className="block">SPY: {pct(spy)}</span>
         <span className={cn("block", deltaClass(diff))}>
           {diff == null
@@ -246,7 +246,18 @@ export function InstitutionalCard({
     );
   return (
     <div>
-      <SectionHeader title="Institutional" action={mode === "card" ? viewAll : undefined} />
+      {mode === "card" ? (
+        <SectionHeader title="Institutional Holdings" action={viewAll} />
+      ) : (
+        <div className="mb-3 flex justify-end">
+          <Link
+            href="/ownership"
+            className="border border-borderStrong px-3 py-1 text-xs text-textSecondary hover:border-accentBlue/50 hover:text-textPrimary"
+          >
+            Back
+          </Link>
+        </div>
+      )}
       <InstitutionTable rows={displayed} />
     </div>
   );
@@ -332,17 +343,14 @@ function InstitutionDetail({
 }) {
   return (
     <div>
-      <SectionHeader
-        title={active.name}
-        action={
-          <Link
-            href="/ownership/institutional"
-            className="border border-borderStrong px-3 py-1 text-xs text-textSecondary hover:border-accentBlue/50 hover:text-textPrimary"
-          >
-            Back
-          </Link>
-        }
-      />
+      <div className="mb-3 flex justify-end">
+        <Link
+          href="/ownership/institutional"
+          className="border border-borderStrong px-3 py-1 text-xs text-textSecondary hover:border-accentBlue/50 hover:text-textPrimary"
+        >
+          Back
+        </Link>
+      </div>
       <div className="rounded-none border border-borderStrong bg-sidebar p-4">
         <div className="grid gap-3 md:grid-cols-4">
           <div className="md:col-span-2">
