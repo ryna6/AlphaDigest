@@ -25,11 +25,11 @@ export async function OwnershipView() {
       </Panel>
       <Panel className="mt-4">
         <SectionHeader title="Institutional" />
-        <DataTable rows={payload.institutionalPositioning} />
+        <DataTable rows={payload.institutionalPositioning} size="comfortable" />
       </Panel>
       <Panel className="mt-4">
         <SectionHeader title="Congressional Trades" />
-        <DataTable rows={payload.congressionalTrades} />
+        <DataTable rows={payload.congressionalTrades} size="comfortable" />
       </Panel>
     </>
   );
