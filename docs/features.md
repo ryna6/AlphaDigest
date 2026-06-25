@@ -38,7 +38,7 @@ The Today page displays:
 - Market Summary cards:
   - Leading Sectors from the Markets sector heatmap.
   - Risk On / Risk Off from live VIX3M divided by live VIX when both valid positive values are available.
-  - Put/Call Ratio from the Cboe Exchange Market Statistics section, storing Equity, Index, and Total ratios with Eastern release time; the Today Market Summary card displays only the Total ratio plus its 24h change, while Index and Equity remain available in cached backend data for future tabs. The server-side daily fallback requests Cboe daily statistics with a Toronto-date `?dt=YYYY-MM-DD` query only when intraday parsing is unavailable.
+  - Put/Call Ratio from the Cboe current market-statistics source, storing Equity, Index, and Total ratios with Eastern release time; the Today Market Summary card displays only the Total ratio plus its 24h change, while Index and Equity remain available in cached backend data for future tabs. The server-side daily fallback requests Cboe daily statistics with a Toronto-date `?dt=YYYY-MM-DD` query only when intraday parsing is unavailable.
   - Today's Earnings count from the Unusual Whales earnings flow.
   - Today's Economic Events count from the Investing.com calendar flow.
 - Featured Unusual Whales articles with title, tags, timestamp, and excerpt.

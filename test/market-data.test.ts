@@ -190,6 +190,29 @@ test("Unusual Whales earnings normalization suppresses duplicate same-ticker unk
   ]);
 });
 
+test("Cboe current-page parser reads rendered text when static data tables are absent", () => {
+  const html = `
+    <h1>Cboe Exchange Market Statistics for Wednesday, June 24, 2026</h1>
+    <p>(All times are Central)</p>
+    <h3>Total</h3>
+    TIME CALLS PUTS TOTAL P/C RATIO
+    09:00 AM 517378 427147 944525 0.83
+    03:15 PM 3741341 3178373 6919714 0.85
+    <h3>Index Options</h3>
+    TIME CALLS PUTS TOTAL P/C RATIO
+    09:00 AM 130542 171922 302464 1.32
+    03:15 PM 973907 1214698 2188605 1.25
+    <h3>Equity Options</h3>
+    TIME CALLS PUTS TOTAL P/C RATIO
+    09:00 AM 386836 255225 642061 0.66
+    03:15 PM 2767434 1963675 4731109 0.71
+  `;
+  const parsed = parseCboePutCallFromHtml(html, "2026-06-24T20:20:00.000Z");
+  assert.deepEqual(parsed?.ratios, { equity: 0.71, index: 1.25, total: 0.85 });
+  assert.deepEqual(parsed?.raw?.latestTimesCentral, { total: "03:15 PM", index: "03:15 PM", equity: "03:15 PM" });
+  assert.equal(parsed?.raw?.asOfEastern, "2026-06-24T20:15:00.000Z");
+});
+
 test("Cboe current-page parser reads latest rows from Total, Index options, and Equity options data tables", () => {
   const html = `
     <h2>Cboe Exchange Market Statistics for Wednesday, June 24, 2026</h2>

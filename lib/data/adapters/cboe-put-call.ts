@@ -3,7 +3,7 @@ import { payloadContentHash, updateRefreshMetadata } from "./supabase-refresh";
 import { recordMarketSummaryHistory } from "../market-summary-history";
 
 export const CBOE_PUT_CALL_SOURCE_URL =
-  "https://www.cboe.com/markets/us/options/market-statistics#current";
+  "https://www.cboe.com/us/options/market_statistics/market/";
 export const CBOE_DAILY_PUT_CALL_SOURCE_URL =
   "https://www.cboe.com/markets/us/options/market-statistics/daily/";
 export const CBOE_SOURCE_TIMEZONE = "America/Chicago";
@@ -295,6 +295,37 @@ function parseRatiosFromCurrentTables(sectionHtml: string, marketDate: string) {
   return { ratios, labelsFound, latestTimes };
 }
 
+function parseCurrentRatiosFromText(text: string, marketDate: string) {
+  const ratios: PutCallRatios = { equity: null, index: null, total: null };
+  const latestTimes: Partial<Record<keyof PutCallRatios, string>> = {};
+  const labelsFound: string[] = [];
+  const normalizedText = text.replace(/\s+/g, " ").trim();
+  const sections: Array<[keyof PutCallRatios, RegExp, string]> = [
+    ["total", /(?:^|\s)Total(?:\s+Options)?\s+TIME\s+CALLS\s+PUTS\s+TOTAL\s+P\/C\s+RATIO\s+([\s\S]*?)(?=\s+Index\s+Options\s+TIME|\s+Equity\s+Options\s+TIME|$)/i, "Total"],
+    ["index", /(?:^|\s)Index\s+Options\s+TIME\s+CALLS\s+PUTS\s+TOTAL\s+P\/C\s+RATIO\s+([\s\S]*?)(?=\s+Equity\s+Options\s+TIME|$)/i, "Index Options"],
+    ["equity", /(?:^|\s)Equity\s+Options\s+TIME\s+CALLS\s+PUTS\s+TOTAL\s+P\/C\s+RATIO\s+([\s\S]*?)(?=\s+[A-Z][A-Za-z ]+\s+TIME\s+CALLS\s+PUTS\s+TOTAL\s+P\/C\s+RATIO|$)/i, "Equity Options"]
+  ];
+
+  for (const [key, pattern, label] of sections) {
+    const section = pattern.exec(normalizedText)?.[1];
+    if (!section) continue;
+    labelsFound.push(label);
+    for (const row of section.matchAll(/(\d{1,2}:\d{2}\s*(?:AM|PM))\s+[0-9,]+\s+[0-9,]+\s+[0-9,]+\s+([0-9]+(?:\.[0-9]+)?)/gi)) {
+      const timeLabel = row[1];
+      const value = numberFromText(row[2]);
+      if (value === null) continue;
+      const existingTime = latestTimes[key] ? rowTimeMillis(marketDate, latestTimes[key]!) : null;
+      const candidateTime = rowTimeMillis(marketDate, timeLabel);
+      if (existingTime === null || (candidateTime !== null && candidateTime >= existingTime)) {
+        ratios[key] = value;
+        latestTimes[key] = timeLabel;
+      }
+    }
+  }
+
+  return { ratios, labelsFound, latestTimes };
+}
+
 function parseRatiosFromLegacySection(sectionHtml: string) {
   const ratios: PutCallRatios = { equity: null, index: null, total: null };
   const labelsFound: string[] = [];
@@ -346,10 +377,25 @@ function diagnosticSnippet(html: string) {
   );
 }
 
+function embeddedDataCandidates(html: string) {
+  const lower = html.toLowerCase();
+  const terms = [
+    "p/c ratio",
+    "put call",
+    "market-statistics",
+    "market_statistics",
+    "exchange market statistics",
+    "index options",
+    "equity options"
+  ];
+  return terms.filter((term) => lower.includes(term));
+}
+
 function logParserDiagnostics(event: string, html: string, extra: Record<string, unknown> = {}) {
   console.log(event, {
     responseLength: html.length,
     dataTableCount: countDataTables(html),
+    embeddedDataCandidates: embeddedDataCandidates(html),
     nearbyLabels: nearbyLabels(html),
     snippet: diagnosticSnippet(html),
     ...extra
@@ -449,15 +495,19 @@ export function parseCboePutCallFromHtml(
   const heading = section?.heading ?? "Cboe Exchange Market Statistics";
   const marketDate = section ? extractDateKeyFromHeading(section.heading, scrapedAt) : torontoDateKey(new Date(scrapedAt));
   const currentTables = parseRatiosFromCurrentTables(targetHtml, marketDate);
+  const currentText = parseCurrentRatiosFromText(cleanText(targetHtml), marketDate);
+  const legacySection = section ? parseRatiosFromLegacySection(section.sectionHtml) : null;
   const { ratios, labelsFound, latestTimes } = anyRatio(currentTables.ratios)
     ? currentTables
-    : section
-      ? parseRatiosFromLegacySection(section.sectionHtml)
-      : {
-          ratios: currentTables.ratios,
-          labelsFound: currentTables.labelsFound,
-          latestTimes: currentTables.latestTimes
-        };
+    : anyRatio(currentText.ratios)
+      ? currentText
+      : legacySection && anyRatio(legacySection.ratios)
+        ? legacySection
+        : {
+            ratios: currentTables.ratios,
+            labelsFound: [...currentTables.labelsFound, ...currentText.labelsFound],
+            latestTimes: currentTables.latestTimes
+          };
   const parsedKeys = Object.entries(ratios)
     .filter(([, value]) => value !== null)
     .map(([key]) => key);
@@ -469,6 +519,7 @@ export function parseCboePutCallFromHtml(
     sectionFound: Boolean(section),
     labelsFound,
     parsedKeys,
+    latestSourceTimestamp: asOfEastern,
     sourceAsOfCentral,
     asOfEastern
   };
