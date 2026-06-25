@@ -1,7 +1,7 @@
 import { refreshInstitutionalSummaryData } from "../../lib/data/adapters/unusual-whales-institutional";
 import { finishJobRun, startJobRun } from "../../lib/status/job-runs";
 
-export const config = { schedule: "0 8 * * *" };
+export const config = { schedule: "0 10 * * *" };
 
 const json = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json" } });
