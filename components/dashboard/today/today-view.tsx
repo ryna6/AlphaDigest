@@ -52,6 +52,10 @@ function signedValueClass(value?: string) {
   return "text-textSecondary";
 }
 
+function change24hText(metric: Metric) {
+  return metric.changePercent && metric.changePercent.trim() ? metric.changePercent : "—";
+}
+
 function importanceStars(importance: EconomicEvent["importance"], stars?: EconomicEvent["stars"]) {
   const count = stars ?? { Low: 1, Medium: 2, High: 3 }[importance];
   return "★".repeat(count);
@@ -269,22 +273,18 @@ export function TodayView({ data }: { data: TodayPayload }) {
                   {isPutCallRatio ? (
                     <div className="flex min-w-0 items-center justify-between gap-3">
                       <p className="min-w-0 truncate text-2xl font-semibold text-textPrimary">
-                        {putCallValue(metric)}
+                        Total: {putCallValue(metric)}
                       </p>
-                      {metric.changePercent ? (
-                        <span className={cn("shrink-0 text-right text-sm font-semibold", signedValueClass(metric.changePercent))}>
-                          {metric.changePercent}
-                        </span>
-                      ) : null}
+                      <span className={cn("shrink-0 text-right text-sm font-semibold", signedValueClass(change24hText(metric)))}>
+                        {change24hText(metric)}
+                      </span>
                     </div>
                   ) : isRiskOnRiskOff ? (
                     <div className="flex min-w-0 items-center justify-between gap-3">
                       <p className="text-2xl font-semibold text-textPrimary">{metric.value}</p>
-                      {metric.changePercent ? (
-                        <span className={cn("shrink-0 text-right text-sm font-semibold", signedValueClass(metric.changePercent))}>
-                          {metric.changePercent}
-                        </span>
-                      ) : null}
+                      <span className={cn("shrink-0 text-right text-sm font-semibold", signedValueClass(change24hText(metric)))}>
+                        {change24hText(metric)}
+                      </span>
                     </div>
                   ) : (
                     <p
