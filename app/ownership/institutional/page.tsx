@@ -5,7 +5,7 @@ import { InstitutionalCard } from "@/components/dashboard/ownership/institutiona
 export default function InstitutionalListPage() {
   return (
     <>
-      <PageTitle title="Institutional" subtitle="Tracked institutional ownership list." />
+      <PageTitle title="Institutional Holdings" subtitle="Tracked institutional ownership list." />
       <Panel>
         <InstitutionalCard mode="list" />
       </Panel>

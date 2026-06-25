@@ -256,7 +256,7 @@ const TRACKED_HOLDINGS = "unusual_whales_tracked_institution_holdings";
 const TRACKED_OPTIONS = "unusual_whales_tracked_institution_options";
 const TRACKED_ACTIVITY = "unusual_whales_tracked_institution_activity";
 const TRACKED_HISTORY = "unusual_whales_tracked_institution_history";
-export const TRACKED_INSTITUTION_HISTORY_QUARTERS_RETAINED = 20;
+export const TRACKED_INSTITUTION_HISTORY_QUARTERS_RETAINED = 21;
 
 type TrackedInstitutionInfo = {
   name: string;
