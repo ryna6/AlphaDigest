@@ -212,7 +212,7 @@ The `/status` page displays the operational Status table with Job, Status, Sourc
 
 ## Deploying Flow cache tables
 
-Netlify deploys do not automatically apply Supabase migrations. Before enabling Flow refresh jobs, paste `supabase/manual/apply-unusual-whales-flow.sql` into the Supabase SQL Editor. Then deploy to Netlify and manually run `refresh-dark-pool`, `refresh-insider-trades`, `refresh-flow`, and optionally `refresh-ownership`. Check Supabase row counts, `dashboard_snapshots` keys `flow:latest` and `ownership:latest`, `/api/cache/status`, `/flow`, `/ownership`, `/flow/insider-trades`, and a sample insider detail page.
+Netlify deploys do not automatically apply Supabase migrations. Before enabling Flow refresh jobs, paste `supabase/manual/apply-unusual-whales-flow.sql` into the Supabase SQL Editor. Then deploy to Netlify and manually run `refresh-dark-pool`, `refresh-insider-trades`, `refresh-flow`, and optionally `refresh-institutional-portfolios`. Check Supabase row counts, `dashboard_snapshots` keys `flow:latest` and `ownership:latest`, `/api/cache/status`, `/flow`, `/ownership`, `/flow/insider-trades`, and a sample insider detail page.
 
 ### Verifying Flow refreshes in production
 
