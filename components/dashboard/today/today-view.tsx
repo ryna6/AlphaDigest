@@ -273,7 +273,7 @@ export function TodayView({ data }: { data: TodayPayload }) {
                   {isPutCallRatio ? (
                     <div className="flex min-w-0 items-center justify-between gap-3">
                       <p className="min-w-0 truncate text-2xl font-semibold text-textPrimary">
-                        Total: {putCallValue(metric)}
+                        {putCallValue(metric)}
                       </p>
                       <span className={cn("shrink-0 text-right text-sm font-semibold", signedValueClass(change24hText(metric)))}>
                         {change24hText(metric)}
