@@ -160,6 +160,14 @@ const signedCompact = (value: number | null) =>
 const formatPct = (value: number | null | undefined) =>
   value == null || !Number.isFinite(value) ? "—" : `${value > 0 ? "+" : ""}${value.toFixed(1)}%`;
 const formatShare = (value: number) => `${value.toFixed(1)}%`;
+const deltaClass = (value: number | null | undefined) =>
+  value == null || !Number.isFinite(value)
+    ? "text-textMuted"
+    : value > 0
+      ? "text-positive"
+      : value < 0
+        ? "text-negative"
+        : "text-textMuted";
 const formatDate = (value: string) =>
   new Intl.DateTimeFormat("en-US", {
     month: "short",
@@ -210,17 +218,14 @@ function SummaryTile({
   alignTableHeader?: boolean;
 }) {
   return (
-    <div className="flex min-h-64 flex-col rounded-none border border-borderStrong bg-sidebar p-4 shadow-panel">
-      <div
-        className={cn(
-          "flex items-start justify-between gap-2",
-          alignTableHeader ? "mb-3 min-h-7" : "mb-2"
-        )}
-      >
-        <p className="min-w-0 whitespace-nowrap text-sm font-semibold leading-6 text-textPrimary">
-          {title}
-        </p>
-        {action ? <div className="flex shrink-0 justify-end">{action}</div> : null}
+    <div className="flex min-h-[30rem] flex-col rounded-none border border-borderStrong bg-sidebar p-4 shadow-panel">
+      <div className={cn("flex flex-col", alignTableHeader ? "mb-3" : "mb-2")}>
+        <p className="min-w-0 text-[15px] font-semibold leading-6 text-textPrimary">{title}</p>
+        {action ? (
+          <div className="mt-1 flex justify-end">{action}</div>
+        ) : alignTableHeader ? (
+          <div className="mt-1 h-[30px]" aria-hidden="true" />
+        ) : null}
       </div>
       {children}
     </div>
@@ -243,7 +248,7 @@ function firmCount(row: TickerRow, mode: "holdings" | "positions") {
 function TickerTable({ rows, mode }: { rows: TickerRow[]; mode: "holdings" | "positions" }) {
   if (!rows.length) return <EmptyRows message="No cached institutional rows are available yet." />;
   return (
-    <div className="overflow-x-auto">
+    <div className="flex flex-1 overflow-x-auto">
       <table className="w-full text-left text-[13px]">
         <thead className="text-textMuted">
           <tr>
@@ -256,18 +261,18 @@ function TickerTable({ rows, mode }: { rows: TickerRow[]; mode: "holdings" | "po
         <tbody>
           {rows.slice(0, 10).map((row) => (
             <tr key={`${row.order}-${row.ticker}`} className="border-t border-borderStrong/60">
-              <td className="py-1.5 font-semibold text-textPrimary">{row.ticker}</td>
-              <td className="py-1.5 text-right text-textSecondary">{formatMarketCap(row.value)}</td>
-              <td className="py-1.5 text-right text-textSecondary">
+              <td className="py-2 font-semibold text-textPrimary">{row.ticker}</td>
+              <td className="py-2 text-right text-textSecondary">{formatMarketCap(row.value)}</td>
+              <td className="py-2 text-right text-textSecondary">
                 {formatCompactNumber(firmCount(row, mode))}
               </td>
               <td
                 className={cn(
-                  "py-1.5 text-right",
+                  "py-2 text-right",
                   (qoqUnitsChange(row) ?? 0) > 0
-                    ? "text-green-300"
+                    ? "text-positive"
                     : (qoqUnitsChange(row) ?? 0) < 0
-                      ? "text-red-300"
+                      ? "text-negative"
                       : "text-textMuted"
                 )}
               >
@@ -416,8 +421,8 @@ function SectorBreakdown({ rows }: { rows: SectorRow[] }) {
                   </div>
                 </td>
                 <td className="py-1 text-right text-textSecondary">{formatShare(row.share)}</td>
-                <td className="py-1 text-right text-textMuted">{formatPct(row.qoq)}</td>
-                <td className="py-1 text-right text-textMuted">{formatPct(row.yoy)}</td>
+                <td className={cn("py-1 text-right", deltaClass(row.qoq))}>{formatPct(row.qoq)}</td>
+                <td className={cn("py-1 text-right", deltaClass(row.yoy))}>{formatPct(row.yoy)}</td>
               </tr>
             ))}
           </tbody>
@@ -591,7 +596,7 @@ export function InstitutionalSummary() {
             <div className="relative">
               <select
                 aria-label="Select position change"
-                className="appearance-none border border-borderStrong bg-panel py-1 pl-1.5 pr-4 text-[11px] text-textSecondary outline-none hover:border-accentBlue/50 hover:text-textPrimary focus:border-accentBlue"
+                className="appearance-none border border-borderStrong bg-panel py-1 pl-2 pr-5 text-xs text-textSecondary outline-none hover:border-accentBlue/50 hover:text-textPrimary focus:border-accentBlue"
                 value={positionChange}
                 onChange={(event) => setPositionChange(event.target.value as PositionChange)}
               >
