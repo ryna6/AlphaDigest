@@ -35,7 +35,7 @@ function formatStatusPageDateTime(timestamp: string) {
 
 const statusDisplay: Record<StatusValue, { label: string; description: string }> = {
   Healthy: { label: "Good", description: "Healthy" },
-  Warning: { label: "Warning", description: "Delayed or missing" },
+  Warning: { label: "Warning", description: "Delayed or stale" },
   Error: { label: "Critical", description: "Action required" },
   Unknown: { label: "Offline", description: "No status available" }
 };
