@@ -10,7 +10,7 @@ import { fetchYahooMarketQuote } from "./adapters/yahoo-finance";
 import { flowMock, marketsMock, ownershipMock, todayMock } from "./fixtures/mock-dashboard";
 import { fetchCryptoQuotes, cryptoAssets } from "./adapters/coingecko-crypto";
 import { getLatestCboePutCallRatio } from "./adapters/cboe-put-call";
-import { formatSignedWholePercent, recordMarketSummaryHistory } from "./market-summary-history";
+import { formatSignedPercent, recordMarketSummaryHistory } from "./market-summary-history";
 import { formatEtDateKey } from "../utils/time";
 import { getHeatmapIconPath, getMetricIconPath } from "../constants/asset-icons";
 import {
@@ -642,8 +642,8 @@ async function buildTodayPayload(): Promise<{
   if (!historyResult.ok && historyResult.error) {
     console.error("market_summary_history_error", { error: historyResult.error });
   }
-  const riskChange24h = formatSignedWholePercent(historyResult.changes.risk_on_off_ratio);
-  const putCallChange24h = formatSignedWholePercent(historyResult.changes.put_call_total);
+  const riskChange24h = formatSignedPercent(historyResult.changes.risk_on_off_ratio);
+  const putCallChange24h = formatSignedPercent(historyResult.changes.put_call_total);
   const [featuredNewsResult, unusualWhalesEarningsResult, todayKeyStats, economicCalendarResult] =
     await Promise.all([
       fetchUnusualWhalesFeaturedNews(50),
