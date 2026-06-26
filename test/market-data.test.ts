@@ -73,6 +73,7 @@ test("Congressional portfolio selection blacklists and dedupes before top 20", (
   const rawRows = [
     { name: "William Harnisch", ytd_return: "999", ids: ["blacklisted-1"] },
     { name: " Donald   McEachin ", ytd_return: "998", ids: ["blacklisted-2"] },
+    { name: " ray   dalio ", ytd_return: "997", ids: ["blacklisted-3"] },
     { name: "Michael McCaul", ytd_return: "12.5", ids: ["old"] },
     { name: " michael   mccaul ", ytd_return: "45.5", ids: ["new"] },
     { name: "No Return", ytd_return: null },
@@ -83,12 +84,12 @@ test("Congressional portfolio selection blacklists and dedupes before top 20", (
     }))
   ];
   const selected = selectTopCongressionalPortfolioRows(rawRows, "2026-06-26T00:00:00.000Z");
-  assert.equal(selected.blacklistedRowCount, 2);
+  assert.equal(selected.blacklistedRowCount, 3);
   assert.equal(selected.duplicateRowCount, 1);
   assert.equal(selected.dedupedRowCount, 22);
   assert.equal(selected.selectedTop20RowCount, 20);
   assert.deepEqual(
-    selected.rows.filter((row) => /harnisch|mceachin/i.test(row.name)),
+    selected.rows.filter((row) => /harnisch|mceachin|dalio/i.test(row.name)),
     []
   );
   assert.equal(selected.rows.some((row) => row.politicianKey === "michael-mccaul"), true);

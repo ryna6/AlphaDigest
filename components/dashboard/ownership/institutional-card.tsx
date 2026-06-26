@@ -1,9 +1,9 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useRef, useState } from "react";
-import { createPortal } from "react-dom";
+import { useEffect, useMemo, useState } from "react";
 import { SectionHeader } from "@/components/ui/section-header";
+import { ReturnValue, returnPct, returnToneClass } from "@/components/dashboard/ownership/return-value";
 import { cn } from "@/lib/utils/cn";
 import { formatCompactNumber, formatMarketCap } from "@/lib/utils/formatters";
 
@@ -78,8 +78,7 @@ const slugify = (v: string) =>
 const money = (v: number | null) =>
   v == null ? "—" : v < 0 ? `-${formatMarketCap(Math.abs(v))}` : formatMarketCap(v);
 const num = (v: number | null) => (v == null ? "—" : formatCompactNumber(v));
-const pct = (v: number | null | undefined) =>
-  v == null || !Number.isFinite(v) ? "—" : `${v > 0 ? "+" : ""}${v.toFixed(1)}%`;
+const pct = returnPct;
 const price = (v: number | null) => (v == null ? "—" : `$${v.toFixed(2)}`);
 const portfolioPct = (v: number | null | undefined) =>
   v == null || !Number.isFinite(v) ? "—" : `${(v * 100).toFixed(2)}%`;
@@ -92,14 +91,7 @@ const date = (v: string | null) =>
         timeZone: "UTC"
       }).format(new Date(`${v}T00:00:00Z`))
     : "—";
-const deltaClass = (v: number | null | undefined) =>
-  v == null
-    ? "text-textMuted"
-    : v > 0
-      ? "text-positive"
-      : v < 0
-        ? "text-negative"
-        : "text-textMuted";
+const deltaClass = returnToneClass;
 function founder(people: unknown) {
   if (!people) return "—";
   if (Array.isArray(people))
@@ -161,48 +153,6 @@ function oiPct(r: OptionHolding) {
 }
 function cap(v: string | null) {
   return v ? v.charAt(0).toUpperCase() + v.slice(1).toLowerCase() : "—";
-}
-function ReturnValue({ value, spy }: { value: number | null; spy: number | null }) {
-  const [open, setOpen] = useState(false);
-  const [position, setPosition] = useState({ left: 0, top: 0 });
-  const anchorRef = useRef<HTMLSpanElement>(null);
-  const diff = value != null && spy != null ? value - spy : null;
-  const showTooltip = () => {
-    const rect = anchorRef.current?.getBoundingClientRect();
-    if (rect) setPosition({ left: rect.left, top: rect.bottom + 8 });
-    setOpen(true);
-  };
-  return (
-    <span
-      ref={anchorRef}
-      className="relative inline-block"
-      onMouseEnter={showTooltip}
-      onFocus={showTooltip}
-      onMouseLeave={() => setOpen(false)}
-      onBlur={() => setOpen(false)}
-      tabIndex={0}
-    >
-      <span className={deltaClass(value)}>{pct(value)}</span>
-      {open && typeof document !== "undefined"
-        ? createPortal(
-            <span
-              className="pointer-events-none fixed z-[9999] min-w-44 border border-borderStrong bg-sidebar p-2 text-xs text-textSecondary opacity-100 shadow-2xl shadow-black/60"
-              style={{ left: position.left, top: position.top }}
-            >
-              <span className="block">SPY: {pct(spy)}</span>
-              <span className={cn("block", deltaClass(diff))}>
-                {diff == null
-                  ? "—"
-                  : diff >= 0
-                    ? `Outperformed by ${pct(diff)}`
-                    : `Underperformed by ${pct(diff)}`}
-              </span>
-            </span>,
-            document.body
-          )
-        : null}
-    </span>
-  );
 }
 const viewAll = (
   <Link
