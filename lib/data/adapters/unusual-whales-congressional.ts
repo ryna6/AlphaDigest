@@ -1,4 +1,5 @@
 import { createServerSupabaseClient } from "@/lib/db/supabase";
+import { fetchYahooYtdReturn } from "./yahoo-finance";
 
 const PORTFOLIOS_TABLE = "unusual_whales_congressional_portfolios";
 const TRADES_TABLE = "unusual_whales_congressional_trades";
@@ -305,15 +306,16 @@ export async function refreshCongressionalPortfolios() {
         `congressional_blacklist_prune_failed:${table}:${prune.error.message}`
       );
   }
-  const disallowedAssets = [...DISALLOWED_TRADE_ASSETS];
-  const disallowedPrune = await supabase.client
-    .from(TRADES_TABLE)
-    .delete()
-    .in("asset", disallowedAssets);
-  if (disallowedPrune.error)
-    diagnostics.warnings.push(
-      `congressional_disallowed_asset_prune_failed:${disallowedPrune.error.message}`
-    );
+  for (const disallowedAsset of DISALLOWED_TRADE_ASSETS) {
+    const disallowedPrune = await supabase.client
+      .from(TRADES_TABLE)
+      .delete()
+      .ilike("asset", disallowedAsset);
+    if (disallowedPrune.error)
+      diagnostics.warnings.push(
+        `congressional_disallowed_asset_prune_failed:${disallowedAsset}:${disallowedPrune.error.message}`
+      );
+  }
   const retentionPrune = await supabase.client
     .from(TRADES_TABLE)
     .delete()
@@ -553,41 +555,11 @@ export async function refreshCongressionalPortfolios() {
   };
 }
 
-async function getCachedSpyYtdReturn(client: any) {
-  const history = await client
-    .from("unusual_whales_tracked_institution_history")
-    .select("report_date,spy_price")
-    .not("spy_price", "is", null)
-    .order("report_date", { ascending: false })
-    .limit(200);
-  if (history.error)
-    return { value: null, notice: `SPY comparison cache read failed: ${history.error.message}` };
-  const rows = (history.data ?? []).map((r: any) => ({
-    reportDate: r.report_date,
-    spyPrice: r.spy_price == null ? null : Number(r.spy_price)
-  }));
-  const latest = rows.find(
-    (r: { reportDate: string; spyPrice: number | null }) =>
-      r.spyPrice != null && Number.isFinite(r.spyPrice)
-  );
-  if (!latest?.spyPrice) return { value: null, notice: null };
-  const d = new Date(`${latest.reportDate}T00:00:00Z`);
-  const target = new Date(Date.UTC(d.getUTCFullYear() - 1, 11, 31));
-  const baseline = rows
-    .filter(
-      (r: { reportDate: string; spyPrice: number | null }) =>
-        r.spyPrice != null &&
-        Number.isFinite(r.spyPrice) &&
-        new Date(`${r.reportDate}T00:00:00Z`) <= target
-    )
-    .sort((a: { reportDate: string }, b: { reportDate: string }) =>
-      b.reportDate.localeCompare(a.reportDate)
-    )[0];
+async function getCachedSpyYtdReturn() {
+  const spy = await fetchYahooYtdReturn("SPY");
   return {
-    value: baseline?.spyPrice
-      ? ((latest.spyPrice - baseline.spyPrice) / baseline.spyPrice) * 100
-      : null,
-    notice: null
+    value: spy?.ytdReturn ?? null,
+    notice: spy ? null : "Yahoo Finance SPY YTD comparison was unavailable."
   };
 }
 
@@ -601,7 +573,7 @@ export async function getCachedCongressionalPortfolios() {
     )
     .order("rank", { ascending: true })
     .limit(20);
-  const spyYtd = await getCachedSpyYtdReturn(supabase.client);
+  const spyYtd = await getCachedSpyYtdReturn();
   const tradesResult = await supabase.client
     .from(TRADES_TABLE)
     .select("politician_name,politician_key,symbol,transaction_date,asset,amounts,txn_type");
