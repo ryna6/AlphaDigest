@@ -6,8 +6,8 @@ import type { InsiderCompanyAggregate } from "@/lib/data/schemas/dashboard";
 import { cn } from "@/lib/utils/cn";
 import { formatStockPrice, money, signed } from "./flow-formatters";
 
-const INITIAL_VISIBLE = 25;
-const MAX_VISIBLE = 50;
+const INITIAL_VISIBLE = 15;
+const MAX_VISIBLE = 30;
 
 export function InsiderCompaniesViewMore({ companies }: { companies: InsiderCompanyAggregate[] }) {
   const [visible, setVisible] = useState(INITIAL_VISIBLE);
