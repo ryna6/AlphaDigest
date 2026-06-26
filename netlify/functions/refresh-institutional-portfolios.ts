@@ -9,7 +9,7 @@ const json = (body: unknown, status = 200) =>
 export default async function handler() {
   const startedAt = new Date().toISOString();
   const runId = await startJobRun({
-    jobName: "Institutional Portfolios",
+    jobName: "Institutional Holdings",
     functionName: "refresh-institutional-portfolios",
     source: "Unusual Whales"
   });

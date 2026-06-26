@@ -259,7 +259,7 @@ export const STATUS_JOBS: StatusJob[] = [
   {
     id: "ownership-institutional-portfolios",
     group: "Ownership",
-    job: "Institutional Portfolios",
+    job: "Institutional Holdings",
     functionName: "refresh-institutional-portfolios",
     source: "Unusual Whales",
     frequency: "Daily",

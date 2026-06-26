@@ -3,7 +3,7 @@ import { createServerSupabaseClient } from "@/lib/db/supabase";
 const PORTFOLIOS_TABLE = "unusual_whales_congressional_portfolios";
 const TRADES_TABLE = "unusual_whales_congressional_trades";
 const LIST_URL = "https://phx.unusualwhales.com/api/portfolios_v2";
-const PROFILE_URL = "https://phx.unusualwhales.com/api/senate_stocks";
+const PROFILE_BASE_URL = "https://phx.unusualwhales.com/api/senate_stocks";
 
 type Rec = Record<string, unknown>;
 const isRec = (v: unknown): v is Rec => !!v && typeof v === "object" && !Array.isArray(v);
@@ -18,6 +18,10 @@ const slug = (name: string) => name.trim().toLowerCase().replace(/[^a-z0-9]+/g, 
 
 function headers(): Record<string, string> {
   return { accept: "application/json" };
+}
+
+export function congressionalProfileUrl(politicianName: string) {
+  return `${PROFILE_BASE_URL}/${encodeURIComponent(politicianName)}?limit=500`;
 }
 
 export type CongressionalTrade = {
@@ -108,7 +112,7 @@ export async function refreshCongressionalPortfolios() {
     let profile = { fullName: null as string | null, currentChamber: null as string | null, currentParty: null as string | null, currentDistrict: null as string | null, bio: null as string | null };
     let trades: CongressionalTrade[] = [];
     try {
-      const profileResponse = await fetch(`${PROFILE_URL}/${encodeURIComponent(row.name)}?limit=500`, { headers: headers(), cache: "no-store" });
+      const profileResponse = await fetch(congressionalProfileUrl(row.name), { headers: headers(), cache: "no-store" });
       if (!profileResponse.ok) throw new Error(`status ${profileResponse.status}`);
       const profilePayload = await profileResponse.json();
       profile = normalizeProfile(profilePayload);

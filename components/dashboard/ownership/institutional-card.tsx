@@ -133,11 +133,21 @@ function founder(people: unknown) {
 }
 function activityLabel(r: Activity) {
   if (r.unitsChange == null) return "—";
-  if (r.unitsChange > 0 && (r.units ?? 0) === r.unitsChange) return "new position";
-  if ((r.units ?? 0) === 0 && r.unitsChange < 0) return "sold out";
+  if (r.unitsChange > 0 && (r.units ?? 0) === r.unitsChange) return "New Position";
+  if ((r.units ?? 0) === 0 && r.unitsChange < 0) return "Sold Out";
   const base = (r.units ?? 0) - r.unitsChange;
   const change = base ? (r.unitsChange / Math.abs(base)) * 100 : null;
-  return r.unitsChange > 0 ? `increased ${pct(change)}` : `decreased ${pct(change)}`;
+  return r.unitsChange > 0 ? `Increased ${pct(change)}` : `Decreased ${pct(change)}`;
+}
+function activityValue(r: Activity) {
+  const value = r.units != null && r.close != null ? r.units * r.close : null;
+  return value != null && Number.isFinite(value) ? value : null;
+}
+function activityToneClass(r: Activity) {
+  const label = activityLabel(r).toLowerCase();
+  if (label.startsWith("sold out") || label.startsWith("reduced") || label.startsWith("decreased")) return "text-negative";
+  if (label.startsWith("new position") || label.startsWith("increased")) return "text-positive";
+  return "text-textMuted";
 }
 function oiPctValue(r: OptionHolding) {
   const type = (r.putCall ?? "").toLowerCase();
@@ -242,9 +252,20 @@ export function InstitutionalCard({
   const filteredOptions = (tracked?.options ?? []).filter(
     (r) => r.institutionName === active?.name
   );
-  const filteredActivity = (tracked?.activity ?? []).filter(
-    (r) => r.institutionName === active?.name
-  );
+  const filteredActivity = (tracked?.activity ?? [])
+    .filter(
+      (r) =>
+        r.institutionName === active?.name &&
+        (r.securityType ?? "").trim().toLowerCase() !== "warrant"
+    )
+    .sort((a, b) => {
+      const av = activityValue(a);
+      const bv = activityValue(b);
+      if (av == null && bv == null) return 0;
+      if (av == null) return 1;
+      if (bv == null) return -1;
+      return bv - av;
+    });
   if (error)
     return (
       <p className="rounded-none border border-negative/50 bg-negative/10 p-3 text-sm text-negative">
@@ -545,7 +566,7 @@ function DetailTable({
                       <td className="border-b border-borderStrong/50 px-3 py-2">
                         {r.securityType ?? "—"}
                       </td>
-                      <td className="border-b border-borderStrong/50 px-3 py-2">
+                      <td className={cn("border-b border-borderStrong/50 px-3 py-2", activityToneClass(r))}>
                         {activityLabel(r)}
                       </td>
                       <td className="border-b border-borderStrong/50 px-3 py-2">{price(p)}</td>
@@ -567,7 +588,7 @@ function DetailTable({
                         {pct(cp)}
                       </td>
                       <td className="border-b border-borderStrong/50 px-3 py-2">
-                        {money(r.units != null && r.close != null ? r.units * r.close : null)}
+                        {money(activityValue(r))}
                       </td>
                     </tr>
                   );
