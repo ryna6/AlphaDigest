@@ -208,3 +208,9 @@ Risk On / Risk Off and Put/Call Ratio show a same-row signed whole-percentage 24
 
 
 Dark Pool expanded view initially shows 15 rows and reveals 30 additional rows per View more click, matching Whale Feed pagination while preserving Dark Pool-specific data logic. Institutional Holdings list tables display full `name`, while institution detail compact titles display `short_name` with a fallback to full `name`. Detail `% of Portfolio` uses cached `perc_of_share_value * 100` as a neutral unsigned percentage. Compare-to-SPY return popups render in a foreground portal layer to avoid clipping by table/card containers. Option holdings persist `put_oi` and `call_oi` from the nested Unusual Whales `oi` object, including JSON-string `oi` payloads, so `% of OI` uses `units / put_oi` for puts and `units / call_oi` for calls. Activity ingestion reads the endpoint `data` array, safely normalizes numeric strings/nulls, allows nullable buy/sell prices and security type, and logs safe per-institution fetch, normalize, upsert, and skip counts.
+
+### Congressional Holdings detail views
+
+The Ownership tab keeps the `Congressional Holdings` card name. The card shows the top 5 cached politicians by YTD return and links to a View All page with the cached top 20. Columns are Name, Chamber, Party, District, and YTD Returns; profile fields come from the politician profile endpoint when available, otherwise the UI displays `—`.
+
+Each politician row opens a Politician Detail view with a Back button, profile section, YTD return, and a grouped stock summary. The grouped table sorts by summed disclosed amount ranges across all buys and sells for each ticker and shows Ticker, Trades, Purchases, Sales, and Total Volume. Clicking a ticker opens a drilldown titled `[Politician Name]’s [Ticker] Trades` showing that politician/ticker's past 6 months of trades by Date, Ticker, Asset, Type, and Amount, newest first.
