@@ -1,7 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { SectionHeader } from "@/components/ui/section-header";
 import { cn } from "@/lib/utils/cn";
 import { formatCompactNumber, formatMarketCap } from "@/lib/utils/formatters";
@@ -147,20 +148,44 @@ function cap(v: string | null) {
   return v ? v.charAt(0).toUpperCase() + v.slice(1).toLowerCase() : "—";
 }
 function ReturnValue({ value, spy }: { value: number | null; spy: number | null }) {
+  const [open, setOpen] = useState(false);
+  const [position, setPosition] = useState({ left: 0, top: 0 });
+  const anchorRef = useRef<HTMLSpanElement>(null);
   const diff = value != null && spy != null ? value - spy : null;
+  const showTooltip = () => {
+    const rect = anchorRef.current?.getBoundingClientRect();
+    if (rect) setPosition({ left: rect.left, top: rect.bottom + 8 });
+    setOpen(true);
+  };
   return (
-    <span className="group relative inline-block">
+    <span
+      ref={anchorRef}
+      className="relative inline-block"
+      onMouseEnter={showTooltip}
+      onFocus={showTooltip}
+      onMouseLeave={() => setOpen(false)}
+      onBlur={() => setOpen(false)}
+      tabIndex={0}
+    >
       <span className={deltaClass(value)}>{pct(value)}</span>
-      <span className="pointer-events-none absolute left-0 top-6 z-50 hidden min-w-44 border border-borderStrong bg-sidebar p-2 text-xs text-textSecondary opacity-100 shadow-xl shadow-black/40 group-hover:block">
-        <span className="block">SPY: {pct(spy)}</span>
-        <span className={cn("block", deltaClass(diff))}>
-          {diff == null
-            ? "—"
-            : diff >= 0
-              ? `Outperformed by ${pct(diff)}`
-              : `Underperformed by ${pct(diff)}`}
-        </span>
-      </span>
+      {open && typeof document !== "undefined"
+        ? createPortal(
+            <span
+              className="pointer-events-none fixed z-[9999] min-w-44 border border-borderStrong bg-sidebar p-2 text-xs text-textSecondary opacity-100 shadow-2xl shadow-black/60"
+              style={{ left: position.left, top: position.top }}
+            >
+              <span className="block">SPY: {pct(spy)}</span>
+              <span className={cn("block", deltaClass(diff))}>
+                {diff == null
+                  ? "—"
+                  : diff >= 0
+                    ? `Outperformed by ${pct(diff)}`
+                    : `Underperformed by ${pct(diff)}`}
+              </span>
+            </span>,
+            document.body
+          )
+        : null}
     </span>
   );
 }
@@ -291,7 +316,7 @@ function InstitutionTable({ rows }: { rows: Institution[] }) {
                   href={`/ownership/institutional/${slugify(r.name)}`}
                   className="hover:text-accentBlue"
                 >
-                  {r.shortName ?? r.name}
+                  {r.shortName || r.name}
                 </Link>
               </td>
               <td className="border-b border-borderStrong/50 px-3 py-2 tabular">
