@@ -5,6 +5,8 @@ const TRADES_TABLE = "unusual_whales_congressional_trades";
 const LIST_URL = "https://phx.unusualwhales.com/api/portfolios_v2";
 const PROFILE_BASE_URL = "https://phx.unusualwhales.com/api/senate_stocks";
 const MAX_DUPLICATE_NAMES_TO_LOG = 10;
+const DISALLOWED_TRADE_ASSETS = new Set(["bond", "corporate bond", "municipal-security", "other"]);
+const TRADE_RETENTION_MONTHS = 24;
 
 type Rec = Record<string, unknown>;
 const isRec = (v: unknown): v is Rec => !!v && typeof v === "object" && !Array.isArray(v);
@@ -33,7 +35,11 @@ const slug = (name: string) =>
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/^-|-$/g, "");
-export const CONGRESSIONAL_BLACKLIST_NAMES = ["William Harnisch", "Donald McEachin", "Ray Dalio"] as const;
+export const CONGRESSIONAL_BLACKLIST_NAMES = [
+  "William Harnisch",
+  "Donald McEachin",
+  "Ray Dalio"
+] as const;
 const CONGRESSIONAL_BLACKLIST_KEYS = new Set(CONGRESSIONAL_BLACKLIST_NAMES.map(slug));
 const skipKey = (reason: string) =>
   reason
@@ -41,8 +47,9 @@ const skipKey = (reason: string) =>
     .replace(/^_|_$/g, "")
     .toLowerCase();
 
-const uniqueStrings = (values: Array<string | undefined>) =>
-  [...new Set(values.map((value) => value?.trim()).filter((value): value is string => !!value))];
+const uniqueStrings = (values: Array<string | undefined>) => [
+  ...new Set(values.map((value) => value?.trim()).filter((value): value is string => !!value))
+];
 
 function headers(): Record<string, string> {
   return { accept: "application/json" };
@@ -136,7 +143,8 @@ export function selectTopCongressionalPortfolioRows(rawRows: unknown[], fetchedA
       continue;
     }
     duplicateNames.add(row.name);
-    const selected = (row.ytdReturn ?? -Infinity) > (existing.ytdReturn ?? -Infinity) ? row : existing;
+    const selected =
+      (row.ytdReturn ?? -Infinity) > (existing.ytdReturn ?? -Infinity) ? row : existing;
     dedupedByKey.set(row.politicianKey, {
       ...selected,
       ids: mergeIds(existing.ids, row.ids)
@@ -213,15 +221,40 @@ function normalizeProfile(payload: unknown) {
   };
 }
 
-function normalizeTrade(raw: unknown, politicianName: string): CongressionalTrade | null {
-  if (!isRec(raw)) return null;
+function retentionCutoffDate(referenceIso: string) {
+  const date = new Date(referenceIso);
+  date.setUTCMonth(date.getUTCMonth() - TRADE_RETENTION_MONTHS);
+  return date.toISOString().slice(0, 10);
+}
+
+function normalizeAsset(value: string | null) {
+  return value?.trim().toLowerCase() ?? null;
+}
+
+function normalizeTrade(
+  raw: unknown,
+  politicianName: string,
+  cutoffDate: string
+): { trade: CongressionalTrade | null; skipReason?: string } {
+  if (!isRec(raw)) return { trade: null, skipReason: "invalid_trade_row" };
+  const asset = str(raw, ["asset", "assets", "asset_type"]);
+  const normalizedAsset = normalizeAsset(asset);
+  if (normalizedAsset && DISALLOWED_TRADE_ASSETS.has(normalizedAsset)) {
+    return { trade: null, skipReason: "disallowed_trade_asset_type" };
+  }
+  const transactionDate = dateStr(raw, ["transaction_date", "traded_date"]);
+  if (transactionDate && transactionDate < cutoffDate) {
+    return { trade: null, skipReason: "trade_older_than_24_months" };
+  }
   return {
-    politicianName,
-    symbol: str(raw, ["symbol", "ticker"]),
-    transactionDate: dateStr(raw, ["transaction_date", "traded_date"]),
-    asset: str(raw, ["asset"]),
-    amounts: str(raw, ["amounts", "amount"]),
-    txnType: str(raw, ["txn_type", "transaction_type", "type"])
+    trade: {
+      politicianName,
+      symbol: str(raw, ["symbol", "ticker"]),
+      transactionDate,
+      asset,
+      amounts: str(raw, ["amounts", "amount"]),
+      txnType: str(raw, ["txn_type", "transaction_type", "type"])
+    }
   };
 }
 
@@ -230,6 +263,7 @@ export async function refreshCongressionalPortfolios() {
   if (!supabase.ok)
     return { ok: false as const, error: supabase.message, count: 0, upserted: 0, meta: {} };
   const fetchedAt = new Date().toISOString();
+  const tradeRetentionCutoffDate = retentionCutoffDate(fetchedAt);
   const diagnostics = {
     listFetchStatus: null as number | null,
     rawListRowCount: 0,
@@ -244,6 +278,8 @@ export async function refreshCongressionalPortfolios() {
     listTopLevelKeys: [] as string[],
     detectedListRowPath: "none",
     skippedRows: {} as Record<string, number>,
+    tradeRetentionCutoffDate,
+    disallowedTradeAssetTypes: [...DISALLOWED_TRADE_ASSETS],
     warnings: [] as string[],
     profiles: [] as Array<{
       politician: string;
@@ -264,8 +300,28 @@ export async function refreshCongressionalPortfolios() {
   const blacklistKeys = [...CONGRESSIONAL_BLACKLIST_KEYS];
   for (const table of [PORTFOLIOS_TABLE, TRADES_TABLE]) {
     const prune = await supabase.client.from(table).delete().in("politician_key", blacklistKeys);
-    if (prune.error) diagnostics.warnings.push(`congressional_blacklist_prune_failed:${table}:${prune.error.message}`);
+    if (prune.error)
+      diagnostics.warnings.push(
+        `congressional_blacklist_prune_failed:${table}:${prune.error.message}`
+      );
   }
+  const disallowedAssets = [...DISALLOWED_TRADE_ASSETS];
+  const disallowedPrune = await supabase.client
+    .from(TRADES_TABLE)
+    .delete()
+    .in("asset", disallowedAssets);
+  if (disallowedPrune.error)
+    diagnostics.warnings.push(
+      `congressional_disallowed_asset_prune_failed:${disallowedPrune.error.message}`
+    );
+  const retentionPrune = await supabase.client
+    .from(TRADES_TABLE)
+    .delete()
+    .lt("transaction_date", tradeRetentionCutoffDate);
+  if (retentionPrune.error)
+    diagnostics.warnings.push(
+      `congressional_trade_retention_prune_failed:${retentionPrune.error.message}`
+    );
 
   const response = await fetch(LIST_URL, { headers: headers(), cache: "no-store" });
   diagnostics.listFetchStatus = response.status;
@@ -369,9 +425,9 @@ export async function refreshCongressionalPortfolios() {
         });
       }
       const tradeRows = tradeExtraction.rows.flatMap((raw) => {
-        const trade = normalizeTrade(raw, row.name);
+        const { trade, skipReason } = normalizeTrade(raw, row.name, tradeRetentionCutoffDate);
         if (!trade) {
-          skip("invalid_trade_row");
+          skip(skipReason ?? "invalid_trade_row");
           return [];
         }
         return [trade];
@@ -504,16 +560,35 @@ async function getCachedSpyYtdReturn(client: any) {
     .not("spy_price", "is", null)
     .order("report_date", { ascending: false })
     .limit(200);
-  if (history.error) return { value: null, notice: `SPY comparison cache read failed: ${history.error.message}` };
-  const rows = (history.data ?? []).map((r: any) => ({ reportDate: r.report_date, spyPrice: r.spy_price == null ? null : Number(r.spy_price) }));
-  const latest = rows.find((r: { reportDate: string; spyPrice: number | null }) => r.spyPrice != null && Number.isFinite(r.spyPrice));
+  if (history.error)
+    return { value: null, notice: `SPY comparison cache read failed: ${history.error.message}` };
+  const rows = (history.data ?? []).map((r: any) => ({
+    reportDate: r.report_date,
+    spyPrice: r.spy_price == null ? null : Number(r.spy_price)
+  }));
+  const latest = rows.find(
+    (r: { reportDate: string; spyPrice: number | null }) =>
+      r.spyPrice != null && Number.isFinite(r.spyPrice)
+  );
   if (!latest?.spyPrice) return { value: null, notice: null };
   const d = new Date(`${latest.reportDate}T00:00:00Z`);
   const target = new Date(Date.UTC(d.getUTCFullYear() - 1, 11, 31));
   const baseline = rows
-    .filter((r: { reportDate: string; spyPrice: number | null }) => r.spyPrice != null && Number.isFinite(r.spyPrice) && new Date(`${r.reportDate}T00:00:00Z`) <= target)
-    .sort((a: { reportDate: string }, b: { reportDate: string }) => b.reportDate.localeCompare(a.reportDate))[0];
-  return { value: baseline?.spyPrice ? ((latest.spyPrice - baseline.spyPrice) / baseline.spyPrice) * 100 : null, notice: null };
+    .filter(
+      (r: { reportDate: string; spyPrice: number | null }) =>
+        r.spyPrice != null &&
+        Number.isFinite(r.spyPrice) &&
+        new Date(`${r.reportDate}T00:00:00Z`) <= target
+    )
+    .sort((a: { reportDate: string }, b: { reportDate: string }) =>
+      b.reportDate.localeCompare(a.reportDate)
+    )[0];
+  return {
+    value: baseline?.spyPrice
+      ? ((latest.spyPrice - baseline.spyPrice) / baseline.spyPrice) * 100
+      : null,
+    notice: null
+  };
 }
 
 export async function getCachedCongressionalPortfolios() {
@@ -532,28 +607,37 @@ export async function getCachedCongressionalPortfolios() {
     .select("politician_name,politician_key,symbol,transaction_date,asset,amounts,txn_type");
   return {
     spyYtdReturn: spyYtd.value,
-    portfolios: (portfoliosResult.data ?? []).filter((r: any) => !CONGRESSIONAL_BLACKLIST_KEYS.has(slug(String(r.name ?? "")))).map((r: any) => ({
-      name: r.name,
-      politicianKey: r.politician_key,
-      ytdReturn: r.ytd_return == null ? null : Number(r.ytd_return),
-      rank: Number(r.rank),
-      fetchedAt: r.fetched_at,
-      ids: Array.isArray(r.ids) ? r.ids : undefined,
-      fullName: r.full_name,
-      currentChamber: r.current_chamber,
-      currentParty: r.current_party,
-      currentDistrict: r.current_district,
-      bio: r.bio
-    })),
-    trades: (tradesResult.data ?? []).filter((r: any) => !CONGRESSIONAL_BLACKLIST_KEYS.has(slug(String(r.politician_name ?? r.politician_key ?? ""))) && !CONGRESSIONAL_BLACKLIST_KEYS.has(String(r.politician_key ?? ""))).map((r: any) => ({
-      politicianName: r.politician_name,
-      politicianKey: r.politician_key,
-      symbol: r.symbol,
-      transactionDate: r.transaction_date,
-      asset: r.asset,
-      amounts: r.amounts,
-      txnType: r.txn_type
-    })),
+    portfolios: (portfoliosResult.data ?? [])
+      .filter((r: any) => !CONGRESSIONAL_BLACKLIST_KEYS.has(slug(String(r.name ?? ""))))
+      .map((r: any) => ({
+        name: r.name,
+        politicianKey: r.politician_key,
+        ytdReturn: r.ytd_return == null ? null : Number(r.ytd_return),
+        rank: Number(r.rank),
+        fetchedAt: r.fetched_at,
+        ids: Array.isArray(r.ids) ? r.ids : undefined,
+        fullName: r.full_name,
+        currentChamber: r.current_chamber,
+        currentParty: r.current_party,
+        currentDistrict: r.current_district,
+        bio: r.bio
+      })),
+    trades: (tradesResult.data ?? [])
+      .filter(
+        (r: any) =>
+          !CONGRESSIONAL_BLACKLIST_KEYS.has(
+            slug(String(r.politician_name ?? r.politician_key ?? ""))
+          ) && !CONGRESSIONAL_BLACKLIST_KEYS.has(String(r.politician_key ?? ""))
+      )
+      .map((r: any) => ({
+        politicianName: r.politician_name,
+        politicianKey: r.politician_key,
+        symbol: r.symbol,
+        transactionDate: r.transaction_date,
+        asset: r.asset,
+        amounts: r.amounts,
+        txnType: r.txn_type
+      })),
     notices: [
       portfoliosResult.error
         ? `Congressional Holdings cache read failed: ${portfoliosResult.error.message}`
