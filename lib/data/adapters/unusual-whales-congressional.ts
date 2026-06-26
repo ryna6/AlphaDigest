@@ -26,8 +26,17 @@ const num = (v: unknown) => {
   const parsed = Number(v.replace(/[%,+ ]/g, ""));
   return Number.isFinite(parsed) ? parsed : null;
 };
-const slug = (name: string) => name.trim().toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
-const skipKey = (reason: string) => reason.replace(/[^a-z0-9]+/gi, "_").replace(/^_|_$/g, "").toLowerCase();
+const slug = (name: string) =>
+  name
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-|-$/g, "");
+const skipKey = (reason: string) =>
+  reason
+    .replace(/[^a-z0-9]+/gi, "_")
+    .replace(/^_|_$/g, "")
+    .toLowerCase();
 
 function headers(): Record<string, string> {
   return { accept: "application/json" };
@@ -57,31 +66,85 @@ export type CongressionalPortfolio = {
   currentParty: string | null;
   currentDistrict: string | null;
   bio: string | null;
+  ids?: string[];
   trades?: CongressionalTrade[];
 };
 
-function normalizeListRow(raw: unknown): Omit<CongressionalPortfolio, "rank" | "fetchedAt" | "fullName" | "currentChamber" | "currentParty" | "currentDistrict" | "bio"> | null {
-  if (!isRec(raw)) return null;
+function normalizeListRow(raw: unknown): {
+  row: Omit<
+    CongressionalPortfolio,
+    | "rank"
+    | "fetchedAt"
+    | "fullName"
+    | "currentChamber"
+    | "currentParty"
+    | "currentDistrict"
+    | "bio"
+    | "trades"
+  > | null;
+  skipReason?: string;
+} {
+  if (!isRec(raw)) return { row: null, skipReason: "invalid_list_row" };
   const name = str(raw, ["name"]);
-  if (!name) return null;
-  return { name, politicianKey: slug(name), ytdReturn: num(raw.ytd_return) };
+  if (!name) return { row: null, skipReason: "missing_name" };
+  const ytdReturn = num(raw.ytd_return);
+  if (ytdReturn === null) return { row: null, skipReason: "missing_or_non_numeric_ytd_return" };
+  const ids = Array.isArray(raw.ids)
+    ? raw.ids.filter((id): id is string => typeof id === "string" && id.trim().length > 0)
+    : undefined;
+  return {
+    row: { name, politicianKey: slug(name), ytdReturn, ids: ids?.length ? ids : undefined }
+  };
 }
 
-function payloadRows(payload: unknown): unknown[] {
-  if (Array.isArray(payload)) return payload;
-  if (!isRec(payload)) return [];
-  if (Array.isArray(payload.data)) return payload.data;
-  if (Array.isArray(payload.results)) return payload.results;
-  if (Array.isArray(payload.senate_stocks)) return payload.senate_stocks;
-  if (isRec(payload.data) && Array.isArray(payload.data.senate_stocks)) return payload.data.senate_stocks;
-  if (isRec(payload.data) && Array.isArray(payload.data.results)) return payload.data.results;
-  return [];
+function keysOf(value: unknown) {
+  return isRec(value) ? Object.keys(value).sort() : [];
+}
+
+function listRows(payload: unknown): { rows: unknown[]; path: string } {
+  if (!isRec(payload)) return { rows: [], path: "none" };
+  if (Array.isArray(payload.etfs)) return { rows: payload.etfs, path: "etfs" };
+  if (Array.isArray(payload.data)) return { rows: payload.data, path: "data" };
+  if (Array.isArray(payload.results)) return { rows: payload.results, path: "results" };
+  if (Array.isArray(payload.portfolios)) return { rows: payload.portfolios, path: "portfolios" };
+  return { rows: [], path: "none" };
+}
+
+function extractTradeRows(payload: unknown): {
+  rows: unknown[];
+  path: string;
+  containerKeys: Record<string, string[]>;
+} {
+  const containerKeys: Record<string, string[]> = {};
+  if (!isRec(payload)) return { rows: [], path: "none", containerKeys };
+  for (const key of ["politician", "companies", "data"]) {
+    if (isRec(payload[key])) containerKeys[key] = keysOf(payload[key]);
+  }
+  if (Array.isArray(payload.senate_stocks))
+    return { rows: payload.senate_stocks, path: "senate_stocks", containerKeys };
+  if (Array.isArray(payload.transactions))
+    return { rows: payload.transactions, path: "transactions", containerKeys };
+  if (Array.isArray(payload.trades)) return { rows: payload.trades, path: "trades", containerKeys };
+  if (Array.isArray(payload.data)) return { rows: payload.data, path: "data", containerKeys };
+  if (isRec(payload.data) && Array.isArray(payload.data.senate_stocks))
+    return { rows: payload.data.senate_stocks, path: "data.senate_stocks", containerKeys };
+  if (isRec(payload.data) && Array.isArray(payload.data.transactions))
+    return { rows: payload.data.transactions, path: "data.transactions", containerKeys };
+  return { rows: [], path: "none", containerKeys };
 }
 
 function normalizeProfile(payload: unknown) {
   const root = isRec(payload) ? payload : {};
   const data = isRec(root.data) ? root.data : null;
-  const profile = isRec(root.profile) ? root.profile : isRec(root.politician) ? root.politician : data && isRec(data.profile) ? data.profile : data && isRec(data.politician) ? data.politician : data ?? root;
+  const profile = isRec(root.politician)
+    ? root.politician
+    : data && isRec(data.politician)
+      ? data.politician
+      : isRec(root.profile)
+        ? root.profile
+        : data && isRec(data.profile)
+          ? data.profile
+          : (data ?? root);
   return {
     fullName: str(profile, ["full_name", "name"]),
     currentChamber: str(profile, ["current_chamber", "chamber"]),
@@ -105,7 +168,8 @@ function normalizeTrade(raw: unknown, politicianName: string): CongressionalTrad
 
 export async function refreshCongressionalPortfolios() {
   const supabase = createServerSupabaseClient();
-  if (!supabase.ok) return { ok: false as const, error: supabase.message, count: 0, upserted: 0, meta: {} };
+  if (!supabase.ok)
+    return { ok: false as const, error: supabase.message, count: 0, upserted: 0, meta: {} };
   const fetchedAt = new Date().toISOString();
   const diagnostics = {
     listFetchStatus: null as number | null,
@@ -114,10 +178,16 @@ export async function refreshCongressionalPortfolios() {
     selectedTop20RowCount: 0,
     portfolioRowsUpserted: 0,
     tradeRowsUpserted: 0,
+    listTopLevelKeys: [] as string[],
+    detectedListRowPath: "none",
     skippedRows: {} as Record<string, number>,
+    warnings: [] as string[],
     profiles: [] as Array<{
       politician: string;
       profileFetchStatus: number | null;
+      profileUrl?: string;
+      profileTopLevelKeys?: string[];
+      detectedTradePath?: string;
       tradeRowCount: number;
       tradeRowsUpserted: number;
       error?: string;
@@ -138,12 +208,15 @@ export async function refreshCongressionalPortfolios() {
   }
 
   const payload = await response.json();
-  const rawRows = payloadRows(payload);
+  diagnostics.listTopLevelKeys = keysOf(payload);
+  const listExtraction = listRows(payload);
+  diagnostics.detectedListRowPath = listExtraction.path;
+  const rawRows = listExtraction.rows;
   diagnostics.rawListRowCount = rawRows.length;
   const normalizedRows = rawRows.flatMap((raw) => {
-    const row = normalizeListRow(raw);
+    const { row, skipReason } = normalizeListRow(raw);
     if (!row) {
-      skip(isRec(raw) && !str(raw, ["name"]) ? "missing_name" : "invalid_list_row");
+      skip(skipReason ?? "invalid_list_row");
       return [];
     }
     return [row];
@@ -155,26 +228,60 @@ export async function refreshCongressionalPortfolios() {
     .map((r, index) => ({ ...r, rank: index + 1, fetchedAt }));
   diagnostics.selectedTop20RowCount = rows.length;
   console.info("congressional_list_normalized", {
+    topLevelKeys: diagnostics.listTopLevelKeys,
+    detectedRowPath: diagnostics.detectedListRowPath,
     rawListRowCount: diagnostics.rawListRowCount,
     normalizedListRowCount: diagnostics.normalizedListRowCount,
     selectedTop20RowCount: diagnostics.selectedTop20RowCount,
-    skippedRows: diagnostics.skippedRows
+    skippedRows: diagnostics.skippedRows,
+    warnings: diagnostics.warnings
   });
 
   let tradesUpserted = 0;
   const portfolioRows = [];
   for (const row of rows) {
-    let profile = { fullName: null as string | null, currentChamber: null as string | null, currentParty: null as string | null, currentDistrict: null as string | null, bio: null as string | null };
+    let profile = {
+      fullName: null as string | null,
+      currentChamber: null as string | null,
+      currentParty: null as string | null,
+      currentDistrict: null as string | null,
+      bio: null as string | null
+    };
     let profileFetchStatus: number | null = null;
     let tradeRowsUpserted = 0;
     let tradeRowCount = 0;
     try {
-      const profileResponse = await fetch(congressionalProfileUrl(row.name), { headers: headers(), cache: "no-store" });
+      const profileUrl = congressionalProfileUrl(row.name);
+      const profileResponse = await fetch(profileUrl, { headers: headers(), cache: "no-store" });
       profileFetchStatus = profileResponse.status;
+      console.info("congressional_profile_fetch", {
+        politician: row.name,
+        profileUrl,
+        status: profileResponse.status,
+        ok: profileResponse.ok
+      });
       if (!profileResponse.ok) throw new Error(`status ${profileResponse.status}`);
       const profilePayload = await profileResponse.json();
       profile = normalizeProfile(profilePayload);
-      const tradeRows = payloadRows(profilePayload).flatMap((raw) => {
+      const profileTopLevelKeys = keysOf(profilePayload);
+      const tradeExtraction = extractTradeRows(profilePayload);
+      console.info("congressional_profile_shape", {
+        politician: row.name,
+        topLevelKeys: profileTopLevelKeys,
+        detectedTradePath: tradeExtraction.path,
+        tradeRowCount: tradeExtraction.rows.length
+      });
+      if (!tradeExtraction.rows.length) {
+        const warning = "congressional_no_trade_rows_found";
+        diagnostics.warnings.push(`${warning}:${row.politicianKey}`);
+        console.warn(warning, {
+          politician: row.name,
+          topLevelKeys: profileTopLevelKeys,
+          firstLevelContainerKeys: tradeExtraction.containerKeys,
+          detectedTradePath: tradeExtraction.path
+        });
+      }
+      const tradeRows = tradeExtraction.rows.flatMap((raw) => {
         const trade = normalizeTrade(raw, row.name);
         if (!trade) {
           skip("invalid_trade_row");
@@ -183,62 +290,152 @@ export async function refreshCongressionalPortfolios() {
         return [trade];
       });
       tradeRowCount = tradeRows.length;
-      const deleteResult = await supabase.client.from(TRADES_TABLE).delete().eq("politician_key", row.politicianKey);
-      if (deleteResult.error) throw new Error(`Congressional trades delete failed: ${deleteResult.error.message}`);
+      const deleteResult = await supabase.client
+        .from(TRADES_TABLE)
+        .delete()
+        .eq("politician_key", row.politicianKey);
+      if (deleteResult.error)
+        throw new Error(`Congressional trades delete failed: ${deleteResult.error.message}`);
       if (tradeRows.length) {
-        const { error } = await supabase.client.from(TRADES_TABLE).upsert(tradeRows.map((t, i) => ({
-          politician_key: row.politicianKey,
-          politician_name: row.name,
-          symbol: t.symbol,
-          transaction_date: t.transactionDate,
-          asset: t.asset,
-          amounts: t.amounts,
-          txn_type: t.txnType,
-          fetched_at: fetchedAt,
-          updated_at: fetchedAt,
-          row_key: `${row.politicianKey}:${t.symbol ?? ""}:${t.transactionDate ?? ""}:${t.txnType ?? ""}:${t.amounts ?? ""}:${i}`
-        })), { onConflict: "row_key" });
+        const { error } = await supabase.client.from(TRADES_TABLE).upsert(
+          tradeRows.map((t, i) => ({
+            politician_key: row.politicianKey,
+            politician_name: row.name,
+            symbol: t.symbol,
+            transaction_date: t.transactionDate,
+            asset: t.asset,
+            amounts: t.amounts,
+            txn_type: t.txnType,
+            fetched_at: fetchedAt,
+            updated_at: fetchedAt,
+            row_key: `${row.politicianKey}:${t.symbol ?? ""}:${t.transactionDate ?? ""}:${t.txnType ?? ""}:${t.amounts ?? ""}:${i}`
+          })),
+          { onConflict: "row_key" }
+        );
         if (error) throw new Error(`Congressional trades upsert failed: ${error.message}`);
         tradeRowsUpserted = tradeRows.length;
         tradesUpserted += tradeRows.length;
       }
-      diagnostics.profiles.push({ politician: row.name, profileFetchStatus, tradeRowCount, tradeRowsUpserted });
+      diagnostics.profiles.push({
+        politician: row.name,
+        profileFetchStatus,
+        profileUrl: congressionalProfileUrl(row.name),
+        profileTopLevelKeys: keysOf(profilePayload),
+        detectedTradePath: tradeExtraction.path,
+        tradeRowCount,
+        tradeRowsUpserted
+      });
     } catch (error) {
-      diagnostics.profiles.push({ politician: row.name, profileFetchStatus, tradeRowCount, tradeRowsUpserted, error: error instanceof Error ? error.message : "unknown" });
-      console.warn("congressional_profile_refresh_failed", { politician: row.name, status: profileFetchStatus, error: error instanceof Error ? error.message : "unknown" });
+      diagnostics.profiles.push({
+        politician: row.name,
+        profileFetchStatus,
+        profileUrl: congressionalProfileUrl(row.name),
+        tradeRowCount,
+        tradeRowsUpserted,
+        error: error instanceof Error ? error.message : "unknown"
+      });
+      console.warn("congressional_profile_refresh_failed", {
+        politician: row.name,
+        status: profileFetchStatus,
+        error: error instanceof Error ? error.message : "unknown"
+      });
     }
-    portfolioRows.push({ name: row.name, politician_key: row.politicianKey, ytd_return: row.ytdReturn, rank: row.rank, fetched_at: row.fetchedAt, updated_at: row.fetchedAt, full_name: profile.fullName, current_chamber: profile.currentChamber, current_party: profile.currentParty, current_district: profile.currentDistrict, bio: profile.bio });
+    portfolioRows.push({
+      name: row.name,
+      politician_key: row.politicianKey,
+      ytd_return: row.ytdReturn,
+      rank: row.rank,
+      ids: row.ids ?? null,
+      fetched_at: row.fetchedAt,
+      updated_at: row.fetchedAt,
+      full_name: profile.fullName,
+      current_chamber: profile.currentChamber,
+      current_party: profile.currentParty,
+      current_district: profile.currentDistrict,
+      bio: profile.bio
+    });
   }
 
   if (portfolioRows.length) {
-    const { error } = await supabase.client.from(PORTFOLIOS_TABLE).upsert(portfolioRows, { onConflict: "politician_key" });
+    const { error } = await supabase.client
+      .from(PORTFOLIOS_TABLE)
+      .upsert(portfolioRows, { onConflict: "politician_key" });
     if (error) {
-      console.warn("congressional_portfolios_upsert_failed", { rowCount: portfolioRows.length, error: error.message });
+      console.warn("congressional_portfolios_upsert_failed", {
+        rowCount: portfolioRows.length,
+        error: error.message
+      });
       throw new Error(`Congressional portfolios upsert failed: ${error.message}`);
     }
     diagnostics.portfolioRowsUpserted = portfolioRows.length;
     const keys = portfolioRows.map((r) => `"${r.politician_key.replace(/"/g, '\\"')}"`).join(",");
-    const deleteResult = await supabase.client.from(PORTFOLIOS_TABLE).delete().not("politician_key", "in", `(${keys})`);
-    if (deleteResult.error) throw new Error(`Congressional portfolios prune failed: ${deleteResult.error.message}`);
+    const deleteResult = await supabase.client
+      .from(PORTFOLIOS_TABLE)
+      .delete()
+      .not("politician_key", "in", `(${keys})`);
+    if (deleteResult.error)
+      throw new Error(`Congressional portfolios prune failed: ${deleteResult.error.message}`);
   }
   diagnostics.tradeRowsUpserted = tradesUpserted;
   console.info("congressional_refresh_complete", {
     portfolioRowsUpserted: diagnostics.portfolioRowsUpserted,
     tradeRowsUpserted: diagnostics.tradeRowsUpserted,
     profileCount: diagnostics.profiles.length,
-    skippedRows: diagnostics.skippedRows
+    skippedRows: diagnostics.skippedRows,
+    warnings: diagnostics.warnings
   });
-  return { ok: true as const, count: rawRows.length, upserted: portfolioRows.length, meta: diagnostics };
+  return {
+    ok: true as const,
+    partial: diagnostics.warnings.length > 0,
+    count: rawRows.length,
+    upserted: portfolioRows.length,
+    meta: diagnostics
+  };
 }
 
 export async function getCachedCongressionalPortfolios() {
   const supabase = createServerSupabaseClient();
   if (!supabase.ok) return { portfolios: [], trades: [], notices: [supabase.message] };
-  const portfoliosResult = await supabase.client.from(PORTFOLIOS_TABLE).select("name,politician_key,ytd_return,rank,fetched_at,full_name,current_chamber,current_party,current_district,bio").order("rank", { ascending: true }).limit(20);
-  const tradesResult = await supabase.client.from(TRADES_TABLE).select("politician_name,politician_key,symbol,transaction_date,asset,amounts,txn_type");
+  const portfoliosResult = await supabase.client
+    .from(PORTFOLIOS_TABLE)
+    .select(
+      "name,politician_key,ytd_return,rank,ids,fetched_at,full_name,current_chamber,current_party,current_district,bio"
+    )
+    .order("rank", { ascending: true })
+    .limit(20);
+  const tradesResult = await supabase.client
+    .from(TRADES_TABLE)
+    .select("politician_name,politician_key,symbol,transaction_date,asset,amounts,txn_type");
   return {
-    portfolios: (portfoliosResult.data ?? []).map((r: any) => ({ name: r.name, politicianKey: r.politician_key, ytdReturn: r.ytd_return == null ? null : Number(r.ytd_return), rank: Number(r.rank), fetchedAt: r.fetched_at, fullName: r.full_name, currentChamber: r.current_chamber, currentParty: r.current_party, currentDistrict: r.current_district, bio: r.bio })),
-    trades: (tradesResult.data ?? []).map((r: any) => ({ politicianName: r.politician_name, politicianKey: r.politician_key, symbol: r.symbol, transactionDate: r.transaction_date, asset: r.asset, amounts: r.amounts, txnType: r.txn_type })),
-    notices: [portfoliosResult.error ? `Congressional Holdings cache read failed: ${portfoliosResult.error.message}` : null, tradesResult.error ? `Congressional trades cache read failed: ${tradesResult.error.message}` : null].filter(Boolean)
+    portfolios: (portfoliosResult.data ?? []).map((r: any) => ({
+      name: r.name,
+      politicianKey: r.politician_key,
+      ytdReturn: r.ytd_return == null ? null : Number(r.ytd_return),
+      rank: Number(r.rank),
+      fetchedAt: r.fetched_at,
+      ids: Array.isArray(r.ids) ? r.ids : undefined,
+      fullName: r.full_name,
+      currentChamber: r.current_chamber,
+      currentParty: r.current_party,
+      currentDistrict: r.current_district,
+      bio: r.bio
+    })),
+    trades: (tradesResult.data ?? []).map((r: any) => ({
+      politicianName: r.politician_name,
+      politicianKey: r.politician_key,
+      symbol: r.symbol,
+      transactionDate: r.transaction_date,
+      asset: r.asset,
+      amounts: r.amounts,
+      txnType: r.txn_type
+    })),
+    notices: [
+      portfoliosResult.error
+        ? `Congressional Holdings cache read failed: ${portfoliosResult.error.message}`
+        : null,
+      tradesResult.error
+        ? `Congressional trades cache read failed: ${tradesResult.error.message}`
+        : null
+    ].filter(Boolean)
   };
 }
