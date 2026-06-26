@@ -23,7 +23,7 @@ export function WhaleFeedTable({
       <table className="w-full min-w-[900px] border-collapse text-left text-[13px]">
         <thead className="bg-sidebar text-textMuted">
           <tr>
-            {["Time", "Ticker", "Sector", "Sentiment", "Price", "Value", "% Vol", "% 30D Vol"].map((h) => (
+            {["Date", "Ticker", "Sector", "Sentiment", "Price", "Value", "% Vol", "% 30D Vol"].map((h) => (
               <th key={h} className="border-b border-borderStrong px-3 py-2 font-medium">
                 {h}
               </th>
