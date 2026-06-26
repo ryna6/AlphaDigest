@@ -81,8 +81,8 @@ const num = (v: number | null) => (v == null ? "—" : formatCompactNumber(v));
 const pct = (v: number | null | undefined) =>
   v == null || !Number.isFinite(v) ? "—" : `${v > 0 ? "+" : ""}${v.toFixed(1)}%`;
 const price = (v: number | null) => (v == null ? "—" : `$${v.toFixed(2)}`);
-const plainPct = (v: number | null | undefined) =>
-  v == null || !Number.isFinite(v) ? "—" : `${v.toFixed(1)}%`;
+const portfolioPct = (v: number | null | undefined) =>
+  v == null || !Number.isFinite(v) ? "—" : `${(v * 100).toFixed(2)}%`;
 const date = (v: string | null) =>
   v
     ? new Intl.DateTimeFormat("en-US", {
@@ -316,7 +316,7 @@ function InstitutionTable({ rows }: { rows: Institution[] }) {
                   href={`/ownership/institutional/${slugify(r.name)}`}
                   className="hover:text-accentBlue"
                 >
-                  {r.shortName || r.name}
+                  {r.name}
                 </Link>
               </td>
               <td className="border-b border-borderStrong/50 px-3 py-2 tabular">
@@ -379,7 +379,9 @@ function InstitutionDetail({
       <div className="rounded-none border border-borderStrong bg-sidebar p-4">
         <div className="grid gap-3 md:grid-cols-4">
           <div className="md:col-span-2">
-            <p className="text-base font-semibold text-textPrimary">{active.name}</p>
+            <p className="text-base font-semibold text-textPrimary">
+              {active.shortName || active.name}
+            </p>
             <p className="mt-1 text-sm text-textMuted">
               {active.description ?? "No description cached."}
             </p>
@@ -503,7 +505,7 @@ function DetailTable({
                   <td className="border-b border-borderStrong/50 px-3 py-2">{price(r.avgPrice)}</td>
                   <td className="border-b border-borderStrong/50 px-3 py-2">{money(r.value)}</td>
                   <td className="border-b border-borderStrong/50 px-3 py-2">
-                    {plainPct(r.percOfShareValue)}
+                    {portfolioPct(r.percOfShareValue)}
                   </td>
                 </tr>
               ))

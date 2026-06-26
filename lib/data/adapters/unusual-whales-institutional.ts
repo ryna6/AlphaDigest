@@ -354,6 +354,13 @@ function latestTrackedQuarterEnd(now = new Date()) {
 const strAny = (r: Rec, keys: string[]) => str(r, keys);
 function nestedValue(r: Rec, key: string) {
   return key.split(".").reduce<unknown>((value, part) => {
+    if (typeof value === "string" && value.trim().startsWith("{")) {
+      try {
+        value = JSON.parse(value);
+      } catch {
+        return undefined;
+      }
+    }
     if (!isRec(value)) return undefined;
     return value[part];
   }, r);
@@ -392,7 +399,7 @@ function optionsUrl(slug: string) {
   return `https://phx.unusualwhales.com/api/institutions/${encodeURIComponent(slug)}/holdings?security_types[]=Option&slim=true`;
 }
 function activityUrl(slug: string) {
-  return `https://phx.unusualwhales.com/api/institutions/${encodeURIComponent(slug)}/activity?page=0&limit=50&ticker=`;
+  return `https://phx.unusualwhales.com/api/institutions/${encodeURIComponent(slug)}/activity?page=0&limit=35&ticker=`;
 }
 function historicalUrl(slug: string) {
   return `https://phx.unusualwhales.com/api/institutions/${encodeURIComponent(slug)}`;
@@ -543,6 +550,7 @@ async function upsertTrackedInstitutionData() {
   const holdings: TrackedStockHolding[] = [],
     options: TrackedOptionHolding[] = [],
     activity: TrackedActivity[] = [];
+  const activityDiagnostics: Array<Record<string, unknown>> = [];
   for (const inst of baseInstitutions) {
     const slug = inst.providerName || inst.slug;
     const [h, o, a, hist] = await Promise.all([
@@ -565,13 +573,39 @@ async function upsertTrackedInstitutionData() {
         .map((r) => normalizeOption(r, inst.name, inst.date, fetchedAt))
         .filter(Boolean) as TrackedOptionHolding[])
     );
-    activity.push(
-      ...(firstArray(a)
-        .map((r) => normalizeActivity(r, inst.name, fetchedAt))
-        .filter(Boolean) as TrackedActivity[])
-    );
+    const activityExtracted = extractArrayFromUnusualWhalesResponse(a);
+    let skippedMissingTicker = 0;
+    let skippedMissingReportDate = 0;
+    let skippedInvalid = 0;
+    const normalizedActivity = activityExtracted.rows
+      .map((r) => {
+        if (!isRec(r)) {
+          skippedInvalid++;
+          return null;
+        }
+        const ticker = strAny(r, ["ticker", "symbol", "underlying_symbol"])?.toUpperCase();
+        const reportDate = dateOnly(strAny(r, ["report_date", "date"]));
+        if (!ticker) skippedMissingTicker++;
+        if (!reportDate) skippedMissingReportDate++;
+        return normalizeActivity(r, inst.name, fetchedAt);
+      })
+      .filter(Boolean) as TrackedActivity[];
+    activity.push(...normalizedActivity);
+    activityDiagnostics.push({
+      institution: inst.name,
+      slug,
+      responsePath: activityExtracted.path,
+      fetchedRows: activityExtracted.rows.length,
+      normalizedRows: normalizedActivity.length,
+      skippedRows: activityExtracted.rows.length - normalizedActivity.length,
+      skippedReasons: {
+        invalidRow: skippedInvalid,
+        missingTicker: skippedMissingTicker,
+        missingReportDate: skippedMissingReportDate
+      }
+    });
   }
-  return { institutions, history, holdings, options, activity };
+  return { institutions, history, holdings, options, activity, activityDiagnostics };
 }
 
 async function persistTrackedData(
@@ -693,6 +727,13 @@ async function persistTrackedData(
       { onConflict: "institution_name,ticker,report_date,security_type" }
     );
     if (error) throw new Error(`Tracked institution activity upsert failed: ${error.message}`);
+  }
+  for (const diagnostic of data.activityDiagnostics) {
+    console.info("tracked_institution_activity_refresh", {
+      ...diagnostic,
+      upsertedRows: data.activity.filter((row) => row.institutionName === diagnostic.institution)
+        .length
+    });
   }
 }
 
@@ -913,7 +954,8 @@ export async function refreshTrackedInstitutionalPortfolios() {
       trackedHistoryQuartersRetained: TRACKED_INSTITUTION_HISTORY_QUARTERS_RETAINED,
       trackedHoldings: trackedData.holdings.length,
       trackedOptions: trackedData.options.length,
-      trackedActivity: trackedData.activity.length
+      trackedActivity: trackedData.activity.length,
+      trackedActivityDiagnostics: trackedData.activityDiagnostics
     }
   };
 }

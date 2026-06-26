@@ -1,10 +1,9 @@
 import { getOwnershipPayload } from "@/lib/data/live-dashboard";
 import { PageTitle } from "@/components/dashboard/page-title";
 import { Panel } from "@/components/ui/panel";
-import { SectionHeader } from "@/components/ui/section-header";
-import { DataTable } from "@/components/ui/data-table";
 import { InstitutionalSummary } from "./institutional-summary";
 import { InstitutionalCard } from "./institutional-card";
+import { CongressionalHoldingsCard } from "./congressional-holdings-card";
 
 const hiddenOwnershipNotices = new Set([
   "Institutional/13F and Congressional sections remain fixture-backed until live providers are added."
@@ -28,8 +27,7 @@ export async function OwnershipView() {
         <InstitutionalCard />
       </Panel>
       <Panel className="mt-4">
-        <SectionHeader title="Congressional Trades" />
-        <DataTable rows={payload.congressionalTrades} size="comfortable" />
+        <CongressionalHoldingsCard />
       </Panel>
     </>
   );
