@@ -14,11 +14,10 @@ function isFiniteNumber(value: unknown): value is number {
   return typeof value === "number" && Number.isFinite(value);
 }
 
-export function formatSignedWholePercent(value: number | null | undefined) {
+export function formatSignedPercent(value: number | null | undefined, fractionDigits = 2) {
   if (!isFiniteNumber(value)) return "—";
-  const rounded = Math.round(value);
-  if (Object.is(rounded, -0) || rounded === 0) return "0%";
-  return `${rounded > 0 ? "+" : ""}${rounded}%`;
+  const normalized = Object.is(value, -0) || value === 0 ? 0 : value;
+  return `${normalized > 0 ? "+" : ""}${normalized.toFixed(fractionDigits)}%`;
 }
 
 async function comparisonChangePercent(metricKey: MarketSummaryMetricKey, value: number, observedAt: string) {
