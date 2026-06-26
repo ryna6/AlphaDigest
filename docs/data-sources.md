@@ -395,3 +395,9 @@ The Today Market Summary writes compact server-side history rows to `market_summ
 
 
 Dark Pool expanded view initially shows 15 rows and reveals 30 additional rows per View more click, matching Whale Feed pagination while preserving Dark Pool-specific data logic. Institutional Holdings list tables display full `name`, while institution detail compact titles display `short_name` with a fallback to full `name`. Detail `% of Portfolio` uses cached `perc_of_share_value * 100` as a neutral unsigned percentage. Compare-to-SPY return popups render in a foreground portal layer to avoid clipping by table/card containers. Option holdings persist `put_oi` and `call_oi` from the nested Unusual Whales `oi` object, including JSON-string `oi` payloads, so `% of OI` uses `units / put_oi` for puts and `units / call_oi` for calls, displays as an unsigned neutral percentage, and highlights values above 25%. Activity ingestion reads the endpoint `data` array, safely normalizes numeric strings/nulls, allows nullable buy/sell prices and security type, and logs safe per-institution fetch, normalize, upsert, and skip counts.
+
+### Congressional Holdings / Unusual Whales
+
+Congressional Holdings uses server-side Unusual Whales public endpoints only. The refresh fetches every politician from `https://phx.unusualwhales.com/api/portfolios_v2`, which supplies `name` and `ytd_return`, then sorts locally and caches only the top 20 YTD-return politicians in `unusual_whales_congressional_portfolios`. It does not invent chamber, party, district, bio, or trade fields from the list endpoint.
+
+For each top-20 politician, the refresh fetches `https://phx.unusualwhales.com/api/senate_stocks/{politicianName}?limit=500`, stores profile fields on the portfolio row, and stores minimal `senate_stocks` trade fields in `unusual_whales_congressional_trades`. Browser code reads the app API cache and never calls Unusual Whales or writes with service-role Supabase credentials.
