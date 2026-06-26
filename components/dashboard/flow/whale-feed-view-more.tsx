@@ -4,7 +4,7 @@ import type { WhaleFeedRow } from "@/lib/data/schemas/dashboard";
 import { WhaleFeedTable } from "./whale-feed-table";
 
 export const WHALE_FEED_INITIAL_VISIBLE_ROWS = 15;
-export const WHALE_FEED_VIEW_MORE_INCREMENT = 15;
+export const WHALE_FEED_VIEW_MORE_INCREMENT = 30;
 
 export function WhaleFeedViewMore({
   rows,
