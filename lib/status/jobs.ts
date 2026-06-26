@@ -271,7 +271,7 @@ export const STATUS_JOBS: StatusJob[] = [
   {
     id: "ownership-congressional-trades",
     group: "Ownership",
-    job: "Congressional Trades",
+    job: "Congressional Holdings",
     functionName: "TBD",
     source: "TBD",
     frequency: "TBD"
