@@ -4,6 +4,7 @@ const PORTFOLIOS_TABLE = "unusual_whales_congressional_portfolios";
 const TRADES_TABLE = "unusual_whales_congressional_trades";
 const LIST_URL = "https://phx.unusualwhales.com/api/portfolios_v2";
 const PROFILE_BASE_URL = "https://phx.unusualwhales.com/api/senate_stocks";
+const MAX_DUPLICATE_NAMES_TO_LOG = 10;
 
 type Rec = Record<string, unknown>;
 const isRec = (v: unknown): v is Rec => !!v && typeof v === "object" && !Array.isArray(v);
@@ -32,11 +33,15 @@ const slug = (name: string) =>
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/^-|-$/g, "");
+const CONGRESSIONAL_BLACKLIST_KEYS = new Set(["William Harnisch", "Donald McEachin"].map(slug));
 const skipKey = (reason: string) =>
   reason
     .replace(/[^a-z0-9]+/gi, "_")
     .replace(/^_|_$/g, "")
     .toLowerCase();
+
+const uniqueStrings = (values: Array<string | undefined>) =>
+  [...new Set(values.map((value) => value?.trim()).filter((value): value is string => !!value))];
 
 function headers(): Record<string, string> {
   return { accept: "application/json" };
@@ -97,6 +102,62 @@ function normalizeListRow(raw: unknown): {
   };
 }
 
+function mergeIds(a?: string[], b?: string[]) {
+  const merged = uniqueStrings([...(a ?? []), ...(b ?? [])]);
+  return merged.length ? merged : undefined;
+}
+
+export function selectTopCongressionalPortfolioRows(rawRows: unknown[], fetchedAt: string) {
+  const skippedRows: Record<string, number> = {};
+  const skip = (reason: string, amount = 1) => {
+    const key = skipKey(reason);
+    skippedRows[key] = (skippedRows[key] ?? 0) + amount;
+  };
+  const normalizedRows = rawRows.flatMap((raw) => {
+    const { row, skipReason } = normalizeListRow(raw);
+    if (!row) {
+      skip(skipReason ?? "invalid_list_row");
+      return [];
+    }
+    return [row];
+  });
+  const blacklistFilteredRows = normalizedRows.filter((row) => {
+    if (!CONGRESSIONAL_BLACKLIST_KEYS.has(row.politicianKey)) return true;
+    skip("blacklisted_congressional_politician");
+    return false;
+  });
+  const duplicateNames = new Set<string>();
+  const dedupedByKey = new Map<string, (typeof blacklistFilteredRows)[number]>();
+  for (const row of blacklistFilteredRows) {
+    const existing = dedupedByKey.get(row.politicianKey);
+    if (!existing) {
+      dedupedByKey.set(row.politicianKey, row);
+      continue;
+    }
+    duplicateNames.add(row.name);
+    const selected = (row.ytdReturn ?? -Infinity) > (existing.ytdReturn ?? -Infinity) ? row : existing;
+    dedupedByKey.set(row.politicianKey, {
+      ...selected,
+      ids: mergeIds(existing.ids, row.ids)
+    });
+  }
+  const dedupedRows = [...dedupedByKey.values()];
+  const rows = dedupedRows
+    .sort((a, b) => (b.ytdReturn ?? -Infinity) - (a.ytdReturn ?? -Infinity))
+    .slice(0, 20)
+    .map((r, index) => ({ ...r, rank: index + 1, fetchedAt }));
+  return {
+    rows,
+    skippedRows,
+    normalizedListRowCount: normalizedRows.length,
+    blacklistedRowCount: normalizedRows.length - blacklistFilteredRows.length,
+    duplicateRowCount: blacklistFilteredRows.length - dedupedRows.length,
+    dedupedRowCount: dedupedRows.length,
+    selectedTop20RowCount: rows.length,
+    duplicateNames: [...duplicateNames].slice(0, MAX_DUPLICATE_NAMES_TO_LOG)
+  };
+}
+
 function keysOf(value: unknown) {
   return isRec(value) ? Object.keys(value).sort() : [];
 }
@@ -104,9 +165,6 @@ function keysOf(value: unknown) {
 function listRows(payload: unknown): { rows: unknown[]; path: string } {
   if (!isRec(payload)) return { rows: [], path: "none" };
   if (Array.isArray(payload.etfs)) return { rows: payload.etfs, path: "etfs" };
-  if (Array.isArray(payload.data)) return { rows: payload.data, path: "data" };
-  if (Array.isArray(payload.results)) return { rows: payload.results, path: "results" };
-  if (Array.isArray(payload.portfolios)) return { rows: payload.portfolios, path: "portfolios" };
   return { rows: [], path: "none" };
 }
 
@@ -175,9 +233,13 @@ export async function refreshCongressionalPortfolios() {
     listFetchStatus: null as number | null,
     rawListRowCount: 0,
     normalizedListRowCount: 0,
+    blacklistedRowCount: 0,
+    duplicateRowCount: 0,
+    dedupedRowCount: 0,
     selectedTop20RowCount: 0,
     portfolioRowsUpserted: 0,
     tradeRowsUpserted: 0,
+    duplicateNames: [] as string[],
     listTopLevelKeys: [] as string[],
     detectedListRowPath: "none",
     skippedRows: {} as Record<string, number>,
@@ -213,29 +275,47 @@ export async function refreshCongressionalPortfolios() {
   diagnostics.detectedListRowPath = listExtraction.path;
   const rawRows = listExtraction.rows;
   diagnostics.rawListRowCount = rawRows.length;
-  const normalizedRows = rawRows.flatMap((raw) => {
-    const { row, skipReason } = normalizeListRow(raw);
-    if (!row) {
-      skip(skipReason ?? "invalid_list_row");
-      return [];
-    }
-    return [row];
-  });
-  diagnostics.normalizedListRowCount = normalizedRows.length;
-  const rows = normalizedRows
-    .sort((a, b) => (b.ytdReturn ?? -Infinity) - (a.ytdReturn ?? -Infinity))
-    .slice(0, 20)
-    .map((r, index) => ({ ...r, rank: index + 1, fetchedAt }));
-  diagnostics.selectedTop20RowCount = rows.length;
+  if (listExtraction.path !== "etfs") {
+    const error = "Unusual Whales congressional portfolios response did not include json.etfs rows";
+    console.warn("congressional_refresh_failed", {
+      stage: "list_parse",
+      topLevelKeys: diagnostics.listTopLevelKeys,
+      detectedRowPath: diagnostics.detectedListRowPath
+    });
+    return { ok: false as const, error, count: 0, upserted: 0, meta: diagnostics };
+  }
+  const selection = selectTopCongressionalPortfolioRows(rawRows, fetchedAt);
+  for (const [reason, amount] of Object.entries(selection.skippedRows)) skip(reason, amount);
+  diagnostics.normalizedListRowCount = selection.normalizedListRowCount;
+  diagnostics.blacklistedRowCount = selection.blacklistedRowCount;
+  diagnostics.duplicateRowCount = selection.duplicateRowCount;
+  diagnostics.dedupedRowCount = selection.dedupedRowCount;
+  diagnostics.selectedTop20RowCount = selection.selectedTop20RowCount;
+  diagnostics.duplicateNames = selection.duplicateNames;
+  const rows = selection.rows;
   console.info("congressional_list_normalized", {
     topLevelKeys: diagnostics.listTopLevelKeys,
     detectedRowPath: diagnostics.detectedListRowPath,
     rawListRowCount: diagnostics.rawListRowCount,
     normalizedListRowCount: diagnostics.normalizedListRowCount,
+    blacklistedRows: diagnostics.blacklistedRowCount,
+    duplicateRowCount: diagnostics.duplicateRowCount,
+    dedupedRowCount: diagnostics.dedupedRowCount,
     selectedTop20RowCount: diagnostics.selectedTop20RowCount,
+    duplicateNames: diagnostics.duplicateNames,
     skippedRows: diagnostics.skippedRows,
     warnings: diagnostics.warnings
   });
+  if (rows.length < 20) {
+    diagnostics.warnings.push(`congressional_less_than_20_valid_unique_rows:${rows.length}`);
+    console.warn("congressional_less_than_20_valid_unique_rows", {
+      selectedTop20RowCount: rows.length,
+      rawListRowCount: diagnostics.rawListRowCount,
+      normalizedListRowCount: diagnostics.normalizedListRowCount,
+      blacklistedRows: diagnostics.blacklistedRowCount,
+      dedupedRowCount: diagnostics.dedupedRowCount
+    });
+  }
 
   let tradesUpserted = 0;
   const portfolioRows = [];
@@ -357,6 +437,23 @@ export async function refreshCongressionalPortfolios() {
   }
 
   if (portfolioRows.length) {
+    const duplicatePortfolioKeys = portfolioRows
+      .map((r) => r.politician_key)
+      .filter((key, index, all) => all.indexOf(key) !== index);
+    if (duplicatePortfolioKeys.length) {
+      throw new Error(
+        `Congressional portfolios upsert batch contains duplicate politician keys: ${[
+          ...new Set(duplicatePortfolioKeys)
+        ]
+          .slice(0, MAX_DUPLICATE_NAMES_TO_LOG)
+          .join(", ")}`
+      );
+    }
+    console.info("congressional_portfolios_upsert_batch", {
+      rowCount: portfolioRows.length,
+      conflictKey: "politician_key",
+      duplicateConflictKeyCount: 0
+    });
     const { error } = await supabase.client
       .from(PORTFOLIOS_TABLE)
       .upsert(portfolioRows, { onConflict: "politician_key" });
