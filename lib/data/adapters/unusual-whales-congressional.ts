@@ -1,5 +1,4 @@
 import { createServerSupabaseClient } from "@/lib/db/supabase";
-import { extractArrayFromUnusualWhalesResponse } from "./unusual-whales-dark-pool";
 
 const TABLE = "unusual_whales_congressional_portfolios";
 const URL = "https://phx.unusualwhales.com/api/portfolios_v2";
@@ -15,8 +14,7 @@ const num = (v: unknown) => {
 };
 
 function headers(): Record<string, string> {
-  const token = process.env.UNUSUAL_WHALES_API_KEY ?? process.env.UW_API_KEY;
-  return token ? { accept: "application/json", authorization: `Bearer ${token}` } : { accept: "application/json" };
+  return { accept: "application/json" };
 }
 
 export type CongressionalPortfolio = {
@@ -28,7 +26,7 @@ export type CongressionalPortfolio = {
 
 function normalizeRow(raw: unknown): Omit<CongressionalPortfolio, "rank" | "fetchedAt"> | null {
   if (!isRec(raw)) return null;
-  const name = str(raw, ["name", "politician_name", "representative", "member_name"]);
+  const name = str(raw, ["name"]);
   if (!name) return null;
   return { name, ytdReturn: num(raw.ytd_return) };
 }
@@ -40,8 +38,8 @@ export async function refreshCongressionalPortfolios() {
   const response = await fetch(URL, { headers: headers(), cache: "no-store" });
   if (!response.ok) throw new Error(`Unusual Whales congressional portfolios fetch failed: ${response.status}`);
   const payload = await response.json();
-  const extracted = extractArrayFromUnusualWhalesResponse(payload);
-  const rows = extracted.rows
+  const rawRows = Array.isArray(payload) ? payload : isRec(payload) && Array.isArray(payload.data) ? payload.data : [];
+  const rows = rawRows
     .map(normalizeRow)
     .filter((r): r is Omit<CongressionalPortfolio, "rank" | "fetchedAt"> => Boolean(r))
     .sort((a, b) => (b.ytdReturn ?? -Infinity) - (a.ytdReturn ?? -Infinity))
@@ -56,7 +54,7 @@ export async function refreshCongressionalPortfolios() {
     const names = rows.map((r) => `"${r.name.replace(/"/g, '\\"')}"`).join(",");
     await supabase.client.from(TABLE).delete().not("name", "in", `(${names})`);
   }
-  return { ok: true as const, count: extracted.rows.length, upserted: rows.length, meta: { responsePath: extracted.path, normalized: rows.length } };
+  return { ok: true as const, count: rawRows.length, upserted: rows.length, meta: { responsePath: Array.isArray(payload) ? "root" : "data", normalized: rows.length } };
 }
 
 export async function getCachedCongressionalPortfolios() {

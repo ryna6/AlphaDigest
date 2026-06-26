@@ -269,12 +269,16 @@ export const STATUS_JOBS: StatusJob[] = [
     staleAfterMinutes: 2160
   },
   {
-    id: "ownership-congressional-trades",
+    id: "ownership-congressional-holdings",
     group: "Ownership",
     job: "Congressional Holdings",
-    functionName: "TBD",
-    source: "TBD",
-    frequency: "TBD"
+    functionName: "refresh-congressional-portfolios",
+    source: "Unusual Whales",
+    frequency: "Daily",
+    schedule: "0 10 * * *",
+    scheduleDescription: "Daily at 10:00 UTC.",
+    nextRunUtcRule: { hours: [10], minutes: [0] },
+    staleAfterMinutes: 2160
   },
   {
     id: "economy-sentiment-tbd",

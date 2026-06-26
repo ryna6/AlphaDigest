@@ -139,10 +139,15 @@ function activityLabel(r: Activity) {
   const change = base ? (r.unitsChange / Math.abs(base)) * 100 : null;
   return r.unitsChange > 0 ? `increased ${pct(change)}` : `decreased ${pct(change)}`;
 }
-function oiPct(r: OptionHolding) {
+function oiPctValue(r: OptionHolding) {
   const type = (r.putCall ?? "").toLowerCase();
   const denom = type.includes("put") ? r.putOi : type.includes("call") ? r.callOi : null;
-  return !denom || !r.units ? "—" : pct((r.units / denom) * 100);
+  if (denom == null || !Number.isFinite(denom) || denom <= 0 || r.units == null || !Number.isFinite(r.units)) return null;
+  return (r.units / denom) * 100;
+}
+function oiPct(r: OptionHolding) {
+  const value = oiPctValue(r);
+  return value == null ? "—" : `${value.toFixed(2)}%`;
 }
 function cap(v: string | null) {
   return v ? v.charAt(0).toUpperCase() + v.slice(1).toLowerCase() : "—";
@@ -383,7 +388,7 @@ function InstitutionDetail({
               {active.shortName || active.name}
             </p>
             <p className="mt-1 text-sm text-textMuted">
-              {active.description ?? "No description cached."}
+              {active.description ?? "No description available"}
             </p>
           </div>
           {[
@@ -518,7 +523,14 @@ function DetailTable({
                     </td>
                     <td className="border-b border-borderStrong/50 px-3 py-2">{num(r.units)}</td>
                     <td className="border-b border-borderStrong/50 px-3 py-2">{cap(r.putCall)}</td>
-                    <td className="border-b border-borderStrong/50 px-3 py-2">{oiPct(r)}</td>
+                    <td
+                      className={cn(
+                        "border-b border-borderStrong/50 px-3 py-2",
+                        (oiPctValue(r) ?? 0) > 25 ? "font-semibold text-warning" : "text-textPrimary"
+                      )}
+                    >
+                      {oiPct(r)}
+                    </td>
                     <td className="border-b border-borderStrong/50 px-3 py-2">
                       {date(r.asOfDate)}
                     </td>
@@ -564,7 +576,11 @@ function DetailTable({
       </table>
       {!rows.length ? (
         <p className="border border-dashed border-borderStrong p-3 text-sm text-textMuted">
-          No cached {screen.toLowerCase()} rows for this institution.
+          {screen === "Option Holdings"
+            ? "No option holdings for this institution."
+            : screen === "Activity"
+              ? "No activity for this institution."
+              : `No cached ${screen.toLowerCase()} rows for this institution.`}
         </p>
       ) : null}
     </div>

@@ -305,6 +305,7 @@ type TrackedOptionHolding = {
   fetchedAt: string;
 };
 type TrackedActivity = {
+  activityId: string;
   institutionName: string;
   ticker: string;
   reportDate: string;
@@ -399,7 +400,7 @@ function optionsUrl(slug: string) {
   return `https://phx.unusualwhales.com/api/institutions/${encodeURIComponent(slug)}/holdings?security_types[]=Option&slim=true`;
 }
 function activityUrl(slug: string) {
-  return `https://phx.unusualwhales.com/api/institutions/${encodeURIComponent(slug)}/activity?page=0&limit=35&ticker=`;
+  return `https://phx.unusualwhales.com/api/institutions/${encodeURIComponent(slug)}/activity?page=0&limit=50&ticker=`;
 }
 function historicalUrl(slug: string) {
   return `https://phx.unusualwhales.com/api/institutions/${encodeURIComponent(slug)}`;
@@ -515,6 +516,9 @@ function normalizeOption(
     fetchedAt
   };
 }
+function activityId(institutionName: string, ticker: string, reportDate: string, securityType: string | null) {
+  return [institutionName, ticker, reportDate, securityType ?? ""].join("|");
+}
 function normalizeActivity(
   raw: unknown,
   institutionName: string,
@@ -524,13 +528,15 @@ function normalizeActivity(
   const ticker = strAny(raw, ["ticker", "symbol", "underlying_symbol"])?.toUpperCase();
   const reportDate = dateOnly(strAny(raw, ["report_date", "date"]));
   if (!ticker || !reportDate) return null;
+  const securityType = strAny(raw, ["security_type", "type"]);
   return {
+    activityId: activityId(institutionName, ticker, reportDate, securityType),
     institutionName,
     ticker,
     reportDate,
     units: numAny(raw, ["units", "shares"]),
     unitsChange: numAny(raw, ["units_change", "change"]),
-    securityType: strAny(raw, ["security_type", "type"]),
+    securityType,
     buyPrice: numAny(raw, ["buy_price"]),
     sellPrice: numAny(raw, ["sell_price"]),
     close: numAny(raw, ["close", "price"]),
@@ -573,7 +579,9 @@ async function upsertTrackedInstitutionData() {
         .map((r) => normalizeOption(r, inst.name, inst.date, fetchedAt))
         .filter(Boolean) as TrackedOptionHolding[])
     );
-    const activityExtracted = extractArrayFromUnusualWhalesResponse(a);
+    const activityExtracted = isRec(a) && Array.isArray(a.data)
+      ? { rows: a.data, path: "data" }
+      : extractArrayFromUnusualWhalesResponse(a);
     let skippedMissingTicker = 0;
     let skippedMissingReportDate = 0;
     let skippedInvalid = 0;
@@ -605,7 +613,8 @@ async function upsertTrackedInstitutionData() {
       }
     });
   }
-  return { institutions, history, holdings, options, activity, activityDiagnostics };
+  const dedupedActivity = Array.from(new Map(activity.map((row) => [row.activityId, row])).values());
+  return { institutions, history, holdings, options, activity: dedupedActivity, activityDiagnostics };
 }
 
 async function persistTrackedData(
@@ -712,19 +721,20 @@ async function persistTrackedData(
   if (data.activity.length) {
     const { error } = await client.from(TRACKED_ACTIVITY).upsert(
       data.activity.map((r) => ({
+        activity_id: r.activityId,
         institution_name: r.institutionName,
         ticker: r.ticker,
         report_date: r.reportDate,
         units: r.units,
         units_change: r.unitsChange,
-        security_type: r.securityType ?? "Unknown",
+        security_type: r.securityType,
         buy_price: r.buyPrice,
         sell_price: r.sellPrice,
         close: r.close,
         fetched_at: r.fetchedAt,
         updated_at: r.fetchedAt
       })),
-      { onConflict: "institution_name,ticker,report_date,security_type" }
+      { onConflict: "activity_id" }
     );
     if (error) throw new Error(`Tracked institution activity upsert failed: ${error.message}`);
   }
@@ -850,7 +860,7 @@ export async function getCachedTrackedInstitutions(): Promise<TrackedInstitution
     supabase.client
       .from(TRACKED_ACTIVITY)
       .select(
-        "institution_name,ticker,report_date,units,units_change,security_type,buy_price,sell_price,close,fetched_at"
+        "activity_id,institution_name,ticker,report_date,units,units_change,security_type,buy_price,sell_price,close,fetched_at"
       )
       .order("report_date", { ascending: false })
   ]);
@@ -913,6 +923,7 @@ export async function getCachedTrackedInstitutions(): Promise<TrackedInstitution
       fetchedAt: r.fetched_at
     })),
     activity: (activity.data ?? []).map((r: any) => ({
+      activityId: r.activity_id,
       institutionName: r.institution_name,
       ticker: r.ticker,
       reportDate: r.report_date,
