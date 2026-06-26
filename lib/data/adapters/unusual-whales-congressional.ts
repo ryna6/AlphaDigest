@@ -33,7 +33,8 @@ const slug = (name: string) =>
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/^-|-$/g, "");
-const CONGRESSIONAL_BLACKLIST_KEYS = new Set(["William Harnisch", "Donald McEachin"].map(slug));
+export const CONGRESSIONAL_BLACKLIST_NAMES = ["William Harnisch", "Donald McEachin", "Ray Dalio"] as const;
+const CONGRESSIONAL_BLACKLIST_KEYS = new Set(CONGRESSIONAL_BLACKLIST_NAMES.map(slug));
 const skipKey = (reason: string) =>
   reason
     .replace(/[^a-z0-9]+/gi, "_")
@@ -259,6 +260,12 @@ export async function refreshCongressionalPortfolios() {
     const key = skipKey(reason);
     diagnostics.skippedRows[key] = (diagnostics.skippedRows[key] ?? 0) + amount;
   };
+
+  const blacklistKeys = [...CONGRESSIONAL_BLACKLIST_KEYS];
+  for (const table of [PORTFOLIOS_TABLE, TRADES_TABLE]) {
+    const prune = await supabase.client.from(table).delete().in("politician_key", blacklistKeys);
+    if (prune.error) diagnostics.warnings.push(`congressional_blacklist_prune_failed:${table}:${prune.error.message}`);
+  }
 
   const response = await fetch(LIST_URL, { headers: headers(), cache: "no-store" });
   diagnostics.listFetchStatus = response.status;
@@ -490,6 +497,25 @@ export async function refreshCongressionalPortfolios() {
   };
 }
 
+async function getCachedSpyYtdReturn(client: any) {
+  const history = await client
+    .from("unusual_whales_tracked_institution_history")
+    .select("report_date,spy_price")
+    .not("spy_price", "is", null)
+    .order("report_date", { ascending: false })
+    .limit(200);
+  if (history.error) return { value: null, notice: `SPY comparison cache read failed: ${history.error.message}` };
+  const rows = (history.data ?? []).map((r: any) => ({ reportDate: r.report_date, spyPrice: r.spy_price == null ? null : Number(r.spy_price) }));
+  const latest = rows.find((r: { reportDate: string; spyPrice: number | null }) => r.spyPrice != null && Number.isFinite(r.spyPrice));
+  if (!latest?.spyPrice) return { value: null, notice: null };
+  const d = new Date(`${latest.reportDate}T00:00:00Z`);
+  const target = new Date(Date.UTC(d.getUTCFullYear() - 1, 11, 31));
+  const baseline = rows
+    .filter((r: { reportDate: string; spyPrice: number | null }) => r.spyPrice != null && Number.isFinite(r.spyPrice) && new Date(`${r.reportDate}T00:00:00Z`) <= target)
+    .sort((a: { reportDate: string }, b: { reportDate: string }) => b.reportDate.localeCompare(a.reportDate))[0];
+  return { value: baseline?.spyPrice ? ((latest.spyPrice - baseline.spyPrice) / baseline.spyPrice) * 100 : null, notice: null };
+}
+
 export async function getCachedCongressionalPortfolios() {
   const supabase = createServerSupabaseClient();
   if (!supabase.ok) return { portfolios: [], trades: [], notices: [supabase.message] };
@@ -500,11 +526,13 @@ export async function getCachedCongressionalPortfolios() {
     )
     .order("rank", { ascending: true })
     .limit(20);
+  const spyYtd = await getCachedSpyYtdReturn(supabase.client);
   const tradesResult = await supabase.client
     .from(TRADES_TABLE)
     .select("politician_name,politician_key,symbol,transaction_date,asset,amounts,txn_type");
   return {
-    portfolios: (portfoliosResult.data ?? []).map((r: any) => ({
+    spyYtdReturn: spyYtd.value,
+    portfolios: (portfoliosResult.data ?? []).filter((r: any) => !CONGRESSIONAL_BLACKLIST_KEYS.has(slug(String(r.name ?? "")))).map((r: any) => ({
       name: r.name,
       politicianKey: r.politician_key,
       ytdReturn: r.ytd_return == null ? null : Number(r.ytd_return),
@@ -517,7 +545,7 @@ export async function getCachedCongressionalPortfolios() {
       currentDistrict: r.current_district,
       bio: r.bio
     })),
-    trades: (tradesResult.data ?? []).map((r: any) => ({
+    trades: (tradesResult.data ?? []).filter((r: any) => !CONGRESSIONAL_BLACKLIST_KEYS.has(slug(String(r.politician_name ?? r.politician_key ?? ""))) && !CONGRESSIONAL_BLACKLIST_KEYS.has(String(r.politician_key ?? ""))).map((r: any) => ({
       politicianName: r.politician_name,
       politicianKey: r.politician_key,
       symbol: r.symbol,
@@ -532,7 +560,8 @@ export async function getCachedCongressionalPortfolios() {
         : null,
       tradesResult.error
         ? `Congressional trades cache read failed: ${tradesResult.error.message}`
-        : null
+        : null,
+      spyYtd.notice
     ].filter(Boolean)
   };
 }
