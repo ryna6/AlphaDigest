@@ -57,7 +57,7 @@ const displayFirstCap = (v: string | null | undefined) =>
   v?.trim() ? `${v.trim().charAt(0).toUpperCase()}${v.trim().slice(1)}` : "—";
 const congressionalReturnValue = (value: number | null) => (value == null ? null : value * 100);
 const YTD_RETURNS_INFO =
-  "Unusual Whales estimates YTD returns by tracking disclosed holdings, incorporating reported trades, and valuing positions using current market prices. Since disclosures are delayed and positions are reported in value ranges, these figures are estimates rather than precise returns.";
+  "Unusual Whales tracks disclosed holdings, reported trades, and values positions using current market prices. Since disclosures are delayed and positions are reported in value ranges, these figures are estimates rather than precise returns.";
 
 function parseAmountRange(value: string | null | undefined): [number, number] | null {
   if (!value) return null;
