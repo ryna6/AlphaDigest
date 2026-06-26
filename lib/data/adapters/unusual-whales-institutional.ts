@@ -352,9 +352,15 @@ function latestTrackedQuarterEnd(now = new Date()) {
   return quarters[0]?.toISOString().slice(0, 10) ?? `${year - 1}-12-31`;
 }
 const strAny = (r: Rec, keys: string[]) => str(r, keys);
+function nestedValue(r: Rec, key: string) {
+  return key.split(".").reduce<unknown>((value, part) => {
+    if (!isRec(value)) return undefined;
+    return value[part];
+  }, r);
+}
 const numAny = (r: Rec, keys: string[]) => {
   for (const k of keys) {
-    const v = num(r[k]);
+    const v = num(k.includes(".") ? nestedValue(r, k) : r[k]);
     if (v != null) return v;
   }
   return null;
@@ -497,8 +503,8 @@ function normalizeOption(
     units: numAny(raw, ["units", "contracts"]),
     fullName: strAny(raw, ["full_name", "name"]),
     putCall: strAny(raw, ["put_call", "type", "option_type"]),
-    putOi: numAny(raw, ["put_oi", "put_open_interest"]),
-    callOi: numAny(raw, ["call_oi", "call_open_interest"]),
+    putOi: numAny(raw, ["oi.put_oi", "put_oi", "put_open_interest"]),
+    callOi: numAny(raw, ["oi.call_oi", "call_oi", "call_open_interest"]),
     fetchedAt
   };
 }

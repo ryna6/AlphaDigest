@@ -11,7 +11,7 @@ import { WhaleFeedTable } from "./whale-feed-table";
 import { formatStockPrice, money, signed } from "./flow-formatters";
 
 const INSIDER_SENTIMENT_TOOLTIP =
-  "This metric compares the total value of insider purchases to total insider trading activity.\n\nWhen the ratio > 0.5, insiders are buying more than they are selling, suggesting more bullish sentiment. When the ratio < 0.5, insiders are selling more than they are buying, suggesting more bearish sentiment.";
+  "This percentage is the value of insider purchases divided by total insider trading value (purchases plus absolute sales).\n\nAbove 50% means insiders are buying more than they are selling, suggesting more bullish sentiment. Below 50% means insiders are selling more than they are buying, suggesting more bearish sentiment.";
 
 const toneClass = {
   positive: "text-positive",
