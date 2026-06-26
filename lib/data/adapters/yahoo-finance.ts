@@ -24,13 +24,15 @@ type YahooQuoteResult = Record<string, unknown>;
 const yahooLabels: Record<string, string> = {
   "^VIX": "VIX",
   "^VIX3M": "VIX3M",
-  "ES=F": "S&P 500 Futures"
+  "ES=F": "S&P 500 Futures",
+  SPY: "SPY"
 };
 
 const chartSymbols: Record<string, string> = {
   "^VIX": "%5EVIX",
   "^VIX3M": "%5EVIX3M",
-  "ES=F": "ES=F"
+  "ES=F": "ES=F",
+  SPY: "SPY"
 };
 
 export function yahooNumber(value: unknown): number | null {
@@ -165,6 +167,38 @@ async function fetchJson(url: string, timeoutMs = 12_000, attempts = 2): Promise
   return null;
 }
 
+function firstValidClose(result: YahooChartResult): number | null {
+  const closes = result.indicators?.quote?.[0]?.close;
+  if (!Array.isArray(closes)) return null;
+  for (const close of closes) {
+    const value = yahooNumber(close);
+    if (value !== null && value > 0) return value;
+  }
+  return null;
+}
+
+export async function fetchYahooYtdReturn(symbol: "SPY") {
+  const now = new Date();
+  const period1 = Math.floor(Date.UTC(now.getUTCFullYear(), 0, 1) / 1000);
+  const period2 = Math.floor(Date.now() / 1000);
+  const encodedSymbol = chartSymbols[symbol] ?? encodeURIComponent(symbol);
+  const url = `https://query1.finance.yahoo.com/v8/finance/chart/${encodedSymbol}?period1=${period1}&period2=${period2}&interval=1d&lang=en-US&region=US`;
+  const json = await fetchJson(url);
+  if (!json || typeof json !== "object") return null;
+  const result = (json as { chart?: { result?: YahooChartResult[] } }).chart?.result?.[0];
+  if (!result) return null;
+  const start = firstValidClose(result);
+  const current =
+    yahooNumber(result.meta?.regularMarketPrice) ?? lastValidCloseBeforeMostRecent(result);
+  if (start === null || current === null || start <= 0) return null;
+  return {
+    symbol,
+    currentPrice: current,
+    startPrice: start,
+    ytdReturn: ((current - start) / start) * 100
+  };
+}
+
 async function fetchYahooChartQuote(symbol: string): Promise<YahooMarketQuote | null> {
   const encodedSymbol = chartSymbols[symbol] ?? encodeURIComponent(symbol);
   const period2 = Math.floor(Date.now() / 1000);
@@ -187,7 +221,7 @@ async function fetchYahooQuoteFallback(symbol: string): Promise<YahooMarketQuote
 }
 
 export async function fetchYahooMarketQuote(
-  symbol: "^VIX" | "^VIX3M" | "ES=F"
+  symbol: "^VIX" | "^VIX3M" | "ES=F" | "SPY"
 ): Promise<YahooMarketQuote | null> {
   const chartQuote = await fetchYahooChartQuote(symbol);
   if (chartQuote) return chartQuote;
@@ -199,7 +233,12 @@ import { payloadContentHash, sourceResult, updateRefreshMetadata } from "./supab
 import { stableHash } from "./unusual-whales-earnings";
 
 const MARKET_QUOTES_METADATA_SOURCE = "yahoo_market_quotes";
-const MARKET_QUOTE_SYMBOLS: Array<"^VIX" | "^VIX3M" | "ES=F"> = ["^VIX", "^VIX3M", "ES=F"];
+const MARKET_QUOTE_SYMBOLS: Array<"^VIX" | "^VIX3M" | "ES=F" | "SPY"> = [
+  "^VIX",
+  "^VIX3M",
+  "ES=F",
+  "SPY"
+];
 
 type CachedMarketQuotesResult = {
   quotes: YahooMarketQuote[];
@@ -367,7 +406,7 @@ export async function getCachedYahooMarketQuotes(
   };
 }
 
-export async function getCachedYahooMarketQuote(symbol: "^VIX" | "^VIX3M" | "ES=F") {
+export async function getCachedYahooMarketQuote(symbol: "^VIX" | "^VIX3M" | "ES=F" | "SPY") {
   const result = await getCachedYahooMarketQuotes([symbol]);
   return result.quotes.find((quote) => quote.symbol === symbol) ?? null;
 }

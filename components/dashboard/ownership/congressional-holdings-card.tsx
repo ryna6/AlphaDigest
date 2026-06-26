@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { ReturnValue } from "@/components/dashboard/ownership/return-value";
 import { SectionHeader } from "@/components/ui/section-header";
+import { InfoTooltip } from "@/components/ui/info-tooltip";
 
 export const congressionalSlug = (name: string) =>
   name
@@ -55,6 +56,8 @@ const displayCap = (v: string | null | undefined) =>
 const displayFirstCap = (v: string | null | undefined) =>
   v?.trim() ? `${v.trim().charAt(0).toUpperCase()}${v.trim().slice(1)}` : "—";
 const congressionalReturnValue = (value: number | null) => (value == null ? null : value * 100);
+const YTD_RETURNS_INFO =
+  "Unusual Whales estimates a politician's YTD return by tracking their disclosed holdings, applying reported trades, and comparing the portfolio's estimated value at the start of the year to its current value using current market prices. Because disclosures are delayed and reported in value ranges, the returns are estimates rather than exact results.";
 
 function parseAmountRange(value: string | null | undefined): [number, number] | null {
   if (!value) return null;
@@ -195,7 +198,14 @@ function PortfolioTable({ rows, spy }: { rows: Portfolio[]; spy: number | null }
           <tr>
             {headers.map((h) => (
               <th className="border-b border-borderStrong px-3 py-2 font-medium" key={h}>
-                {h}
+                {h === "YTD Returns" ? (
+                  <span className="inline-flex items-center gap-1.5">
+                    {h}
+                    <InfoTooltip text={YTD_RETURNS_INFO} placement="top" />
+                  </span>
+                ) : (
+                  h
+                )}
               </th>
             ))}
           </tr>
@@ -298,7 +308,7 @@ function PoliticianDetail({
               ["Party", displayCap(active.currentParty)],
               ["District", active.currentDistrict ?? "—"],
               [
-                "YTD",
+                "YTD Returns",
                 <ReturnValue
                   key="ytd"
                   value={congressionalReturnValue(active.ytdReturn)}
@@ -308,7 +318,12 @@ function PoliticianDetail({
               ]
             ].map(([label, value]) => (
               <div key={String(label)} className="px-3 py-2">
-                <p className="text-xs uppercase tracking-wide text-textMuted">{label}</p>
+                <p className="inline-flex items-center justify-center gap-1.5 text-xs uppercase tracking-wide text-textMuted">
+                  {label}
+                  {label === "YTD Returns" ? (
+                    <InfoTooltip text={YTD_RETURNS_INFO} placement="top" />
+                  ) : null}
+                </p>
                 <p className="mt-1 font-medium text-textPrimary">{value}</p>
               </div>
             ))}
@@ -411,9 +426,7 @@ function TickerTrades({
                 <td className="border-b border-borderStrong/50 px-3 py-2 text-textPrimary">
                   {r.symbol ?? "—"}
                 </td>
-                <td
-                  className={`border-b border-borderStrong/50 px-3 py-2 ${transactionToneClass(r.txnType)}`}
-                >
+                <td className="border-b border-borderStrong/50 px-3 py-2 text-textMuted">
                   {displayFirstCap(r.asset)}
                 </td>
                 <td
