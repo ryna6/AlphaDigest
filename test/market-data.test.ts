@@ -20,6 +20,7 @@ import {
 } from "../lib/data/adapters/unusual-whales-news";
 import { WHALE_FEED_RETENTION_DAYS } from "../lib/data/adapters/unusual-whales-whale-feed";
 import { INSIDER_TRADES_LOOKBACK_MONTHS } from "../lib/data/insider-window";
+import { selectTopCongressionalPortfolioRows } from "../lib/data/adapters/unusual-whales-congressional";
 
 test("Unusual Whales ad stripper removes known promo text across tag boundaries", () => {
   const html = `<p>Lead section.</p>
@@ -66,6 +67,36 @@ test("Unusual Whales article cleanup keeps valid text around hr sections", () =>
 test("Flow retention constants match requested source-table windows", () => {
   assert.equal(WHALE_FEED_RETENTION_DAYS, 14);
   assert.equal(INSIDER_TRADES_LOOKBACK_MONTHS, 6);
+});
+
+test("Congressional portfolio selection blacklists and dedupes before top 20", () => {
+  const rawRows = [
+    { name: "William Harnisch", ytd_return: "999", ids: ["blacklisted-1"] },
+    { name: " Donald   McEachin ", ytd_return: "998", ids: ["blacklisted-2"] },
+    { name: "Michael McCaul", ytd_return: "12.5", ids: ["old"] },
+    { name: " michael   mccaul ", ytd_return: "45.5", ids: ["new"] },
+    { name: "No Return", ytd_return: null },
+    ...Array.from({ length: 21 }, (_, index) => ({
+      name: `Politician ${index + 1}`,
+      ytd_return: String(50 - index),
+      ids: [`id-${index + 1}`]
+    }))
+  ];
+  const selected = selectTopCongressionalPortfolioRows(rawRows, "2026-06-26T00:00:00.000Z");
+  assert.equal(selected.blacklistedRowCount, 2);
+  assert.equal(selected.duplicateRowCount, 1);
+  assert.equal(selected.dedupedRowCount, 22);
+  assert.equal(selected.selectedTop20RowCount, 20);
+  assert.deepEqual(
+    selected.rows.filter((row) => /harnisch|mceachin/i.test(row.name)),
+    []
+  );
+  assert.equal(selected.rows.some((row) => row.politicianKey === "michael-mccaul"), true);
+  assert.equal(new Set(selected.rows.map((row) => row.politicianKey)).size, selected.rows.length);
+  assert.deepEqual(
+    selected.rows.find((row) => row.politicianKey === "michael-mccaul")?.ids?.sort(),
+    ["new", "old"]
+  );
 });
 
 test("Cboe daily fallback URL includes Toronto date query", () => {
