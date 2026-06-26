@@ -16,7 +16,7 @@ export function DarkPoolTable({
       <table className="w-full min-w-[760px] border-collapse text-left text-[13px]">
         <thead className="bg-sidebar text-textMuted">
           <tr>
-            {["Time", "Ticker", "Sector", "Price", "Premium", "Size", "% Vol", "% 30D Vol"].map((h) => (
+            {["Time", "Ticker", "Sector", "Price", "Value", "Size", "% Vol", "% 30D Vol"].map((h) => (
               <th key={h} className="border-b border-borderStrong px-3 py-2 font-medium">
                 {h}
               </th>
