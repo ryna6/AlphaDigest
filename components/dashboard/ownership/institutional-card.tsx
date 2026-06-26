@@ -547,7 +547,7 @@ function DetailTable({
                     <td
                       className={cn(
                         "border-b border-borderStrong/50 px-3 py-2",
-                        (oiPctValue(r) ?? 0) > 25 ? "font-semibold text-warning" : "text-textPrimary"
+                        (oiPctValue(r) ?? 0) > 25 ? "font-semibold text-positive" : "text-textPrimary"
                       )}
                     >
                       {oiPct(r)}
