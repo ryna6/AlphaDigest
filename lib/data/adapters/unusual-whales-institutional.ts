@@ -359,6 +359,11 @@ const numAny = (r: Rec, keys: string[]) => {
   }
   return null;
 };
+const nestedNumAny = (r: Rec, parentKey: string, keys: string[]) => {
+  const parent = r[parentKey];
+  if (!isRec(parent)) return null;
+  return numAny(parent, keys);
+};
 function firstArray(payload: unknown) {
   return extractArrayFromUnusualWhalesResponse(payload).rows;
 }
@@ -497,8 +502,12 @@ function normalizeOption(
     units: numAny(raw, ["units", "contracts"]),
     fullName: strAny(raw, ["full_name", "name"]),
     putCall: strAny(raw, ["put_call", "type", "option_type"]),
-    putOi: numAny(raw, ["put_oi", "put_open_interest"]),
-    callOi: numAny(raw, ["call_oi", "call_open_interest"]),
+    putOi:
+      nestedNumAny(raw, "oi", ["put_oi", "put_open_interest"]) ??
+      numAny(raw, ["put_oi", "put_open_interest"]),
+    callOi:
+      nestedNumAny(raw, "oi", ["call_oi", "call_open_interest"]) ??
+      numAny(raw, ["call_oi", "call_open_interest"]),
     fetchedAt
   };
 }

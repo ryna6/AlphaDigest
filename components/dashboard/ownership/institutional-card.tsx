@@ -151,7 +151,7 @@ function ReturnValue({ value, spy }: { value: number | null; spy: number | null 
   return (
     <span className="group relative inline-block">
       <span className={deltaClass(value)}>{pct(value)}</span>
-      <span className="pointer-events-none absolute left-0 top-6 z-50 hidden min-w-44 border border-borderStrong bg-sidebar p-2 text-xs text-textSecondary opacity-100 shadow-xl shadow-black/40 group-hover:block">
+      <span className="pointer-events-none absolute left-0 top-6 z-[9999] hidden min-w-44 border border-borderStrong bg-background p-2 text-xs text-textSecondary opacity-100 shadow-2xl shadow-black/60 group-hover:block">
         <span className="block">SPY: {pct(spy)}</span>
         <span className={cn("block", deltaClass(diff))}>
           {diff == null
@@ -265,7 +265,7 @@ export function InstitutionalCard({
 
 function InstitutionTable({ rows }: { rows: Institution[] }) {
   return (
-    <div className="scrollbar-thin overflow-auto rounded-none border border-borderStrong">
+    <div className="scrollbar-thin overflow-x-auto overflow-y-visible rounded-none border border-borderStrong">
       <table className="w-full min-w-[760px] border-collapse text-left text-[13px]">
         <thead className="sticky top-0 bg-sidebar text-textMuted">
           <tr>
@@ -430,7 +430,7 @@ function DetailTable({
                   "% Change",
                   "Average Price",
                   "Value",
-                  "% Portfolio"
+                  "% of Portfolio"
                 ]
               : screen === "Option Holdings"
                 ? ["Ticker", "Name", "Units", "Type", "% of OI", "As of Date"]
