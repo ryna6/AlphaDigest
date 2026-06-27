@@ -11,6 +11,7 @@ import type {
 import { PageTitle } from "@/components/dashboard/page-title";
 import { Panel } from "@/components/ui/panel";
 import { SectionHeader } from "@/components/ui/section-header";
+import { InfoTooltip } from "@/components/ui/info-tooltip";
 import { formatEtDateKey, formatEtDateTime, formatEtTime, timestampTitle } from "@/lib/utils/time";
 import { cn } from "@/lib/utils/cn";
 import { getMajorEarningsForDate, groupEarningsBySession } from "@/lib/data/earnings-utils";
@@ -18,6 +19,9 @@ import { getEconomicActualTone } from "@/lib/data/economic-surprise";
 
 export type WeekOffset = -1 | 0 | 1;
 type EarningsGroupKey = "premarket" | "postmarket";
+
+const earningsPutCallInfoText =
+  "< 0.5 = Very Call-Heavy\n0.5–0.8 = Bullish\n0.8–1.2 = Neutral\n1.2–1.8 = Put-Heavy\n> 1.8 = Extremely Put-Heavy.";
 
 export type DaySelection = {
   weekOffset: WeekOffset;
@@ -223,6 +227,30 @@ function formatMovePct(value: number | null | undefined) {
     : `${value.toFixed(1)}%`;
 }
 
+function earningsPutCallRatio(event: UnusualWhalesEarningsEvent) {
+  if (
+    event.putVolume === null ||
+    event.putVolume === undefined ||
+    !Number.isFinite(event.putVolume)
+  ) {
+    return null;
+  }
+  if (
+    event.callVolume === null ||
+    event.callVolume === undefined ||
+    !Number.isFinite(event.callVolume) ||
+    event.callVolume === 0
+  ) {
+    return null;
+  }
+  return event.putVolume / event.callVolume;
+}
+
+function formatEarningsPutCallRatio(event: UnusualWhalesEarningsEvent) {
+  const ratio = earningsPutCallRatio(event);
+  return ratio === null || !Number.isFinite(ratio) ? "—" : ratio.toFixed(2);
+}
+
 function companyInitials(symbol: string) {
   return symbol.slice(0, 2).toUpperCase();
 }
@@ -241,6 +269,7 @@ function isUnusualWhalesPlaceholderLogo(logo: string | null | undefined) {
 function EarningsRow({ event }: { event: UnusualWhalesEarningsEvent }) {
   const logoSrc = event.logo && !isUnusualWhalesPlaceholderLogo(event.logo) ? event.logo : null;
   const showInitials = !event.logo;
+  const putCallRatio = formatEarningsPutCallRatio(event);
   return (
     <div className="flex items-center gap-3 rounded-xl border border-borderStrong/70 bg-surfaceSubtle/60 px-3 py-2.5">
       <div className="flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-full border border-borderStrong bg-panel text-[11px] font-bold text-textSecondary">
@@ -257,12 +286,23 @@ function EarningsRow({ event }: { event: UnusualWhalesEarningsEvent }) {
           <div className="truncate text-xs text-textMuted">{event.companyName}</div>
         ) : null}
       </div>
-      <div className="flex shrink-0 flex-col items-end justify-center text-right">
-        <div className="flex h-4 items-center justify-end text-[10px] uppercase leading-none tracking-[0.18em] text-textMuted">
-          Implied Move
+      <div className="flex shrink-0 items-center gap-5 text-right">
+        <div className="flex flex-col items-end justify-center">
+          <div className="flex h-4 items-center justify-end gap-1 text-[10px] uppercase leading-none tracking-[0.18em] text-textMuted">
+            Put/Call Ratio
+            <InfoTooltip text={earningsPutCallInfoText} placement="top" size="compact" />
+          </div>
+          <div className="tabular text-sm font-semibold leading-5 text-textPrimary">
+            {putCallRatio}
+          </div>
         </div>
-        <div className="tabular text-sm font-semibold leading-5 text-textPrimary">
-          {formatMovePct(event.impliedMovePct)}
+        <div className="flex flex-col items-end justify-center">
+          <div className="flex h-4 items-center justify-end text-[10px] uppercase leading-none tracking-[0.18em] text-textMuted">
+            Implied Move
+          </div>
+          <div className="tabular text-sm font-semibold leading-5 text-textPrimary">
+            {formatMovePct(event.impliedMovePct)}
+          </div>
         </div>
       </div>
     </div>
