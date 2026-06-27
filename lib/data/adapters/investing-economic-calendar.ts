@@ -451,8 +451,6 @@ function economicToDbRow(event: InvestingEconomicEvent) {
     previous: event.previous,
     is_highlighted: event.isHighlighted,
     highlight_reason: event.highlightReason,
-    country: event.country,
-    source_name: event.source,
     source_url: buildInvestingEconomicCalendarUrl(event.eventDate),
     raw: event.raw,
     content_hash: eventContentHash(event),
@@ -481,7 +479,7 @@ function economicFromDbRow(row: UnknownRecord): InvestingEconomicEvent {
     previous: asString(row.previous),
     isHighlighted: Boolean(row.is_highlighted),
     highlightReason: asString(row.highlight_reason),
-    country: asString(row.country),
+    country: null,
     fetchedAt: asString(row.fetched_at) ?? new Date().toISOString(),
     raw: isRecord(row.raw) ? row.raw : {}
   };
@@ -634,7 +632,9 @@ export async function getCachedInvestingEconomicCalendar(
   if (!supabase.ok) return { events: [], mode: "unavailable", message: supabase.message };
   const { data, error } = await supabase.client
     .from("investing_economic_events")
-    .select("*")
+    .select(
+      "id,event_id,event_key,event_name,event_date,time,event_time,importance,stars,actual,forecast,previous,is_highlighted,highlight_reason,source_url,raw,content_hash,fetched_at,updated_at"
+    )
     .eq("event_date", dateKey)
     .order("event_time", { ascending: true, nullsFirst: false });
   if (error || !data?.length) {

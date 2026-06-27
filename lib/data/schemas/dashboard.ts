@@ -78,25 +78,18 @@ export const unusualWhalesEarningsEventSchema = z.object({
   marketTime: z.string().nullable(),
   sector: z.string().nullable(),
   countryCode: z.string().nullable(),
-  countryName: z.string().nullable(),
   isSp500: z.boolean(),
   hasOptions: z.boolean(),
   marketCapSize: z.string().nullable(),
   marketCap: z.number().nullable(),
-  currentPrice: z.number().nullable(),
-  previousPrice: z.number().nullable(),
   openInterest: z.number().nullable(),
   callVolume: z.number().nullable(),
   putVolume: z.number().nullable(),
-  stockVolume: z.number().nullable(),
   expectedMove: z.number().nullable(),
   impliedMove: z.number().nullable(),
   impliedMovePct: z.number().nullable().default(null),
   streetMeanEstimate: z.number().nullable(),
   epsMeanEstimate: z.number().nullable(),
-  lastEarningsDate: z.string().nullable(),
-  priceLastEarnings: z.number().nullable(),
-  lastOneDayReactions: z.array(z.number()),
   raw: z.record(z.string(), z.unknown()),
   contentHash: z.string(),
   fetchedAt: z.string()
@@ -204,16 +197,18 @@ export const flowPayloadSchema = z.object({
   darkPool: z.array(darkPoolFlowRowSchema),
   whaleTrades: z.array(whaleFeedRowSchema),
   insiderTrades: z.array(insiderCompanyAggregateSchema),
-  diagnostics: z.object({
-    insiderLookbackMonths: z.number().optional(),
-    insiderRowsUsed: z.number().optional(),
-    insiderCompaniesAggregated: z.number().optional(),
-    insiderSource: z.string().optional(),
-    darkPoolWindowDays: z.number().optional(),
-    darkPoolRowsUsed: z.number().optional(),
-    whaleFeedRowsUsed: z.number().optional(),
-    whaleFeedSource: z.string().optional()
-  }).optional(),
+  diagnostics: z
+    .object({
+      insiderLookbackMonths: z.number().optional(),
+      insiderRowsUsed: z.number().optional(),
+      insiderCompaniesAggregated: z.number().optional(),
+      insiderSource: z.string().optional(),
+      darkPoolWindowDays: z.number().optional(),
+      darkPoolRowsUsed: z.number().optional(),
+      whaleFeedRowsUsed: z.number().optional(),
+      whaleFeedSource: z.string().optional()
+    })
+    .optional(),
   sourceMeta: z.array(sourceMetaSchema),
   notices: z.array(z.string()).default([])
 });
