@@ -516,7 +516,12 @@ function normalizeOption(
     fetchedAt
   };
 }
-function activityId(institutionName: string, ticker: string, reportDate: string, securityType: string | null) {
+function activityId(
+  institutionName: string,
+  ticker: string,
+  reportDate: string,
+  securityType: string | null
+) {
   return [institutionName, ticker, reportDate, securityType ?? ""].join("|");
 }
 function normalizeActivity(
@@ -579,12 +584,14 @@ async function upsertTrackedInstitutionData() {
         .map((r) => normalizeOption(r, inst.name, inst.date, fetchedAt))
         .filter(Boolean) as TrackedOptionHolding[])
     );
-    const activityExtracted = isRec(a) && Array.isArray(a.data)
-      ? { rows: a.data, path: "data" }
-      : extractArrayFromUnusualWhalesResponse(a);
+    const activityExtracted =
+      isRec(a) && Array.isArray(a.data)
+        ? { rows: a.data, path: "data" }
+        : extractArrayFromUnusualWhalesResponse(a);
     let skippedMissingTicker = 0;
     let skippedMissingReportDate = 0;
     let skippedInvalid = 0;
+    let skippedWarrantSecurityType = 0;
     const normalizedActivity = activityExtracted.rows
       .map((r) => {
         if (!isRec(r)) {
@@ -598,12 +605,27 @@ async function upsertTrackedInstitutionData() {
         return normalizeActivity(r, inst.name, fetchedAt);
       })
       .filter(Boolean) as TrackedActivity[];
-    activity.push(...normalizedActivity);
+    const latestReportDate =
+      normalizedActivity.map((row) => row.reportDate).sort((a, b) => b.localeCompare(a))[0] ?? null;
+    const latestQuarterActivity = normalizedActivity.filter((row) => {
+      if ((row.securityType ?? "").trim().toLowerCase() === "warrant") {
+        skippedWarrantSecurityType++;
+        return false;
+      }
+      return row.reportDate === latestReportDate;
+    });
+    const skippedOlderQuarters =
+      normalizedActivity.length - latestQuarterActivity.length - skippedWarrantSecurityType;
+    activity.push(...latestQuarterActivity);
     activityDiagnostics.push({
       institution: inst.name,
       slug,
       responsePath: activityExtracted.path,
       fetchedRows: activityExtracted.rows.length,
+      latestReportDate,
+      rowsKeptLatestQuarter: latestQuarterActivity.length,
+      rowsSkippedOlderQuarters: skippedOlderQuarters,
+      rowsSkippedWarrantSecurityType: skippedWarrantSecurityType,
       normalizedRows: normalizedActivity.length,
       skippedRows: activityExtracted.rows.length - normalizedActivity.length,
       skippedReasons: {
@@ -613,8 +635,17 @@ async function upsertTrackedInstitutionData() {
       }
     });
   }
-  const dedupedActivity = Array.from(new Map(activity.map((row) => [row.activityId, row])).values());
-  return { institutions, history, holdings, options, activity: dedupedActivity, activityDiagnostics };
+  const dedupedActivity = Array.from(
+    new Map(activity.map((row) => [row.activityId, row])).values()
+  );
+  return {
+    institutions,
+    history,
+    holdings,
+    options,
+    activity: dedupedActivity,
+    activityDiagnostics
+  };
 }
 
 async function persistTrackedData(
@@ -739,6 +770,31 @@ async function persistTrackedData(
     if (error) throw new Error(`Tracked institution activity upsert failed: ${error.message}`);
   }
   for (const diagnostic of data.activityDiagnostics) {
+    const latestReportDate =
+      typeof diagnostic.latestReportDate === "string" ? diagnostic.latestReportDate : null;
+    const institution = String(diagnostic.institution ?? "");
+    if (institution) {
+      const warrantPrune = await client
+        .from(TRACKED_ACTIVITY)
+        .delete()
+        .eq("institution_name", institution)
+        .ilike("security_type", "warrant");
+      if (warrantPrune.error)
+        throw new Error(
+          `Tracked institution activity warrant prune failed: ${warrantPrune.error.message}`
+        );
+      if (latestReportDate) {
+        const olderPrune = await client
+          .from(TRACKED_ACTIVITY)
+          .delete()
+          .eq("institution_name", institution)
+          .neq("report_date", latestReportDate);
+        if (olderPrune.error)
+          throw new Error(
+            `Tracked institution activity quarter prune failed: ${olderPrune.error.message}`
+          );
+      }
+    }
     console.info("tracked_institution_activity_refresh", {
       ...diagnostic,
       upsertedRows: data.activity.filter((row) => row.institutionName === diagnostic.institution)

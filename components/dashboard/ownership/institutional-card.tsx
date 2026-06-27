@@ -3,7 +3,12 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { SectionHeader } from "@/components/ui/section-header";
-import { ReturnValue, returnPct, returnToneClass } from "@/components/dashboard/ownership/return-value";
+import { InfoTooltip } from "@/components/ui/info-tooltip";
+import {
+  ReturnValue,
+  returnPct,
+  returnToneClass
+} from "@/components/dashboard/ownership/return-value";
 import { cn } from "@/lib/utils/cn";
 import { formatCompactNumber, formatMarketCap } from "@/lib/utils/formatters";
 
@@ -56,6 +61,19 @@ type Activity = {
   sellPrice: number | null;
   close: number | null;
 };
+
+const YTD_RETURNS_INFO =
+  "Unusual Whales tracks disclosed institutional holdings, estimates trade timing from filing data, and values positions using market prices. Because 13F filings are delayed, actual trade dates are unknown, and institutions may have changed or closed positions at any time after filing, these performance figures are estimates rather than exact returns.";
+const BUY_VALUE_INFO =
+  "Unusual Whales estimate the total dollar value of securities an institution added from its portfolio during the reported quarter. These figures are derived from changes between consecutive 13F filings and represent estimated trading activity, not exact transaction values, as the timing and prices of individual trades are not disclosed.";
+const SELL_VALUE_INFO =
+  "Unusual Whales estimate the total dollar value of securities an institution reduced from its portfolio during the reported quarter. These figures are derived from changes between consecutive 13F filings and represent estimated trading activity, not exact transaction values, as the timing and prices of individual trades are not disclosed.";
+const INSTITUTION_HEADER_INFO: Record<string, string | undefined> = {
+  "YTD Returns": YTD_RETURNS_INFO,
+  "Buy Value": BUY_VALUE_INFO,
+  "Sell Value": SELL_VALUE_INFO
+};
+
 type Payload = {
   tracked?: {
     institutions: Institution[];
@@ -135,16 +153,25 @@ function activityValue(r: Activity) {
   const value = r.units != null && r.close != null ? r.units * r.close : null;
   return value != null && Number.isFinite(value) ? value : null;
 }
+
 function activityToneClass(r: Activity) {
   const label = activityLabel(r).toLowerCase();
-  if (label.startsWith("sold out") || label.startsWith("reduced") || label.startsWith("decreased")) return "text-negative";
+  if (label.startsWith("sold out") || label.startsWith("reduced") || label.startsWith("decreased"))
+    return "text-negative";
   if (label.startsWith("new position") || label.startsWith("increased")) return "text-positive";
   return "text-textMuted";
 }
 function oiPctValue(r: OptionHolding) {
   const type = (r.putCall ?? "").toLowerCase();
   const denom = type.includes("put") ? r.putOi : type.includes("call") ? r.callOi : null;
-  if (denom == null || !Number.isFinite(denom) || denom <= 0 || r.units == null || !Number.isFinite(r.units)) return null;
+  if (
+    denom == null ||
+    !Number.isFinite(denom) ||
+    denom <= 0 ||
+    r.units == null ||
+    !Number.isFinite(r.units)
+  )
+    return null;
   return (r.units / denom) * 100;
 }
 function oiPct(r: OptionHolding) {
@@ -279,7 +306,12 @@ function InstitutionTable({ rows }: { rows: Institution[] }) {
               "Report Period"
             ].map((h) => (
               <th className="border-b border-borderStrong px-3 py-2 font-medium" key={h}>
-                {h}
+                <span className="inline-flex items-center gap-1.5">
+                  {h}
+                  {INSTITUTION_HEADER_INFO[h] ? (
+                    <InfoTooltip text={INSTITUTION_HEADER_INFO[h]} placement="right" />
+                  ) : null}
+                </span>
               </th>
             ))}
           </tr>
@@ -497,7 +529,9 @@ function DetailTable({
                     <td
                       className={cn(
                         "border-b border-borderStrong/50 px-3 py-2",
-                        (oiPctValue(r) ?? 0) > 25 ? "font-semibold text-positive" : "text-textPrimary"
+                        (oiPctValue(r) ?? 0) > 25
+                          ? "font-semibold text-positive"
+                          : "text-textPrimary"
                       )}
                     >
                       {oiPct(r)}
@@ -516,7 +550,12 @@ function DetailTable({
                       <td className="border-b border-borderStrong/50 px-3 py-2">
                         {r.securityType ?? "—"}
                       </td>
-                      <td className={cn("border-b border-borderStrong/50 px-3 py-2", activityToneClass(r))}>
+                      <td
+                        className={cn(
+                          "border-b border-borderStrong/50 px-3 py-2",
+                          activityToneClass(r)
+                        )}
+                      >
                         {activityLabel(r)}
                       </td>
                       <td className="border-b border-borderStrong/50 px-3 py-2">{price(p)}</td>
