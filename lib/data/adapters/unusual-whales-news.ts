@@ -432,7 +432,6 @@ import { payloadContentHash, sourceResult, updateRefreshMetadata } from "./supab
 import { stableHash } from "./unusual-whales-earnings";
 
 const NEWS_METADATA_SOURCE = "unusual_whales_news_feed";
-const NEWS_RETENTION_DAYS = 3;
 const FEATURED_METADATA_SOURCE = "unusual_whales_featured_articles";
 
 type CachedNewsResult = NewsFetchResult & { metadata?: Record<string, unknown> | null };
@@ -442,6 +441,7 @@ function newsContentHash(item: NewsItem) {
   return stableHash({
     headline: item.headline,
     timestamp: item.timestamp,
+    tickers: item.tickers,
     sourceUrl: item.sourceUrl,
     publisher: item.publisher,
     sentiment: item.sentiment,
@@ -461,9 +461,15 @@ function newsToDbRow(item: NewsItem, fetchedAt: string) {
     id,
     headline: item.headline,
     event_time: item.timestamp,
+    tickers: item.tickers,
+    why_it_matters: item.whyItMatters,
     source_name: item.source ?? item.publisher ?? "Unusual Whales",
     source_url: item.sourceUrl ?? null,
     publisher: item.publisher ?? item.source ?? "Unusual Whales",
+    sentiment: item.sentiment ?? null,
+    major: item.major ?? null,
+    category: item.category ?? null,
+    impact: item.impact ?? null,
     raw: item,
     content_hash: newsContentHash(item),
     fetched_at: fetchedAt,
@@ -479,23 +485,19 @@ function newsFromDbRow(row: UnknownRecord): NewsItem {
       asString(row.timestamp) ??
       asString(row.fetched_at) ??
       new Date().toISOString(),
-    tickers:
-      isRecord(row.raw) && Array.isArray(row.raw.tickers)
-        ? row.raw.tickers.filter((ticker): ticker is string => typeof ticker === "string")
-        : tickersFromText(String(row.headline ?? "")),
-    whyItMatters: "Major market headline from the Unusual Whales news feed.",
+    tickers: Array.isArray(row.tickers)
+      ? row.tickers.filter((ticker): ticker is string => typeof ticker === "string")
+      : [],
+    whyItMatters:
+      asString(row.why_it_matters) ?? "Major market headline from the Unusual Whales news feed.",
     source: asString(row.source_name) ?? asString(row.publisher) ?? "Unusual Whales",
     ...(asString(row.source_url) ? { sourceUrl: asString(row.source_url) } : {}),
     ...(asString(row.publisher) ? { publisher: asString(row.publisher) } : {}),
-    ...(isRecord(row.raw) && asString(row.raw.sentiment)
-      ? { sentiment: asString(row.raw.sentiment) }
-      : {}),
-    ...(isRecord(row.raw) && typeof row.raw.major === "boolean" ? { major: row.raw.major } : {}),
-    ...(isRecord(row.raw) && asString(row.raw.category)
-      ? { category: asString(row.raw.category) }
-      : {}),
-    ...(isRecord(row.raw) && ["Low", "Medium", "High"].includes(String(row.raw.impact))
-      ? { impact: row.raw.impact as "Low" | "Medium" | "High" }
+    ...(asString(row.sentiment) ? { sentiment: asString(row.sentiment) } : {}),
+    ...(typeof row.major === "boolean" ? { major: row.major } : {}),
+    ...(asString(row.category) ? { category: asString(row.category) } : {}),
+    ...(["Low", "Medium", "High"].includes(String(row.impact))
+      ? { impact: row.impact as "Low" | "Medium" | "High" }
       : {})
   };
 }
@@ -589,14 +591,6 @@ export async function refreshUnusualWhalesNewsFeed(limit = 100) {
       .eq("source", NEWS_METADATA_SOURCE)
       .maybeSingle();
     const changed = metadata?.content_hash !== contentHash;
-    const pruneBefore = new Date(
-      Date.now() - NEWS_RETENTION_DAYS * 24 * 60 * 60 * 1000
-    ).toISOString();
-    const { count: prunedCount, error: pruneError } = await supabase.client
-      .from("unusual_whales_news_feed")
-      .delete({ count: "exact" })
-      .lt("event_time", pruneBefore);
-    if (pruneError) throw new Error(`Supabase news feed prune failed: ${pruneError.message}`);
     let upserted = 0;
     if (rows.length) {
       const { error } = await supabase.client
@@ -612,12 +606,7 @@ export async function refreshUnusualWhalesNewsFeed(limit = 100) {
       contentHash,
       meta: { limit, source_url: UNUSUAL_WHALES_HEADLINES_FEED_URL }
     });
-    console.log("force_refresh_upserted", {
-      source: NEWS_METADATA_SOURCE,
-      upserted,
-      changed,
-      prunedOlderThan3Days: prunedCount ?? 0
-    });
+    console.log("force_refresh_upserted", { source: NEWS_METADATA_SOURCE, upserted, changed });
     return sourceResult({
       ok: true,
       count: rows.length,
@@ -683,14 +672,6 @@ export async function refreshUnusualWhalesFeaturedArticles(limit = 50) {
       .eq("source", FEATURED_METADATA_SOURCE)
       .maybeSingle();
     const changed = metadata?.content_hash !== contentHash;
-    const pruneBefore = new Date(
-      Date.now() - NEWS_RETENTION_DAYS * 24 * 60 * 60 * 1000
-    ).toISOString();
-    const { count: prunedCount, error: pruneError } = await supabase.client
-      .from("unusual_whales_news_feed")
-      .delete({ count: "exact" })
-      .lt("event_time", pruneBefore);
-    if (pruneError) throw new Error(`Supabase news feed prune failed: ${pruneError.message}`);
     let upserted = 0;
     if (rows.length) {
       const { error } = await supabase.client
@@ -743,13 +724,7 @@ export async function getCachedUnusualWhalesNewsFeed(limit = 100): Promise<Cache
   if (!supabase.ok) return fetchUnusualWhalesNewsFeed(limit);
   const { data, error } = await supabase.client
     .from("unusual_whales_news_feed")
-    .select(
-      "id,headline,event_time,source_name,source_url,publisher,raw,content_hash,fetched_at,updated_at"
-    )
-    .gte(
-      "event_time",
-      new Date(Date.now() - NEWS_RETENTION_DAYS * 24 * 60 * 60 * 1000).toISOString()
-    )
+    .select("*")
     .order("event_time", { ascending: false, nullsFirst: false })
     .limit(limit);
   if (error || !data?.length) {
@@ -771,9 +746,7 @@ export async function getCachedUnusualWhalesFeaturedArticles(
   if (!supabase.ok) return fetchUnusualWhalesFeaturedNews(limit);
   const { data, error } = await supabase.client
     .from("unusual_whales_featured_articles")
-    .select(
-      "id,slug,title,published_at,created_at_source,tags,image_url,excerpt,content_text,content_html,source_url,raw,content_hash,fetched_at,updated_at"
-    )
+    .select("*")
     .order("published_at", { ascending: false, nullsFirst: false })
     .limit(limit);
   if (error || !data?.length) {

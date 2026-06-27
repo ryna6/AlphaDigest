@@ -25,18 +25,25 @@ export type UnusualWhalesEarningsEvent = {
   marketTime: string | null;
   sector: string | null;
   countryCode: string | null;
+  countryName: string | null;
   isSp500: boolean;
   hasOptions: boolean;
   marketCapSize: string | null;
   marketCap: number | null;
+  currentPrice: number | null;
+  previousPrice: number | null;
   openInterest: number | null;
   callVolume: number | null;
   putVolume: number | null;
+  stockVolume: number | null;
   expectedMove: number | null;
   impliedMove: number | null;
   impliedMovePct: number | null;
   streetMeanEstimate: number | null;
   epsMeanEstimate: number | null;
+  lastEarningsDate: string | null;
+  priceLastEarnings: number | null;
+  lastOneDayReactions: number[];
   raw: Record<string, unknown>;
   contentHash: string;
   fetchedAt: string;
@@ -125,24 +132,14 @@ export function normalizeUnusualWhalesEarningsRows(
   rows: unknown[],
   fetchedAt = new Date().toISOString()
 ) {
-  const normalized = rows.map((row) => normalizeUnusualWhalesEarningsRow(row, fetchedAt));
-  const skippedMicroCount = normalized.filter(
-    (event) => event?.marketCapSize?.trim().toLowerCase() === "micro"
-  ).length;
-  const events = normalized.filter(
-    (event): event is UnusualWhalesEarningsEvent =>
-      event !== null && (event.marketCapSize?.trim().toLowerCase() ?? "") !== "micro"
-  );
+  const events = rows
+    .map((row) => normalizeUnusualWhalesEarningsRow(row, fetchedAt))
+    .filter((event): event is UnusualWhalesEarningsEvent => Boolean(event));
   const deduped = new Map<string, UnusualWhalesEarningsEvent>();
   for (const event of events) deduped.set(event.id, event);
-  const result = suppressUnknownEarningsVariants(Array.from(deduped.values())).sort((a, b) =>
+  return suppressUnknownEarningsVariants(Array.from(deduped.values())).sort((a, b) =>
     a.id.localeCompare(b.id)
   );
-  Object.defineProperty(result, "skippedMicroCount", {
-    value: skippedMicroCount,
-    enumerable: false
-  });
-  return result;
 }
 
 function isUnknownEarningsVariant(event: UnusualWhalesEarningsEvent) {
@@ -156,8 +153,7 @@ export function suppressUnknownEarningsVariants(events: UnusualWhalesEarningsEve
       .map((event) => event.symbol.toUpperCase())
   );
   return events.filter(
-    (event) =>
-      !isUnknownEarningsVariant(event) || !symbolsWithDatedRows.has(event.symbol.toUpperCase())
+    (event) => !isUnknownEarningsVariant(event) || !symbolsWithDatedRows.has(event.symbol.toUpperCase())
   );
 }
 
@@ -171,6 +167,9 @@ export function normalizeUnusualWhalesEarningsRow(
   if (!symbol || !reportDate) return null;
   const reportTime = stringOrNull(row.report_time);
   const id = `uw-earnings:${symbol}:${reportDate}:${reportTime ?? "unknown"}`;
+  const reactions = Array.isArray(row.last_1d_reactions)
+    ? row.last_1d_reactions.map(numberOrNull).filter((value): value is number => value !== null)
+    : [];
   const impliedMove = numberOrNull(row.implied_move);
   const expectedMove = numberOrNull(row.expected_move);
   const currentPrice = numberOrNull(row.curr);
@@ -192,18 +191,25 @@ export function normalizeUnusualWhalesEarningsRow(
     marketTime: stringOrNull(row.market_time),
     sector: stringOrNull(row.sector),
     countryCode: stringOrNull(row.country_code),
+    countryName: stringOrNull(row.country_name),
     isSp500: booleanValue(row.is_s_p_500),
     hasOptions: booleanValue(row.has_options),
     marketCapSize: stringOrNull(row.market_cap_size),
     marketCap: numberOrNull(row.marketcap),
+    currentPrice,
+    previousPrice,
     openInterest: numberOrNull(row.oi),
     callVolume: numberOrNull(row.call_vol),
     putVolume: numberOrNull(row.put_vol),
+    stockVolume: numberOrNull(row.stock_volume),
     expectedMove,
     impliedMove,
     impliedMovePct,
     streetMeanEstimate: numberOrNull(row.street_mean_est),
     epsMeanEstimate: numberOrNull(row.eps_mean_est),
+    lastEarningsDate: stringOrNull(row.last_earnings_date),
+    priceLastEarnings: numberOrNull(row.price_last_earnings),
+    lastOneDayReactions: reactions,
     raw: row
   };
   return { ...base, contentHash: stableHash(base), fetchedAt };
@@ -272,9 +278,6 @@ export async function fetchUnusualWhalesEarnings(range = defaultEarningsRange())
       const payload = (await response.json()) as unknown;
       const rows = extractRows(payload);
       const events = normalizeUnusualWhalesEarningsRows(rows);
-      const skippedMicroCount = Number(
-        (events as unknown as { skippedMicroCount?: number }).skippedMicroCount ?? 0
-      );
       if (rows.length === 0) {
         console.warn("uw_earnings_empty_response", {
           endpoint,
@@ -282,7 +285,7 @@ export async function fetchUnusualWhalesEarnings(range = defaultEarningsRange())
           max_date: range.maxDate
         });
       }
-      return { endpoint, events, rowCount: rows.length, skippedMicroCount };
+      return { endpoint, events, rowCount: rows.length };
     } catch (error) {
       lastError = error;
       if (attempt < 2) await sleep(500 * 2 ** attempt);
@@ -308,18 +311,27 @@ function toDbRow(event: UnusualWhalesEarningsEvent) {
     market_time: event.marketTime,
     sector: event.sector,
     country_code: event.countryCode,
+    country_name: event.countryName,
     is_sp500: event.isSp500,
     has_options: event.hasOptions,
     market_cap_size: event.marketCapSize,
     market_cap: event.marketCap,
+    current_price: event.currentPrice,
+    previous_price: event.previousPrice,
     open_interest: event.openInterest,
     call_volume: event.callVolume,
     put_volume: event.putVolume,
+    stock_volume: event.stockVolume,
     expected_move: event.expectedMove,
     implied_move: event.impliedMove,
     implied_move_pct: event.impliedMovePct,
     street_mean_estimate: event.streetMeanEstimate,
     eps_mean_estimate: event.epsMeanEstimate,
+    last_earnings_date: event.lastEarningsDate,
+    price_last_earnings: event.priceLastEarnings,
+    last_one_day_reactions: event.lastOneDayReactions,
+    ending_fiscal_quarter:
+      typeof event.raw.ending_fiscal_quarter === "string" ? event.raw.ending_fiscal_quarter : null,
     raw: event.raw,
     content_hash: event.contentHash,
     fetched_at: event.fetchedAt,
@@ -330,8 +342,8 @@ function toDbRow(event: UnusualWhalesEarningsEvent) {
 function fromDbRow(row: UnknownRecord): UnusualWhalesEarningsEvent {
   const impliedMove = numberOrNull(row.implied_move);
   const expectedMove = numberOrNull(row.expected_move);
-  const currentPrice = numberOrNull(isRecord(row.raw) ? row.raw.curr : null);
-  const previousPrice = numberOrNull(isRecord(row.raw) ? row.raw.prev : null);
+  const currentPrice = numberOrNull(row.current_price);
+  const previousPrice = numberOrNull(row.previous_price);
   const impliedMovePct =
     numberOrNull(row.implied_move_pct) ??
     calculateImpliedMovePct({ impliedMove, expectedMove, currentPrice, previousPrice });
@@ -347,18 +359,29 @@ function fromDbRow(row: UnknownRecord): UnusualWhalesEarningsEvent {
     marketTime: stringOrNull(row.market_time),
     sector: stringOrNull(row.sector),
     countryCode: stringOrNull(row.country_code),
+    countryName: stringOrNull(row.country_name),
     isSp500: Boolean(row.is_sp500),
     hasOptions: Boolean(row.has_options),
     marketCapSize: stringOrNull(row.market_cap_size),
     marketCap: numberOrNull(row.market_cap),
+    currentPrice,
+    previousPrice,
     openInterest: numberOrNull(row.open_interest),
     callVolume: numberOrNull(row.call_volume),
     putVolume: numberOrNull(row.put_volume),
+    stockVolume: numberOrNull(row.stock_volume),
     expectedMove,
     impliedMove,
     impliedMovePct,
     streetMeanEstimate: numberOrNull(row.street_mean_estimate),
     epsMeanEstimate: numberOrNull(row.eps_mean_estimate),
+    lastEarningsDate: stringOrNull(row.last_earnings_date),
+    priceLastEarnings: numberOrNull(row.price_last_earnings),
+    lastOneDayReactions: Array.isArray(row.last_one_day_reactions)
+      ? row.last_one_day_reactions
+          .map(numberOrNull)
+          .filter((value): value is number => value !== null)
+      : [],
     raw: isRecord(row.raw) ? row.raw : {},
     contentHash: String(row.content_hash ?? ""),
     fetchedAt: String(row.fetched_at ?? new Date().toISOString())
@@ -423,11 +446,6 @@ export async function refreshUnusualWhalesEarnings(range = defaultEarningsRange(
     throw error;
   }
   const contentHash = payloadHash(fetched.events);
-  console.log("uw_earnings_normalized", {
-    fetched: fetched.rowCount,
-    normalized: fetched.events.length,
-    skippedMicro: fetched.skippedMicroCount
-  });
   if (!supabase.ok) {
     return {
       ok: true,
@@ -603,16 +621,11 @@ export async function getCachedUnusualWhalesEarnings(
 
   let query = supabase.client
     .from("unusual_whales_earnings_events")
-    .select(
-      "id,symbol,company_name,logo,report_date,report_time,market_time,sector,country_code,is_sp500,has_options,market_cap_size,market_cap,open_interest,call_volume,put_volume,expected_move,implied_move,implied_move_pct,street_mean_estimate,eps_mean_estimate,raw,content_hash,fetched_at,updated_at"
-    )
+    .select("*")
     .gte("report_date", minDate)
     .lte("report_date", maxDate)
     .gte("market_cap", UW_EARNINGS_MIN_MARKET_CAP)
-    .eq("country_code", UW_EARNINGS_COUNTRY_CODE)
-    .neq("market_cap_size", "micro")
-    .neq("market_cap_size", "Micro")
-    .neq("market_cap_size", " MICRO ");
+    .eq("country_code", UW_EARNINGS_COUNTRY_CODE);
   if (options.symbol) query = query.eq("symbol", options.symbol.toUpperCase());
   if (options.sp500Only) query = query.eq("is_sp500", true);
   if (options.hasOptions) query = query.eq("has_options", true);
@@ -624,10 +637,11 @@ export async function getCachedUnusualWhalesEarnings(
     call_volume: "call_volume",
     put_volume: "put_volume"
   };
-  query = query.order(orderMap[options.order ?? "oi"] ?? "open_interest", {
-    ascending: false,
-    nullsFirst: false
-  });
+  query = query
+    .order(orderMap[options.order ?? "oi"] ?? "open_interest", {
+      ascending: false,
+      nullsFirst: false
+    });
   const { data, error } = await query;
   if (error) {
     try {

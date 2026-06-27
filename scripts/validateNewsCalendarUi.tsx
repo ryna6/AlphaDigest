@@ -80,16 +80,23 @@ function earningsEvent(
     marketTime: null,
     sector: null,
     countryCode: null,
+    countryName: null,
     isSp500: false,
     hasOptions: true,
     marketCapSize: null,
+    currentPrice: 100,
+    previousPrice: 98,
     openInterest: 1000,
     callVolume: 500,
     putVolume: 250,
+    stockVolume: null,
     expectedMove: null,
     impliedMove: null,
     streetMeanEstimate: null,
     epsMeanEstimate: null,
+    lastEarningsDate: null,
+    priceLastEarnings: null,
+    lastOneDayReactions: [],
     raw: {},
     contentHash: overrides.id,
     fetchedAt: "2026-06-05T12:00:00Z",
@@ -306,9 +313,7 @@ const marketCapFilterFixtures = [
     impliedMovePct: null
   })
 ];
-const filteredMarketCapSymbols = filterMajorEarnings(marketCapFilterFixtures).map(
-  (event) => event.symbol
-);
+const filteredMarketCapSymbols = filterMajorEarnings(marketCapFilterFixtures).map((event) => event.symbol);
 assert(
   filteredMarketCapSymbols.join(",") === "EQAL,ABOV",
   "major earnings filter should include >= $4B and exclude below, missing, or malformed values"
