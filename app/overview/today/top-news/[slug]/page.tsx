@@ -1,4 +1,3 @@
-import Image from "next/image";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getTodayPayload } from "@/lib/data/live-dashboard";
@@ -117,18 +116,6 @@ export default async function TopNewsArticlePage({
                   {tag}
                 </span>
               ))}
-            </div>
-          ) : null}
-          {article.imageUrl ? (
-            <div className="relative mt-5 aspect-video overflow-hidden border border-borderStrong bg-sidebar">
-              <Image
-                src={article.imageUrl}
-                alt=""
-                fill
-                sizes="(min-width: 1024px) 900px, 100vw"
-                className="object-cover"
-                unoptimized
-              />
             </div>
           ) : null}
           {article.excerpt ? (

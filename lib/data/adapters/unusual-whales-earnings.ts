@@ -108,12 +108,39 @@ export function stableHash(value: unknown) {
   return crypto.createHash("sha256").update(stableStringify(value)).digest("hex");
 }
 
+function torontoDateParts(date: Date) {
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "America/Toronto",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit"
+  }).formatToParts(date);
+  const get = (type: string) => Number(parts.find((part) => part.type === type)?.value);
+  return { year: get("year"), month: get("month"), day: get("day") };
+}
+
+function isoDateFromUtcDate(date: Date) {
+  return date.toISOString().slice(0, 10);
+}
+
 export function defaultEarningsRange(date = new Date()): EarningsRange {
-  const start = new Date(
-    Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate() - 3)
-  );
-  const end = new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate() + 14));
-  return { minDate: start.toISOString().slice(0, 10), maxDate: end.toISOString().slice(0, 10) };
+  const { year, month, day } = torontoDateParts(date);
+  const anchor = new Date(Date.UTC(year, month - 1, day));
+  const dayOfWeek = anchor.getUTCDay();
+  const daysSinceMonday = (dayOfWeek + 6) % 7;
+  const currentWeekMonday = new Date(anchor);
+  currentWeekMonday.setUTCDate(anchor.getUTCDate() - daysSinceMonday);
+
+  const previousWeekMonday = new Date(currentWeekMonday);
+  previousWeekMonday.setUTCDate(currentWeekMonday.getUTCDate() - 7);
+
+  const nextWeekFriday = new Date(currentWeekMonday);
+  nextWeekFriday.setUTCDate(currentWeekMonday.getUTCDate() + 11);
+
+  return {
+    minDate: isoDateFromUtcDate(previousWeekMonday),
+    maxDate: isoDateFromUtcDate(nextWeekFriday)
+  };
 }
 
 export function normalizeUnusualWhalesEarningsRows(
@@ -540,8 +567,7 @@ async function getLiveServerEarnings(
       error: null,
       meta: { min_date: range.minDate, max_date: range.maxDate, cache: "server-memory" }
     },
-    mode: "live",
-    message: "Using automatic server-side live earnings cache; Supabase persistence is optional."
+    mode: "live"
   };
   liveServerCache = { key, expiresAt: Date.now() + SERVER_CACHE_TTL_MS, result };
   return result;
@@ -588,7 +614,7 @@ export async function getCachedUnusualWhalesEarnings(
     oi: "market_cap",
     market_cap: "market_cap",
     expected_move: "expected_move",
-    report_date: "report_date",
+    report_date: "report_date"
   };
   query = query.order(orderMap[options.order ?? "oi"] ?? "market_cap", {
     ascending: false,

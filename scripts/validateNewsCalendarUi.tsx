@@ -43,7 +43,7 @@ const { NewsCalendarView, buildWeekDays, initialDaySelection, moveWeekSelection 
   require("../components/dashboard/news-calendar/news-calendar-view") as typeof import("../components/dashboard/news-calendar/news-calendar-view");
 const { TodayView } =
   require("../components/dashboard/today/today-view") as typeof import("../components/dashboard/today/today-view");
-const { buildUnusualWhalesEarningsUrl, normalizeUnusualWhalesEarningsRow } =
+const { buildUnusualWhalesEarningsUrl, defaultEarningsRange, normalizeUnusualWhalesEarningsRow } =
   require("../lib/data/adapters/unusual-whales-earnings") as typeof import("../lib/data/adapters/unusual-whales-earnings");
 const { IMPORTANT_ECONOMIC_EVENTS, getImportantEconomicEventKey, shouldIncludeEconomicEvent } =
   require("../lib/data/config/included-economic-events") as typeof import("../lib/data/config/included-economic-events");
@@ -267,6 +267,12 @@ assert(
   "Unusual Whales earnings URL should request a $4B minimum market cap"
 );
 assert(MAJOR_EARNINGS_MARKET_CAP === 4_000_000_000, "major earnings threshold should be $4B");
+
+const fridayTorontoRange = defaultEarningsRange(new Date("2026-06-26T16:00:00-04:00"));
+assert(
+  fridayTorontoRange.minDate === "2026-06-15" && fridayTorontoRange.maxDate === "2026-07-03",
+  "default earnings range should span previous-week Monday through next-week Friday"
+);
 const marketCapFilterFixtures = [
   earningsEvent({
     id: "below",

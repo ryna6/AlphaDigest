@@ -214,15 +214,6 @@ function normalizeFeaturedRecord(record: UnknownRecord, fetchedAt: string): Feat
     asString(record.published) ??
     asString(record.date);
   const createdAt = asString(record.createdAt) ?? asString(record.created_at);
-  const image = record.image;
-  const imageUrl = absoluteUrl(
-    asString(record.imageUrl) ??
-      asString(record.image_url) ??
-      asString(record.thumbnailUrl) ??
-      asString(record.thumbnail_url) ??
-      asString(record.coverImage) ??
-      (isRecord(image) ? (asString(image.url) ?? asString(image.src)) : asString(image))
-  );
   const rawContent =
     asString(record.content) ??
     asString(record.body) ??
@@ -242,7 +233,6 @@ function normalizeFeaturedRecord(record: UnknownRecord, fetchedAt: string): Feat
     ...(createdAt ? { createdAt } : {}),
     fetchedAt,
     tags: asStringArray(record.tags ?? record.categories ?? record.tickers),
-    ...(imageUrl ? { imageUrl } : {}),
     ...(excerpt ? { excerpt: textFromHtml(excerpt) } : {}),
     ...(rawContent
       ? {
@@ -371,7 +361,7 @@ function normalizeFeedRecord(record: UnknownRecord): NewsItem | null {
     whyItMatters: "Major market headline from the Unusual Whales news feed.",
     source: publisher,
     publisher,
-    ...(sourceUrl ? { sourceUrl } : {}),
+    ...(sourceUrl ? { sourceUrl } : {})
   };
 }
 
@@ -428,7 +418,7 @@ function newsContentHash(item: NewsItem) {
     headline: item.headline,
     timestamp: item.timestamp,
     sourceUrl: item.sourceUrl,
-    publisher: item.publisher,
+    publisher: item.publisher
   });
 }
 
@@ -455,10 +445,7 @@ function newsToDbRow(item: NewsItem, fetchedAt: string) {
 function newsFromDbRow(row: UnknownRecord): NewsItem {
   return {
     headline: String(row.headline ?? ""),
-    timestamp:
-      asString(row.event_time) ??
-      asString(row.fetched_at) ??
-      new Date().toISOString(),
+    timestamp: asString(row.event_time) ?? asString(row.fetched_at) ?? new Date().toISOString(),
     tickers:
       isRecord(row.raw) && Array.isArray(row.raw.tickers)
         ? row.raw.tickers.filter((ticker): ticker is string => typeof ticker === "string")
@@ -466,7 +453,7 @@ function newsFromDbRow(row: UnknownRecord): NewsItem {
     whyItMatters: "Major market headline from the Unusual Whales news feed.",
     source: asString(row.source_name) ?? asString(row.publisher) ?? "Unusual Whales",
     ...(asString(row.source_url) ? { sourceUrl: asString(row.source_url) } : {}),
-    ...(asString(row.publisher) ? { publisher: asString(row.publisher) } : {}),
+    ...(asString(row.publisher) ? { publisher: asString(row.publisher) } : {})
   };
 }
 
@@ -477,7 +464,6 @@ function articleContentHash(item: FeaturedArticle) {
     publishedAt: item.publishedAt,
     createdAt: item.createdAt,
     tags: item.tags,
-    imageUrl: item.imageUrl,
     excerpt: item.excerpt,
     contentHtml: item.contentHtml,
     sourceUrl: item.sourceUrl
@@ -492,7 +478,6 @@ function featuredToDbRow(item: FeaturedArticle, fetchedAt: string) {
     published_at: item.publishedAt ?? null,
     created_at_source: item.createdAt ?? null,
     tags: item.tags,
-    image_url: item.imageUrl ?? null,
     excerpt: item.excerpt ?? null,
     content_html: item.contentHtml ?? null,
     source_url: item.sourceUrl ?? originalArticleUrl(item.slug),
@@ -514,7 +499,6 @@ function featuredFromDbRow(row: UnknownRecord): FeaturedArticle {
     tags: Array.isArray(row.tags)
       ? row.tags.filter((tag): tag is string => typeof tag === "string")
       : [],
-    ...(asString(row.image_url) ? { imageUrl: asString(row.image_url) } : {}),
     ...(asString(row.excerpt) ? { excerpt: asString(row.excerpt) } : {}),
     ...(asString(row.content_html) ? { contentHtml: asString(row.content_html) } : {}),
     sourceUrl: asString(row.source_url) ?? originalArticleUrl(slug)
@@ -739,7 +723,7 @@ export async function getCachedUnusualWhalesFeaturedArticles(
   const { data, error } = await supabase.client
     .from("unusual_whales_featured_articles")
     .select(
-      "id,slug,title,published_at,created_at_source,tags,image_url,excerpt,content_html,source_url,raw,content_hash,fetched_at,updated_at"
+      "id,slug,title,published_at,created_at_source,tags,excerpt,content_html,source_url,raw,content_hash,fetched_at,updated_at"
     )
     .order("published_at", { ascending: false, nullsFirst: false })
     .limit(limit);

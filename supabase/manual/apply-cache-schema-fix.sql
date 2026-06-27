@@ -57,7 +57,6 @@ create table if not exists public.unusual_whales_featured_articles (
   published_at timestamptz,
   created_at_source timestamptz,
   tags text[] not null default '{}',
-  image_url text,
   excerpt text,
   content_text text,
   content_html text,
@@ -73,7 +72,6 @@ alter table public.unusual_whales_featured_articles add column if not exists tit
 alter table public.unusual_whales_featured_articles add column if not exists published_at timestamptz;
 alter table public.unusual_whales_featured_articles add column if not exists created_at_source timestamptz;
 alter table public.unusual_whales_featured_articles add column if not exists tags text[] default '{}';
-alter table public.unusual_whales_featured_articles add column if not exists image_url text;
 alter table public.unusual_whales_featured_articles add column if not exists excerpt text;
 alter table public.unusual_whales_featured_articles add column if not exists content_text text;
 alter table public.unusual_whales_featured_articles add column if not exists content_html text;
@@ -256,5 +254,8 @@ begin
   return new;
 end;
 $$;
+
+-- Retired featured article image cache; retained here for idempotent production repair.
+alter table public.unusual_whales_featured_articles drop column if exists image_url;
 
 notify pgrst, 'reload schema';
