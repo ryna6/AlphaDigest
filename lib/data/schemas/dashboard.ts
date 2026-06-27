@@ -222,11 +222,41 @@ export const insiderTradeDetailPayloadSchema = z.object({
   notices: z.array(z.string()).default([])
 });
 
+const economyDataPointSchema = z.object({
+  date: z.string(),
+  value: z.number()
+});
+
+const economyChangeModeSchema = z.enum(["percent", "percentage-point", "absolute"]);
+
+const economyChangeSnapshotSchema = z.object({
+  value: z.number().nullable(),
+  mode: economyChangeModeSchema
+});
+
 const economyMetricDefinitionSchema = z.object({
   id: z.string(),
   label: z.string(),
+  shortLabel: z.string().optional(),
+  fullName: z.string(),
   dataSource: z.string().optional(),
-  seriesId: z.string().optional()
+  seriesId: z.string(),
+  unit: z.string(),
+  frequency: z.enum(["Daily", "Weekly", "Monthly", "Quarterly"]),
+  seasonalAdjustment: z.string(),
+  preferredChangeMode: economyChangeModeSchema,
+  valueFormat: z.enum(["number", "percent", "currency-billions", "currency-trillions", "persons-thousands"]),
+  chartAxisLabel: z.string(),
+  fredOptions: z.object({
+    units: z.string().optional(),
+    frequency: z.string().optional()
+  }).optional(),
+  latestDate: z.string().optional(),
+  latestValue: z.number().nullable().optional(),
+  history: z.array(economyDataPointSchema).optional(),
+  qoqChange: economyChangeSnapshotSchema.optional(),
+  yoyChange: economyChangeSnapshotSchema.optional(),
+  error: z.string().optional()
 });
 
 const economyCardDefinitionSchema = z.object({
