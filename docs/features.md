@@ -11,13 +11,13 @@ This file documents current user-facing features and the files future Codex agen
 
 Current primary tabs:
 
-1. Today
-2. Markets
+1. Today (`📡`)
+2. Markets (`📈`)
 3. News & Calendar
 4. Flow
 5. Ownership
-6. Economy
-7. Sentiment
+6. Economy (`📊`)
+7. Sentiment (`🗳️`)
 
 Current utility tabs:
 
@@ -47,7 +47,7 @@ The Today page displays:
 - Today's economic events.
 - Sector snapshot from the leading sector heatmap tiles.
 - Shared `i` info popover body text uses a smaller readable size while preserving the icon size and dark-theme tooltip styling.
-- Economy and Sentiment are separate top-level tabs. Economy keeps the macro regime, rates, inflation, labor, oil/geopolitical risk, and liquidity sections; Sentiment keeps sentiment/positioning indicators and includes a Market Expectations section with an empty state until existing cached data supports live content.
+- Economy and Sentiment are separate top-level tabs. Economy keeps the macro regime, rates, inflation, labor, and liquidity sections. Sentiment shows a three-card summary row above the sentiment/positioning indicators; the top Indicators / Market Expectations buttons are not shown.
 
 Important behavior:
 

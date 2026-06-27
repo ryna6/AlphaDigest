@@ -10,8 +10,8 @@ type NavigationItem = (typeof mainNavigation)[number] | (typeof utilityNavigatio
 
 function NavItem({ item, compact = false }: { item: NavigationItem; compact?: boolean }) {
   const pathname = usePathname();
-  const Icon = item.icon;
   const active = pathname === item.href || pathname.startsWith(`${item.href}/`);
+  const iconClassName = "h-4 w-4 shrink-0";
 
   return (
     <Link
@@ -24,7 +24,19 @@ function NavItem({ item, compact = false }: { item: NavigationItem; compact?: bo
           : "border-transparent text-textMuted hover:border-borderStrong hover:bg-panel"
       )}
     >
-      <Icon className="h-4 w-4 shrink-0" />
+      {typeof item.icon === "string" ? (
+        <span
+          className={cn(
+            iconClassName,
+            "inline-flex items-center justify-center text-sm leading-none grayscale opacity-75"
+          )}
+          aria-hidden="true"
+        >
+          {item.icon}
+        </span>
+      ) : (
+        <item.icon className={iconClassName} />
+      )}
       <span className={compact ? "whitespace-nowrap" : undefined}>{item.label}</span>
     </Link>
   );

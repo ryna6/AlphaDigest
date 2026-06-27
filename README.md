@@ -11,7 +11,7 @@ The app combines live server-side market/news/calendar fetches with clearly labe
 
 ## What you can view
 
-### Today
+### Today (`📡`)
 
 A daily briefing page with:
 
@@ -21,7 +21,7 @@ A daily briefing page with:
 - Today's major earnings and economic events.
 - A sector snapshot based on the same market heatmap data used by the Markets tab.
 
-### Markets
+### Markets (`📈`)
 
 Cross-asset heatmaps and a market strip for:
 
@@ -53,9 +53,9 @@ A Supabase-first view for big-money flow concepts:
 
 A currently fixture-backed ownership view for Institutional/13F positioning and Congressional trades until live providers are added.
 
-### Economy and Sentiment
+### Economy (`📊`) and Sentiment (`🗳️`)
 
-Economy and Sentiment are separate top-level tabs. Economy contains macro regime, rates, inflation, labor, oil/geopolitical risk, and liquidity sections. Sentiment contains sentiment/positioning indicators plus a Market Expectations section that shows a clean empty state until existing cached sources support live content. Today’s Earnings shows highest-priority market-cap importance subtext when earnings exist, and shared info popover body text is slightly smaller for dense explanations.
+Economy and Sentiment are separate top-level tabs. Economy contains macro regime, rates, inflation, labor, and liquidity sections. Sentiment restores a three-card summary row above sentiment/positioning indicators and no longer shows top Indicators / Market Expectations buttons. Today’s Earnings shows highest-priority market-cap importance subtext when earnings exist, and shared info popover body text is slightly smaller for dense explanations.
 
 ### Methodology and Status
 

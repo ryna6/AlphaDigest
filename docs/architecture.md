@@ -48,7 +48,9 @@ supabase/                    Schema and migrations
 | `/flow`                           | Flow dashboard.                                        | `getFlowPayload()` reads `flow:latest`, Flow source tables, then fixtures.   |
 | `/ownership`                      | Ownership dashboard.                                   | `ownershipMock` fixture / optional `ownership:latest`.                       |
 | `/flow-ownership`                 | Legacy redirect.                                       | Redirects to `/flow`.                                                        |
-| `/economy-sentiment`              | Economy/sentiment dashboard.                           | `economyMock` fixture.                                                       |
+| `/economy-sentiment`              | Legacy Economy redirect.                               | Redirects to `/economy`.                                                     |
+| `/economy`                         | Economy dashboard without Oil & Geopolitical Risk card. | `economyMock` fixture.                                                       |
+| `/sentiment`                       | Sentiment dashboard with three-card summary row.        | `economyMock` sentiment fixture.                                             |
 | `/sources-methodology`            | Source reference table.                                | Static page-level source list.                                               |
 | `/status`                         | Job/component monitoring page.                         | Server-rendered status rows from `lib/status/jobs.ts` and Supabase metadata. |
 | `/settings`                       | Legacy redirect.                                       | Redirects to `/status`.                                                      |
