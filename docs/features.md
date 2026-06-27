@@ -114,7 +114,7 @@ Important behavior:
 - Weekend initial selection jumps to Monday of the next week.
 - The economic calendar preloads prior/current/next week buckets and fetches missing selected days client-side.
 - Economic event rows use `getEconomicActualTone()` to color actual values when the helper can classify surprise direction.
-- Earnings rows show symbol, company, put/call ratio, and implied move.
+- Earnings rows show symbol, company, put/call ratio, and implied move. The put/call ratio is calculated at display time as retained Unusual Whales `put_volume / call_volume`; missing put volume or missing/zero call volume displays `—`.
 - The News & Calendar earnings calendar uses `data.unusualWhalesEarnings` and is distinct from the compact `data.earnings` fallback rows.
 - Do not couple News & Calendar earnings behavior to Today's top-five earnings panel; they share source data but have different filtering/display rules.
 
