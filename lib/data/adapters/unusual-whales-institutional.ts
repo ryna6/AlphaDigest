@@ -291,6 +291,7 @@ type TrackedStockHolding = {
   changePerc: number | null;
   percOfShareValue: number | null;
   value: number | null;
+  close: number | null;
   fetchedAt: string;
 };
 type TrackedOptionHolding = {
@@ -314,6 +315,7 @@ type TrackedActivity = {
   securityType: string | null;
   buyPrice: number | null;
   sellPrice: number | null;
+  priceOnReport: number | null;
   close: number | null;
   fetchedAt: string;
 };
@@ -492,6 +494,7 @@ function normalizeHolding(
       "percent_of_portfolio"
     ]),
     value: numAny(raw, ["value", "market_value"]),
+    close: numAny(raw, ["close", "price"]),
     fetchedAt
   };
 }
@@ -544,6 +547,7 @@ function normalizeActivity(
     securityType,
     buyPrice: numAny(raw, ["buy_price"]),
     sellPrice: numAny(raw, ["sell_price"]),
+    priceOnReport: numAny(raw, ["price_on_report"]),
     close: numAny(raw, ["close", "price"]),
     fetchedAt
   };
@@ -724,6 +728,7 @@ async function persistTrackedData(
         change_perc: r.changePerc,
         perc_of_share_value: r.percOfShareValue,
         value: r.value,
+        close: r.close,
         fetched_at: r.fetchedAt,
         updated_at: r.fetchedAt
       })),
@@ -761,6 +766,7 @@ async function persistTrackedData(
         security_type: r.securityType,
         buy_price: r.buyPrice,
         sell_price: r.sellPrice,
+        price_on_report: r.priceOnReport,
         close: r.close,
         fetched_at: r.fetchedAt,
         updated_at: r.fetchedAt
@@ -904,7 +910,7 @@ export async function getCachedTrackedInstitutions(): Promise<TrackedInstitution
     supabase.client
       .from(TRACKED_HOLDINGS)
       .select(
-        "institution_name,report_date,ticker,full_name,units,avg_price,units_change,change_perc,perc_of_share_value,value,fetched_at"
+        "institution_name,report_date,ticker,full_name,units,avg_price,units_change,change_perc,perc_of_share_value,value,close,fetched_at"
       )
       .order("value", { ascending: false, nullsFirst: false }),
     supabase.client
@@ -916,7 +922,7 @@ export async function getCachedTrackedInstitutions(): Promise<TrackedInstitution
     supabase.client
       .from(TRACKED_ACTIVITY)
       .select(
-        "activity_id,institution_name,ticker,report_date,units,units_change,security_type,buy_price,sell_price,close,fetched_at"
+        "activity_id,institution_name,ticker,report_date,units,units_change,security_type,buy_price,sell_price,price_on_report,close,fetched_at"
       )
       .order("report_date", { ascending: false })
   ]);
@@ -965,6 +971,7 @@ export async function getCachedTrackedInstitutions(): Promise<TrackedInstitution
       changePerc: r.change_perc == null ? null : Number(r.change_perc),
       percOfShareValue: r.perc_of_share_value == null ? null : Number(r.perc_of_share_value),
       value: r.value == null ? null : Number(r.value),
+      close: r.close == null ? null : Number(r.close),
       fetchedAt: r.fetched_at
     })),
     options: (options.data ?? []).map((r: any) => ({
@@ -988,6 +995,7 @@ export async function getCachedTrackedInstitutions(): Promise<TrackedInstitution
       securityType: r.security_type,
       buyPrice: r.buy_price == null ? null : Number(r.buy_price),
       sellPrice: r.sell_price == null ? null : Number(r.sell_price),
+      priceOnReport: r.price_on_report == null ? null : Number(r.price_on_report),
       close: r.close == null ? null : Number(r.close),
       fetchedAt: r.fetched_at
     })),
