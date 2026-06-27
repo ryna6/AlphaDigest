@@ -224,7 +224,6 @@ create table if not exists unusual_whales_featured_articles (
   published_at timestamptz,
   created_at_source timestamptz,
   tags text[] not null default '{}',
-  image_url text,
   excerpt text,
   content_html text,
   source_url text,
@@ -299,7 +298,6 @@ alter table unusual_whales_featured_articles add column if not exists title text
 alter table unusual_whales_featured_articles add column if not exists published_at timestamptz;
 alter table unusual_whales_featured_articles add column if not exists created_at_source timestamptz;
 alter table unusual_whales_featured_articles add column if not exists tags text[] not null default '{}';
-alter table unusual_whales_featured_articles add column if not exists image_url text;
 alter table unusual_whales_featured_articles add column if not exists excerpt text;
 alter table unusual_whales_featured_articles add column if not exists content_html text;
 alter table unusual_whales_featured_articles add column if not exists source_url text;
@@ -391,5 +389,7 @@ alter table public.unusual_whales_dark_pool_flows add column if not exists nbbo_
 alter table public.unusual_whales_dark_pool_flows add column if not exists nbbo_ask numeric;
 alter table public.unusual_whales_dark_pool_flows add column if not exists side text;
 alter table public.unusual_whales_dark_pool_flows add column if not exists sentiment text;
+
+alter table unusual_whales_featured_articles drop column if exists image_url;
 
 notify pgrst, 'reload schema';

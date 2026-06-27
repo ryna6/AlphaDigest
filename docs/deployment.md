@@ -104,7 +104,7 @@ Because not every Supabase table is wired to current UI flows, verify actual ada
 
 - URL: `/.netlify/functions/fetch-uw-earnings`
 - Declared schedule: every 6 hours daily (`0 */6 * * *`) where Netlify supports scheduled functions for the site/plan.
-- Accepts optional `min_date` and `max_date` query params.
+- Accepts optional `min_date` and `max_date` query params; without overrides, logs and fetches Monday of the previous week through Friday of the next week based on the Toronto/Eastern date.
 - Calls `refreshUnusualWhalesEarnings()`.
 - Writes to Supabase only when Supabase server credentials are configured.
 

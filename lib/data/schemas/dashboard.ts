@@ -8,7 +8,7 @@ export const newsItemSchema = z.object({
   whyItMatters: z.string(),
   source: z.string().optional(),
   sourceUrl: z.string().url().optional(),
-  publisher: z.string().optional(),
+  publisher: z.string().optional()
 });
 
 export const featuredArticleSchema = z.object({
@@ -18,7 +18,6 @@ export const featuredArticleSchema = z.object({
   createdAt: z.string().optional(),
   fetchedAt: z.string(),
   tags: z.array(z.string()),
-  imageUrl: z.string().url().optional(),
   excerpt: z.string().optional(),
   contentHtml: z.string().optional(),
   sourceUrl: z.string().url().optional()

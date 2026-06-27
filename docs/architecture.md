@@ -152,7 +152,7 @@ The app does **not** require Supabase to render. In particular, earnings can fal
 
 Active earnings functions:
 
-- `fetch-uw-earnings.ts`: scheduled every 6 hours daily (`0 */6 * * *`) where Netlify scheduled functions are supported; refreshes optional Supabase earnings cache.
+- `fetch-uw-earnings.ts`: scheduled every 6 hours daily (`0 */6 * * *`) where Netlify scheduled functions are supported; refreshes optional Supabase earnings cache for Monday of the previous week through Friday of the next week based on the Toronto/Eastern date.
 - `get-uw-earnings.ts`: frontend-safe serverless getter for filtered cached/live/fallback earnings.
 
 Placeholder functions:
@@ -206,7 +206,7 @@ AlphaDigest remains fully web-hosted/serverless: GitHub stores code, Netlify hos
 The source-specific cache tables are now backed by an additive migration, not only by `supabase/schema.sql`. Scheduled source refreshes are separated from dashboard snapshot refreshes so Netlify can populate normalized rows before users navigate:
 
 - `refresh-news-feed` writes `unusual_whales_news_feed`.
-- `refresh-featured-articles` writes `unusual_whales_featured_articles`, including the required `created_at_source` column.
+- `refresh-featured-articles` writes `unusual_whales_featured_articles`, including the required `created_at_source` column; `image_url` is no longer cached or rendered.
 - `refresh-economic-events` writes `investing_economic_events`.
 - `refresh-market-quotes` writes `market_quotes`.
 - `refresh-today`, `refresh-markets`, and `refresh-news` also write `dashboard_snapshots` keys used by the active tabs.
