@@ -241,7 +241,7 @@ The Flow dashboard keeps snapshot-first behavior for real cached payloads, but i
 
 ### Flow route and summary behavior
 
-The app shell navigation uses lucide monochrome SVG icons for core tabs, including Today `Newspaper`, Markets `TrendingUp`, Economy `ChartColumn`, and Sentiment `Vote`, so these tabs do not rely on emoji glyphs or grayscale emoji filters. The Economy tab omits the former Oil & Geopolitical Risk card while retaining the other macro cards. The Sentiment tab removes the top Indicators / Market Expectations button row and restores a 3-card summary row above the sentiment/positioning panel.
+The app shell navigation uses lucide monochrome SVG icons for core tabs, including Today `Newspaper`, Markets `TrendingUp`, Economy `ChartColumn`, and Sentiment `Vote`, so these tabs do not rely on emoji glyphs or grayscale emoji filters. The Economy tab is scaffolded with 3 pending summary cards and 6 pending main cards; live Economy data endpoints are pending confirmation and no FRED/OECD/Unusual Whales economy ingestion is implemented yet. The Sentiment tab removes the top Indicators / Market Expectations button row and restores a 3-card summary row above the sentiment/positioning panel.
 
 The Flow page now lays out Flow Summary, Insider Trades, Dark Pool, and Whale Feed as separate card rows. Flow Summary is derived through shared helper logic so refresh snapshots and server loaders can include Insider sentiment, `Largest Dark Pool Print (14D)`, and Whale Feed fields without duplicating calculations in components. The dark-pool summary title reflects the 14-day prune/retention window, and clickable summary cards use the Markets heatmap-style hover lift.
 

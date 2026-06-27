@@ -1,8 +1,56 @@
+import { economyMainCards, economySummaryCards, type EconomyCardDefinition } from "@/lib/data/economy-config";
 import { economyMock } from "@/lib/data/fixtures/mock-dashboard";
 import { PageTitle } from "@/components/dashboard/page-title";
 import { Panel } from "@/components/ui/panel";
 import { SectionHeader } from "@/components/ui/section-header";
 import { MetricRow } from "@/components/ui/metric-row";
+
+function PendingMetricList({ card }: { card: EconomyCardDefinition }) {
+  if (!card.metrics.length) {
+    return (
+      <div className="rounded-none border border-dashed border-borderStrong bg-sidebar/70 p-3">
+        <p className="text-xs font-semibold text-textSecondary">Derived signal</p>
+        <p className="mt-1 text-xs text-textMuted">
+          Inputs pending: {card.derivedFrom?.join(", ") ?? "Awaiting data source"}.
+        </p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="grid gap-2 sm:grid-cols-2">
+      {card.metrics.map((metric) => (
+        <div key={metric.id} className="rounded-none border border-borderStrong bg-sidebar p-3">
+          <p className="text-xs text-textMuted">{metric.label}</p>
+          <p className="mt-1 text-sm font-semibold text-textPrimary">Awaiting data source</p>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function EconomyScaffoldCard({ card, compact = false }: { card: EconomyCardDefinition; compact?: boolean }) {
+  return (
+    <Panel>
+      <SectionHeader title={card.title} info={card.description} />
+      <div className="space-y-3">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <span className="rounded-full border border-borderStrong bg-sidebar px-3 py-1 text-xs font-semibold text-textSecondary">
+            {card.statusLabel}
+          </span>
+          <span className="text-xs text-textMuted">No live data connected</span>
+        </div>
+        <PendingMetricList card={card} />
+        {!compact && card.hasMiniChart ? (
+          <div className="rounded-none border border-dashed border-borderStrong bg-sidebar/50 px-4 py-6 text-center text-xs text-textMuted">
+            Mini-chart pending confirmed series mapping.
+          </div>
+        ) : null}
+        <p className="text-sm text-textSecondary">{card.interpretation}</p>
+      </div>
+    </Panel>
+  );
+}
 
 function MetricPanel({
   title,
@@ -10,7 +58,7 @@ function MetricPanel({
   info
 }: {
   title: string;
-  metrics: typeof economyMock.rates;
+  metrics: typeof economyMock.sentiment;
   info?: string;
 }) {
   return (
@@ -55,38 +103,15 @@ export function EconomyView() {
   return (
     <>
       <PageTitle title="Economy" />
-      <Panel>
-        <SectionHeader title="Macro Regime Summary" />
-        <div className="grid gap-2 md:grid-cols-3 xl:grid-cols-6">
-          {economyMock.regimeBadges.map((m) => (
-            <div key={m.label} className="rounded-none border border-borderStrong bg-sidebar p-3">
-              <p className="text-xs text-textMuted">{m.label}</p>
-              <p className="mt-1 text-sm font-semibold">{m.value}</p>
-            </div>
-          ))}
-        </div>
-      </Panel>
+      <div className="grid gap-4 md:grid-cols-3">
+        {economySummaryCards.map((card) => (
+          <EconomyScaffoldCard key={card.id} card={card} compact />
+        ))}
+      </div>
       <div className="mt-4 grid gap-4 xl:grid-cols-2">
-        <MetricPanel
-          title="Rates & Yield Curve"
-          metrics={economyMock.rates}
-          info="The yield curve compares rates across maturities; inversions often signal restrictive policy or growth concern."
-        />
-        <MetricPanel
-          title="Inflation"
-          metrics={economyMock.inflation}
-          info="Core CPI excludes food and energy and is commonly watched for underlying inflation pressure."
-        />
-        <MetricPanel
-          title="Labor Market"
-          metrics={economyMock.labor}
-          info="Initial jobless claims track new unemployment benefit filings and are a high-frequency labor signal."
-        />
-        <MetricPanel
-          title="Liquidity / Fed Plumbing"
-          metrics={economyMock.liquidity}
-          info="Reverse repo and SOFR help monitor short-term funding and liquidity conditions."
-        />
+        {economyMainCards.map((card) => (
+          <EconomyScaffoldCard key={card.id} card={card} />
+        ))}
       </div>
     </>
   );

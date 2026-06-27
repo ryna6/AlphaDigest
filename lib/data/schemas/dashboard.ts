@@ -222,15 +222,29 @@ export const insiderTradeDetailPayloadSchema = z.object({
   notices: z.array(z.string()).default([])
 });
 
+const economyMetricDefinitionSchema = z.object({
+  id: z.string(),
+  label: z.string(),
+  dataSource: z.string().optional(),
+  seriesId: z.string().optional()
+});
+
+const economyCardDefinitionSchema = z.object({
+  id: z.string(),
+  title: z.string(),
+  description: z.string(),
+  statusLabel: z.string(),
+  interpretation: z.string(),
+  metrics: z.array(economyMetricDefinitionSchema),
+  derivedFrom: z.array(z.string()).optional(),
+  hasMiniChart: z.boolean().optional()
+});
+
 export const economyPayloadSchema = z.object({
-  regimeBadges: z.array(metricSchema),
-  rates: z.array(metricSchema),
-  inflation: z.array(metricSchema),
-  labor: z.array(metricSchema),
-  sentiment: z.array(metricSchema),
-  oilRisk: z.array(metricSchema),
-  liquidity: z.array(metricSchema),
-  sourceMeta: z.array(sourceMetaSchema)
+  summaryCards: z.array(economyCardDefinitionSchema),
+  mainCards: z.array(economyCardDefinitionSchema),
+  sourceMeta: z.array(sourceMetaSchema),
+  notices: z.array(z.string()).default([])
 });
 
 export const newsCalendarPayloadSchema = z.object({

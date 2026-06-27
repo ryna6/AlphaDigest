@@ -15,7 +15,7 @@ This document records active and placeholder data sources. Accuracy matters: do 
 | Cboe U.S. Options Market Statistics                                                 | Active server-side parser for intraday equity, index, and total put/call ratios.                        | `lib/data/adapters/cboe-put-call.ts`, `netlify/functions/refresh-put-call.ts`  |
 | Supabase                                                                            | Optional durable cache for supported refresh helpers, including put/call observations.                  | `lib/db/supabase.ts`, `supabase/`                                              |
 | Static earnings fallback JSON                                                       | Active fallback when Supabase/live earnings paths are unavailable.                                      | `public/data/unusual-whales/earnings-calendar.json`                            |
-| FRED, Twelve Data, CoinGecko, sec-api.io, Capitol Trades, CBOE, AAII, HormuzTracker | Listed/planned or placeholder only unless future code wires them into live flows.                       | Methodology/Status pages and fixtures currently reference some of these names. |
+| FRED, Twelve Data, Capitol Trades, CBOE, AAII | Listed/planned or placeholder only unless future code wires them into live flows.                       | Methodology/Status pages and fixtures currently reference some of these names. |
 
 ## Environment variables
 
@@ -31,11 +31,8 @@ FINNHUB_SECTORS_HEATMAP_API_KEY
 FINNHUB_CRYPTO_HEATMAP_API_KEY
 FINNHUB_MACRO_HEATMAP_API_KEY
 TWELVE_DATA_API_KEY
-COINGECKO_API_KEY
 FRED_API_KEY
-SEC_API_KEY
 SCRAPER_ENABLED
-HORMUZ_TRACKER_ENABLED
 ```
 
 Only `NEXT_PUBLIC_APP_NAME` is intended to be client-safe. Provider keys and Supabase service role credentials are server-only.
@@ -311,7 +308,7 @@ The active tab APIs now prefer Supabase `dashboard_snapshots` before provider-sp
 | `markets:latest`       | `netlify/functions/refresh-markets.ts` | `getMarketsPayload()` and `/api/markets`            | Existing market quote/crypto/live builder, then mock market fixture                 |
 | `news-calendar:latest` | `netlify/functions/refresh-news.ts`    | `getNewsCalendarPayload()` and `/api/news-calendar` | Existing UW news, UW earnings, Investing calendar, and fixture fallback behavior    |
 
-Source-specific cache status remains mixed: Unusual Whales earnings and Cboe put/call are active Supabase-backed flows; Unusual Whales news/articles, Yahoo quotes, and Investing economic events have adapter-level Supabase helpers but are only dashboard-fast after the scheduled snapshot job writes the combined payload. Generic `refresh-flow`, `refresh-economy`, and `refresh-sources-status` remain placeholders until implemented.
+Source-specific cache status remains mixed: Unusual Whales earnings and Cboe put/call are active Supabase-backed flows; Unusual Whales news/articles, Yahoo quotes, and Investing economic events have adapter-level Supabase helpers but are only dashboard-fast after the scheduled snapshot job writes the combined payload. Generic `refresh-flow`, `refresh-economy`, and `refresh-sources-status` remain placeholders until implemented. The Economy tab UI is scaffolded with 3 pending summary cards and 6 pending main cards; live Economy data endpoints are pending confirmation, and no FRED/OECD/Unusual Whales economy ingestion is implemented yet. The former CoinGecko API-key env var, SEC API-key env var, and Hormuz tracker feature flag are removed and unused.
 
 ## Source table refresh corrections
 

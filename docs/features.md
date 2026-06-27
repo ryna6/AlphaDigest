@@ -47,7 +47,7 @@ The Today page displays:
 - Today's economic events.
 - Sector snapshot from the leading sector heatmap tiles.
 - Shared `i` info popover body text uses a smaller readable size while preserving the icon size and dark-theme tooltip styling.
-- Economy and Sentiment are separate top-level tabs. The sidebar/mobile nav uses monochrome lucide SVG icons for these dashboard tabs: Today `Newspaper`, Markets `TrendingUp`, Economy `ChartColumn`, and Sentiment `Vote`. Economy keeps the macro regime, rates, inflation, labor, and liquidity sections; the Oil & Geopolitical Risk card is removed from the UI. Sentiment starts with a 3-card summary row sourced from existing sentiment metrics, keeps sentiment/positioning indicators below it, and no longer shows top Indicators / Market Expectations buttons.
+- Economy and Sentiment are separate top-level tabs. The sidebar/mobile nav uses monochrome lucide SVG icons for these dashboard tabs: Today `Newspaper`, Markets `TrendingUp`, Economy `ChartColumn`, and Sentiment `Vote`. Economy is scaffolded with 3 pending summary cards (Economy Regime, Fed Pressure, Stress Level) and 6 pending main cards (Growth Momentum, Inflation Pressure, Labor Strength, Consumer Health, Rates & Yield Curve, Financial Conditions). Live Economy data endpoints are pending confirmation; no FRED/OECD/Unusual Whales economy ingestion is implemented yet. Sentiment starts with a 3-card summary row sourced from existing sentiment metrics, keeps sentiment/positioning indicators below it, and no longer shows top Indicators / Market Expectations buttons.
 
 Important behavior:
 
