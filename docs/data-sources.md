@@ -247,7 +247,7 @@ The current dashboard fetches the live Investing.com endpoint directly through t
 Fixture data lives in `lib/data/fixtures/mock-dashboard.ts` and currently backs:
 
 - Flow reads Supabase cached dark pool, whale feed, and insider tables, then section-level fixtures; Ownership reads cached tracked-institution data for Institutional and keeps Congressional fixture-backed.
-- Economy & Sentiment page and API.
+- Economy and Sentiment pages and API.
 - Fallback market/today/news/earnings values when live data is unavailable.
 
 When replacing fixture-backed sections with live data:

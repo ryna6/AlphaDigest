@@ -271,10 +271,29 @@ function formatEarningsCount(count: number) {
   return `${count} ${count === 1 ? "Earning" : "Earnings"}`;
 }
 
+function todayEarningsImportanceSubtext(events: UnusualWhalesEarningsEvent[]) {
+  const priority = [
+    { size: "big", singular: "market mover", plural: "market movers" },
+    { size: "large", singular: "high impact", plural: "high impact" },
+    { size: "mid", singular: "moderate impact", plural: "moderate impact" },
+    { size: "small", singular: "low impact", plural: "low impact" }
+  ];
+
+  for (const category of priority) {
+    const count = events.filter(
+      (event) => event.marketCapSize?.trim().toLowerCase() === category.size
+    ).length;
+    if (count > 0) return `${count} ${count === 1 ? category.singular : category.plural}`;
+  }
+
+  return undefined;
+}
+
 function todayEarningsSummary(events: UnusualWhalesEarningsEvent[]) {
   return {
     count: events.length,
-    value: formatEarningsCount(events.length)
+    value: formatEarningsCount(events.length),
+    subtext: todayEarningsImportanceSubtext(events)
   };
 }
 
@@ -691,6 +710,7 @@ async function buildTodayPayload(): Promise<{
         {
           label: "Today's Earnings",
           value: earningsSummary.value,
+          change: earningsSummary.subtext,
           tone: "neutral"
         },
         {

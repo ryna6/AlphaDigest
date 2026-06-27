@@ -10,7 +10,8 @@ export type StatusGroup =
   | "News & Calendar"
   | "Flow"
   | "Ownership"
-  | "Economy & Sentiment";
+  | "Economy"
+  | "Sentiment";
 
 export type StatusJob = {
   id: string;
@@ -67,7 +68,8 @@ export const STATUS_GROUPS: StatusGroup[] = [
   "News & Calendar",
   "Flow",
   "Ownership",
-  "Economy & Sentiment"
+  "Economy",
+  "Sentiment"
 ];
 
 export const STATUS_JOBS: StatusJob[] = [
@@ -281,8 +283,16 @@ export const STATUS_JOBS: StatusJob[] = [
     staleAfterMinutes: 2160
   },
   {
-    id: "economy-sentiment-tbd",
-    group: "Economy & Sentiment",
+    id: "economy-tbd",
+    group: "Economy",
+    job: "TBD",
+    functionName: "TBD",
+    source: "TBD",
+    frequency: "TBD"
+  },
+  {
+    id: "sentiment-tbd",
+    group: "Sentiment",
     job: "TBD",
     functionName: "TBD",
     source: "TBD",

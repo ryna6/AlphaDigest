@@ -61,7 +61,7 @@ Active/live-or-fallback flows:
 Fixture-backed or placeholder areas:
 
 - Flow & Ownership page/API.
-- Economy & Sentiment page/API.
+- Economy and Sentiment pages/API.
 - Ticker detail page/API.
 - Most generic refresh Netlify functions except the Unusual Whales earnings functions.
 - FRED, Twelve Data, CoinGecko, SEC API, Capitol Trades, CBOE, AAII, and HormuzTracker integrations unless future code wires them in.

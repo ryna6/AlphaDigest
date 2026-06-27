@@ -1,2 +1,5 @@
-import { EconomySentimentView } from "@/components/dashboard/economy-sentiment/economy-sentiment-view";
-export default function EconomySentimentPage() { return <EconomySentimentView />; }
+import { redirect } from "next/navigation";
+
+export default function EconomySentimentPage() {
+  redirect("/economy");
+}

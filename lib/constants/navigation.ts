@@ -1,5 +1,4 @@
 import {
-  Activity,
   BarChart3,
   CalendarDays,
   Database,
@@ -15,7 +14,8 @@ export const mainNavigation = [
   { label: "News & Calendar", href: "/news-calendar", icon: CalendarDays },
   { label: "Flow", href: "/flow", icon: ScrollText },
   { label: "Ownership", href: "/ownership", icon: Landmark },
-  { label: "Economy & Sentiment", href: "/economy-sentiment", icon: Activity }
+  { label: "Economy", href: "/economy", icon: Landmark },
+  { label: "Sentiment", href: "/sentiment", icon: BarChart3 }
 ];
 
 export const utilityNavigation = [

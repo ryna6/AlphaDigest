@@ -53,13 +53,13 @@ A Supabase-first view for big-money flow concepts:
 
 A currently fixture-backed ownership view for Institutional/13F positioning and Congressional trades until live providers are added.
 
-### Economy & Sentiment
+### Economy and Sentiment
 
-A currently fixture-backed macro dashboard for rates, inflation, labor, sentiment, oil/geopolitical risk, and liquidity conditions.
+Economy and Sentiment are separate top-level tabs. Economy contains macro regime, rates, inflation, labor, oil/geopolitical risk, and liquidity sections. Sentiment contains sentiment/positioning indicators plus a Market Expectations section that shows a clean empty state until existing cached sources support live content. Today’s Earnings shows highest-priority market-cap importance subtext when earnings exist, and shared info popover body text is slightly smaller for dense explanations.
 
 ### Methodology and Status
 
-Methodology lists intended source coverage and environment variable names. The Status tab is a server-rendered job monitoring page grouped by dashboard tab. It keeps the table columns to Job, Status, Source, Schedule, Last Run, and Next Run; the Job cell shows both the user-facing component name and the actual Netlify function/job name, the Source cell shows short safe provider names, not raw endpoints, and the Status cell is center-aligned. Status rows read fresh Supabase `job_runs` telemetry for Last Run and health, calculate the next run from the central status job registry schedules, display times under the note “All times are shown in Eastern Standard Time.” without repeating timezone suffixes in each cell, and keep planned TBD jobs Unknown rather than Healthy. The Status page/API use dynamic no-store behavior, the page auto-refreshes every 5 minutes while open, and browser refreshes should fetch current telemetry without redeploy. Component status labels render as Good/Healthy, Warning/Delayed or stale, Critical/Action required, and Offline/No status available. Future automated jobs should be added to `lib/status/jobs.ts` and instrumented with `lib/status/job-runs.ts`; `job_runs` rows older than 24 hours are pruned server-side during telemetry writes via the tracked no-argument `public.cleanup_old_job_runs()` Supabase RPC; schedules that need Eastern/Toronto precision should use the shared Toronto runtime guard rather than fixed UTC offsets. Secret values are never shown in the browser. The desktop sidebar and mobile primary-tab bar remain available while scrolling.
+Methodology lists intended source coverage and environment variable names. The Status tab is a server-rendered job monitoring page grouped by dashboard tab. It keeps the table columns to Job, Status, Source, Schedule, Last Run, and Next Run; the Job cell shows both the user-facing component name and the actual Netlify function/job name, the Source cell shows short safe provider names, not raw endpoints, and the Status cell is center-aligned. Status rows read fresh Supabase `job_runs` telemetry for Last Run and health, calculate the next run from the central status job registry schedules, display times under the note “All times are shown in Eastern Standard Time.” without repeating timezone suffixes in each cell, and keep planned TBD jobs Unknown rather than Healthy. The Status page/API use dynamic no-store behavior, the page auto-refreshes every 5 minutes while open, and browser refreshes should fetch current telemetry without redeploy. Component status labels render as Good/Healthy, Warning/Stale or delayed, Critical/Action required, and Offline/No status available. Future automated jobs should be added to `lib/status/jobs.ts` and instrumented with `lib/status/job-runs.ts`; `job_runs` rows older than 24 hours are pruned server-side during telemetry writes via the tracked no-argument `public.cleanup_old_job_runs()` Supabase RPC; schedules that need Eastern/Toronto precision should use the shared Toronto runtime guard rather than fixed UTC offsets. Secret values are never shown in the browser. The desktop sidebar and mobile primary-tab bar remain available while scrolling.
 
 ## Data sources at a glance
 
@@ -140,7 +140,7 @@ Production environment variables should be configured in Netlify site settings. 
 
 - Live providers can fail because of rate limits, upstream shape changes, network errors, or missing API keys.
 - Unusual Whales and Investing.com integrations depend on public endpoint/page shapes and may need maintenance if those providers change their responses.
-- Some dashboard areas are intentionally fixture-backed today, especially Whale Feed, Ownership, Economy & Sentiment, and ticker detail data.
+- Some dashboard areas are intentionally fixture-backed today, especially Whale Feed, Ownership, Economy and Sentiment, and ticker detail data.
 - Data freshness depends on provider availability, request timing, optional Supabase cache state, and Netlify scheduled-function support.
 
 ## Technical documentation
