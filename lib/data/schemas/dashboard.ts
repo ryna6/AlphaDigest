@@ -222,11 +222,24 @@ export const insiderTradeDetailPayloadSchema = z.object({
   notices: z.array(z.string()).default([])
 });
 
+const economyDataPointSchema = z.object({
+  date: z.string(),
+  value: z.number()
+});
+
 const economyMetricDefinitionSchema = z.object({
   id: z.string(),
   label: z.string(),
   dataSource: z.string().optional(),
-  seriesId: z.string().optional()
+  seriesId: z.string().optional(),
+  fredOptions: z.object({
+    units: z.string().optional(),
+    frequency: z.string().optional()
+  }).optional(),
+  latestDate: z.string().optional(),
+  latestValue: z.number().nullable().optional(),
+  history: z.array(economyDataPointSchema).optional(),
+  error: z.string().optional()
 });
 
 const economyCardDefinitionSchema = z.object({

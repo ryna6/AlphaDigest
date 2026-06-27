@@ -1,8 +1,26 @@
+export type FredSeriesOptions = {
+  units?: string;
+  frequency?: string;
+};
+
 export type EconomyMetricDefinition = {
   id: string;
   label: string;
   dataSource?: string;
   seriesId?: string;
+  fredOptions?: FredSeriesOptions;
+};
+
+export type EconomyDataPoint = {
+  date: string;
+  value: number;
+};
+
+export type EconomyMetricSnapshot = EconomyMetricDefinition & {
+  latestDate?: string;
+  latestValue?: number | null;
+  history?: EconomyDataPoint[];
+  error?: string;
 };
 
 export type EconomyCardDefinition = {
@@ -16,16 +34,21 @@ export type EconomyCardDefinition = {
   hasMiniChart?: boolean;
 };
 
-const pendingStatus = "Data pending";
-const pendingInterpretation = "Awaiting confirmed data sources before this signal is calculated.";
+export type EconomyCardSnapshot = Omit<EconomyCardDefinition, "metrics"> & {
+  metrics: EconomyMetricSnapshot[];
+};
+
+const unavailableStatus = "—";
+const unavailableInterpretation = "—";
+const fredSource = "FRED";
 
 export const economySummaryCards: EconomyCardDefinition[] = [
   {
     id: "economy-regime",
     title: "Economy Regime",
     description: "Future derived readout across growth, inflation, labor, consumer, and financial conditions.",
-    statusLabel: pendingStatus,
-    interpretation: pendingInterpretation,
+    statusLabel: unavailableStatus,
+    interpretation: unavailableInterpretation,
     derivedFrom: ["Growth Momentum", "Inflation Pressure", "Labor Strength", "Consumer Health", "Financial Conditions"],
     metrics: []
   },
@@ -33,8 +56,8 @@ export const economySummaryCards: EconomyCardDefinition[] = [
     id: "fed-pressure",
     title: "Fed Pressure",
     description: "Future derived readout across inflation, labor, and rates pressure.",
-    statusLabel: pendingStatus,
-    interpretation: pendingInterpretation,
+    statusLabel: unavailableStatus,
+    interpretation: unavailableInterpretation,
     derivedFrom: ["Inflation Pressure", "Labor Strength", "Rates & Yield Curve"],
     metrics: []
   },
@@ -42,8 +65,8 @@ export const economySummaryCards: EconomyCardDefinition[] = [
     id: "stress-level",
     title: "Stress Level",
     description: "Future derived readout across consumer, labor, yield curve, and financial condition stress.",
-    statusLabel: pendingStatus,
-    interpretation: pendingInterpretation,
+    statusLabel: unavailableStatus,
+    interpretation: unavailableInterpretation,
     derivedFrom: ["Consumer Health", "Labor Strength", "Rates & Yield Curve", "Financial Conditions"],
     metrics: []
   }
@@ -53,94 +76,97 @@ export const economyMainCards: EconomyCardDefinition[] = [
   {
     id: "growth-momentum",
     title: "Growth Momentum",
-    description: "Real activity and demand momentum placeholders.",
-    statusLabel: pendingStatus,
-    interpretation: pendingInterpretation,
+    description: "Real activity and demand momentum.",
+    statusLabel: unavailableStatus,
+    interpretation: unavailableInterpretation,
     hasMiniChart: true,
     metrics: [
-      { id: "real-gdp", label: "Real GDP" },
-      { id: "retail-sales", label: "Retail sales" },
-      { id: "industrial-production", label: "Industrial production" },
-      { id: "durable-goods-orders", label: "Durable goods orders" },
-      { id: "broad-activity-index", label: "Optional broad activity index" }
+      { id: "real-gdp", label: "Real GDP", dataSource: fredSource, seriesId: "GDPC1" },
+      { id: "retail-sales", label: "Retail Sales", dataSource: fredSource, seriesId: "RSAFS" },
+      { id: "industrial-production", label: "Industrial Production", dataSource: fredSource, seriesId: "INDPRO" },
+      { id: "durable-goods-orders", label: "Durable Goods", dataSource: fredSource, seriesId: "DGORDER" },
+      { id: "personal-consumption", label: "Personal Consumption", dataSource: fredSource, seriesId: "PCEC" },
+      { id: "chicago-fed-national-activity-index", label: "CFNAI", dataSource: fredSource, seriesId: "CFNAI" }
     ]
   },
   {
     id: "inflation-pressure",
     title: "Inflation Pressure",
-    description: "Consumer, producer, expectation, and wage inflation placeholders.",
-    statusLabel: pendingStatus,
-    interpretation: pendingInterpretation,
+    description: "Consumer, expectation, and wage inflation.",
+    statusLabel: unavailableStatus,
+    interpretation: unavailableInterpretation,
     hasMiniChart: true,
     metrics: [
-      { id: "headline-cpi", label: "Headline CPI" },
-      { id: "core-cpi", label: "Core CPI" },
-      { id: "pce-inflation", label: "PCE inflation" },
-      { id: "core-pce-inflation", label: "Core PCE inflation" },
-      { id: "inflation-expectations", label: "Inflation expectations" },
-      { id: "wage-growth", label: "Wage growth" }
+      { id: "headline-cpi", label: "Headline CPI", dataSource: fredSource, seriesId: "CPIAUCSL" },
+      { id: "core-cpi", label: "Core CPI", dataSource: fredSource, seriesId: "CPILFESL" },
+      { id: "pce-price-index", label: "PCE Price Index", dataSource: fredSource, seriesId: "PCEPI" },
+      { id: "core-pce-price-index", label: "Core PCE", dataSource: fredSource, seriesId: "PCEPILFE" },
+      { id: "five-year-breakeven-inflation", label: "5Y Breakeven", dataSource: fredSource, seriesId: "T5YIE" },
+      { id: "average-hourly-earnings", label: "Avg Hourly Earnings", dataSource: fredSource, seriesId: "CES0500000003" }
     ]
   },
   {
     id: "labor-strength",
     title: "Labor Strength",
-    description: "Employment, claims, wage, and openings placeholders.",
-    statusLabel: pendingStatus,
-    interpretation: pendingInterpretation,
+    description: "Employment, claims, wages, and openings.",
+    statusLabel: unavailableStatus,
+    interpretation: unavailableInterpretation,
+    hasMiniChart: true,
     metrics: [
-      { id: "unemployment-rate", label: "Unemployment rate" },
-      { id: "nonfarm-payrolls", label: "Nonfarm payrolls" },
-      { id: "initial-jobless-claims", label: "Initial jobless claims" },
-      { id: "continuing-claims", label: "Continuing claims" },
-      { id: "labor-wage-growth", label: "Wage growth" },
-      { id: "job-openings", label: "Job openings" }
+      { id: "unemployment-rate", label: "Unemployment Rate", dataSource: fredSource, seriesId: "UNRATE" },
+      { id: "nonfarm-payrolls", label: "Nonfarm Payrolls", dataSource: fredSource, seriesId: "PAYEMS" },
+      { id: "initial-jobless-claims", label: "Initial Claims", dataSource: fredSource, seriesId: "ICSA" },
+      { id: "continuing-claims", label: "Continuing Claims", dataSource: fredSource, seriesId: "CCSA" },
+      { id: "labor-average-hourly-earnings", label: "Avg Hourly Earnings", dataSource: fredSource, seriesId: "CES0500000003" },
+      { id: "job-openings", label: "Job Openings", dataSource: fredSource, seriesId: "JTSJOL" }
     ]
   },
   {
     id: "consumer-health",
     title: "Consumer Health",
-    description: "Household spending, saving, debt, credit, and sentiment placeholders.",
-    statusLabel: pendingStatus,
-    interpretation: pendingInterpretation,
+    description: "Household spending, saving, debt, credit, and sentiment.",
+    statusLabel: unavailableStatus,
+    interpretation: unavailableInterpretation,
+    hasMiniChart: true,
     metrics: [
-      { id: "real-consumer-spending", label: "Real consumer spending" },
-      { id: "personal-saving-rate", label: "Personal saving rate" },
-      { id: "household-debt-service-ratio", label: "Household debt service ratio" },
-      { id: "credit-card-delinquency-rate", label: "Credit card delinquency rate" },
-      { id: "revolving-consumer-credit", label: "Revolving consumer credit" },
-      { id: "consumer-sentiment", label: "Consumer sentiment" }
+      { id: "real-personal-consumption-expenditures", label: "Real PCE", dataSource: fredSource, seriesId: "PCECC96" },
+      { id: "personal-saving-rate", label: "Saving Rate", dataSource: fredSource, seriesId: "PSAVERT" },
+      { id: "household-debt-service-ratio", label: "Debt Service", dataSource: fredSource, seriesId: "TDSP" },
+      { id: "credit-card-delinquency-rate", label: "Card Delinquencies", dataSource: fredSource, seriesId: "DRCCLACBS" },
+      { id: "revolving-consumer-credit", label: "Revolving Credit", dataSource: fredSource, seriesId: "REVOLSL" },
+      { id: "consumer-sentiment", label: "Consumer Sentiment", dataSource: fredSource, seriesId: "UMCSENT" }
     ]
   },
   {
     id: "rates-yield-curve",
     title: "Rates & Yield Curve",
-    description: "Policy rate, Treasury curve, spreads, and real yield placeholders.",
-    statusLabel: pendingStatus,
-    interpretation: pendingInterpretation,
+    description: "Policy rate, Treasury curve, spreads, and real yield.",
+    statusLabel: unavailableStatus,
+    interpretation: unavailableInterpretation,
     hasMiniChart: true,
     metrics: [
-      { id: "effective-fed-funds-rate", label: "Effective Fed funds rate" },
-      { id: "two-year-treasury-yield", label: "2Y Treasury yield" },
-      { id: "ten-year-treasury-yield", label: "10Y Treasury yield" },
-      { id: "ten-year-minus-two-year-spread", label: "10Y minus 2Y spread" },
-      { id: "ten-year-minus-three-month-spread", label: "10Y minus 3M spread" },
-      { id: "ten-year-real-yield", label: "10Y real yield" }
+      { id: "effective-fed-funds-rate", label: "Fed Funds", dataSource: fredSource, seriesId: "DFF" },
+      { id: "two-year-treasury-yield", label: "2Y Treasury", dataSource: fredSource, seriesId: "DGS2" },
+      { id: "ten-year-treasury-yield", label: "10Y Treasury", dataSource: fredSource, seriesId: "DGS10" },
+      { id: "ten-year-minus-two-year-spread", label: "10Y-2Y Spread", dataSource: fredSource, seriesId: "T10Y2Y" },
+      { id: "ten-year-minus-three-month-spread", label: "10Y-3M Spread", dataSource: fredSource, seriesId: "T10Y3M" },
+      { id: "ten-year-real-yield", label: "10Y Real Yield", dataSource: fredSource, seriesId: "DFII10" }
     ]
   },
   {
     id: "financial-conditions",
     title: "Financial Conditions",
-    description: "Credit spread, liquidity, money supply, and balance-sheet placeholders.",
-    statusLabel: pendingStatus,
-    interpretation: pendingInterpretation,
+    description: "Credit spread, liquidity, money supply, and balance-sheet conditions.",
+    statusLabel: unavailableStatus,
+    interpretation: unavailableInterpretation,
     hasMiniChart: true,
     metrics: [
-      { id: "high-yield-credit-spread", label: "High-yield credit spread" },
-      { id: "investment-grade-credit-spread", label: "Investment-grade credit spread" },
-      { id: "financial-conditions-index", label: "Financial conditions index" },
-      { id: "m2-money-supply", label: "M2 money supply" },
-      { id: "fed-balance-sheet", label: "Fed balance sheet" },
-      { id: "bank-reserves-lending-standards", label: "Optional bank reserves / lending standards later" }
+      { id: "high-yield-credit-spread", label: "HY Spread", dataSource: fredSource, seriesId: "BAMLH0A0HYM2" },
+      { id: "investment-grade-corporate-spread", label: "IG Spread", dataSource: fredSource, seriesId: "BAMLC0A0CM" },
+      { id: "chicago-fed-financial-conditions-index", label: "NFCI", dataSource: fredSource, seriesId: "NFCI" },
+      { id: "m2-money-supply", label: "M2 Money Supply", dataSource: fredSource, seriesId: "M2SL" },
+      { id: "fed-balance-sheet", label: "Fed Balance Sheet", dataSource: fredSource, seriesId: "WALCL" },
+      { id: "adjusted-financial-conditions-index", label: "Adjusted FCI", dataSource: fredSource, seriesId: "ANFCI" }
     ]
   }
 ];
