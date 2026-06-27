@@ -26,7 +26,7 @@ function noStoreJson(body: unknown, init?: ResponseInit) {
 
 const EXPECTED_TABLE_COLUMNS = {
   data_refresh_metadata: ["source", "ok", "fetched_at", "changed", "row_count", "content_hash", "error", "meta"],
-  investing_economic_events: ["id", "event_name", "event_date", "event_time", "source_url", "content_hash", "fetched_at", "updated_at"],
+  investing_economic_events: ["id", "event_name", "event_date", "event_time", "source_url", "fetched_at", "updated_at"],
   market_quotes: ["id", "source", "symbol", "display_symbol", "price", "market_time", "content_hash", "fetched_at", "updated_at"],
   unusual_whales_earnings_events: ["id", "symbol", "report_date", "content_hash", "fetched_at", "updated_at"],
   unusual_whales_featured_articles: ["id", "slug", "title", "published_at", "created_at_source", "source_url", "content_hash", "fetched_at", "updated_at"],

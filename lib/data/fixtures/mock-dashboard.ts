@@ -122,7 +122,7 @@ export const todayMock: TodayPayload = {
       fetchedAt: "2026-06-05T12:45:00.000Z",
       tags: ["QQQ", "XLK", "Macro"],
       excerpt: "Leadership remains narrow, keeping breadth confirmation important.",
-      contentText:
+      contentHtml:
         "Mega-cap technology shares are leading the premarket tape while yields edge higher. Traders are watching whether breadth can confirm the move after the opening bell.",
       sourceUrl: "https://unusualwhales.com/news/mega-cap-technology-leads-premarket-tape"
     },
@@ -134,7 +134,7 @@ export const todayMock: TodayPayload = {
       fetchedAt: "2026-06-05T12:15:00.000Z",
       tags: ["WTI", "XLE", "Commodities"],
       excerpt: "Higher oil can pressure inflation expectations and transport margins.",
-      contentText:
+      contentHtml:
         "Oil and energy equities are firmer as traders monitor global crude supply headlines and possible impacts on inflation expectations.",
       sourceUrl: "https://unusualwhales.com/news/energy-complex-firms-on-crude-supply-headlines"
     },
@@ -146,7 +146,7 @@ export const todayMock: TodayPayload = {
       fetchedAt: "2026-06-05T11:55:00.000Z",
       tags: ["SPY", "Earnings"],
       excerpt: "Index moves may be more macro-driven without a heavy earnings slate.",
-      contentText:
+      contentHtml:
         "The large-cap earnings calendar is light today, leaving index direction more exposed to macro data, rates, and sector rotation.",
       sourceUrl: "https://unusualwhales.com/news/large-cap-earnings-calendar-light"
     }
