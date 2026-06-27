@@ -1,21 +1,23 @@
 import {
-  BarChart3,
   CalendarDays,
+  ChartColumn,
   Database,
-  MapPin,
-  ScrollText,
   Landmark,
-  Settings
+  Newspaper,
+  ScrollText,
+  Settings,
+  TrendingUp,
+  Vote
 } from "lucide-react";
 
 export const mainNavigation = [
-  { label: "Today", href: "/overview/today", icon: MapPin },
-  { label: "Markets", href: "/markets", icon: BarChart3 },
+  { label: "Today", href: "/overview/today", icon: Newspaper },
+  { label: "Markets", href: "/markets", icon: TrendingUp },
   { label: "News & Calendar", href: "/news-calendar", icon: CalendarDays },
   { label: "Flow", href: "/flow", icon: ScrollText },
   { label: "Ownership", href: "/ownership", icon: Landmark },
-  { label: "Economy", href: "/economy", icon: Landmark },
-  { label: "Sentiment", href: "/sentiment", icon: BarChart3 }
+  { label: "Economy", href: "/economy", icon: ChartColumn },
+  { label: "Sentiment", href: "/sentiment", icon: Vote }
 ];
 
 export const utilityNavigation = [

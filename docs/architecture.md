@@ -48,7 +48,7 @@ supabase/                    Schema and migrations
 | `/flow`                           | Flow dashboard.                                        | `getFlowPayload()` reads `flow:latest`, Flow source tables, then fixtures.   |
 | `/ownership`                      | Ownership dashboard.                                   | `ownershipMock` fixture / optional `ownership:latest`.                       |
 | `/flow-ownership`                 | Legacy redirect.                                       | Redirects to `/flow`.                                                        |
-| `/economy-sentiment`              | Economy/sentiment dashboard.                           | `economyMock` fixture.                                                       |
+| `/economy-sentiment`              | Economy dashboard compatibility route.                  | `economyMock` fixture via `EconomyView`.                                     |
 | `/sources-methodology`            | Source reference table.                                | Static page-level source list.                                               |
 | `/status`                         | Job/component monitoring page.                         | Server-rendered status rows from `lib/status/jobs.ts` and Supabase metadata. |
 | `/settings`                       | Legacy redirect.                                       | Redirects to `/status`.                                                      |
@@ -240,6 +240,8 @@ Dashboard-facing Flow date/time rendering uses explicit Eastern Time (`America/T
 The Flow dashboard keeps snapshot-first behavior for real cached payloads, but it no longer lets a fresh mock `flow:latest` snapshot mask real Supabase source rows. If the snapshot mode is `mock`, `getFlowPayload()` rebuilds from `unusual_whales_dark_pool_flows` and `unusual_whales_insider_trades` and persists a replacement snapshot only when the rebuilt payload is live. This preserves fallback behavior without allowing fixture rows to override real cache data.
 
 ### Flow route and summary behavior
+
+The app shell navigation uses lucide monochrome SVG icons for core tabs, including Today `Newspaper`, Markets `TrendingUp`, Economy `ChartColumn`, and Sentiment `Vote`, so these tabs do not rely on emoji glyphs or grayscale emoji filters. The Economy tab omits the former Oil & Geopolitical Risk card while retaining the other macro cards. The Sentiment tab removes the top Indicators / Market Expectations button row and restores a 3-card summary row above the sentiment/positioning panel.
 
 The Flow page now lays out Flow Summary, Insider Trades, Dark Pool, and Whale Feed as separate card rows. Flow Summary is derived through shared helper logic so refresh snapshots and server loaders can include Insider sentiment, `Largest Dark Pool Print (14D)`, and Whale Feed fields without duplicating calculations in components. The dark-pool summary title reflects the 14-day prune/retention window, and clickable summary cards use the Markets heatmap-style hover lift.
 
