@@ -1,17 +1,15 @@
 import { dashboardJson } from "@/lib/api/response";
-import { economyMainCards, economySummaryCards } from "@/lib/data/economy-config";
+import { getEconomyPayload } from "@/lib/data/economy";
 import { economyPayloadSchema } from "@/lib/data/schemas/dashboard";
 
 export const dynamic = "force-dynamic";
 
-export function GET() {
+export async function GET() {
+  const { payload, mode, notices } = await getEconomyPayload();
   return dashboardJson({
     schema: economyPayloadSchema,
-    payload: {
-      summaryCards: economySummaryCards,
-      mainCards: economyMainCards,
-      sourceMeta: [],
-      notices: ["Economy data endpoints are pending confirmation; no live ingestion is implemented yet."]
-    }
+    payload: { ...payload, notices },
+    mode,
+    notices
   });
 }
