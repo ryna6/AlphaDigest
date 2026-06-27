@@ -74,6 +74,8 @@ export const unusualWhalesEarningsEventSchema = z.object({
   isSp500: z.boolean(),
   marketCapSize: z.string().nullable(),
   marketCap: z.number().nullable(),
+  callVolume: z.number().nullable(),
+  putVolume: z.number().nullable(),
   expectedMove: z.number().nullable(),
   impliedMove: z.number().nullable(),
   impliedMovePct: z.number().nullable().default(null),

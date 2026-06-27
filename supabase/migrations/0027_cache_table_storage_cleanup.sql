@@ -35,6 +35,7 @@ alter table public.investing_economic_events
   drop column if exists source_name;
 
 -- Keep article content_html and image_url: Top News detail/list rendering uses them.
+-- Keep unusual_whales_earnings_events.call_volume and put_volume: the earnings calendar uses them for put/call ratio displays.
 -- Keep news_feed.event_time: it is the retention/order timestamp for the 3-day cache.
 
 notify pgrst, 'reload schema';

@@ -27,6 +27,8 @@ export type UnusualWhalesEarningsEvent = {
   isSp500: boolean;
   marketCapSize: string | null;
   marketCap: number | null;
+  callVolume: number | null;
+  putVolume: number | null;
   expectedMove: number | null;
   impliedMove: number | null;
   impliedMovePct: number | null;
@@ -187,6 +189,8 @@ export function normalizeUnusualWhalesEarningsRow(
     isSp500: booleanValue(row.is_s_p_500),
     marketCapSize: stringOrNull(row.market_cap_size),
     marketCap: numberOrNull(row.marketcap),
+    callVolume: numberOrNull(row.call_vol),
+    putVolume: numberOrNull(row.put_vol),
     expectedMove,
     impliedMove,
     impliedMovePct,
@@ -296,6 +300,8 @@ function toDbRow(event: UnusualWhalesEarningsEvent) {
     is_sp500: event.isSp500,
     market_cap_size: event.marketCapSize,
     market_cap: event.marketCap,
+    call_volume: event.callVolume,
+    put_volume: event.putVolume,
     expected_move: event.expectedMove,
     implied_move: event.impliedMove,
     implied_move_pct: event.impliedMovePct,
@@ -328,6 +334,8 @@ function fromDbRow(row: UnknownRecord): UnusualWhalesEarningsEvent {
     isSp500: Boolean(row.is_sp500),
     marketCapSize: stringOrNull(row.market_cap_size),
     marketCap: numberOrNull(row.market_cap),
+    callVolume: numberOrNull(row.call_volume),
+    putVolume: numberOrNull(row.put_volume),
     expectedMove,
     impliedMove,
     impliedMovePct,
@@ -568,7 +576,7 @@ export async function getCachedUnusualWhalesEarnings(
   let query = supabase.client
     .from("unusual_whales_earnings_events")
     .select(
-      "id,symbol,company_name,logo,report_date,report_time,market_time,sector,is_sp500,market_cap_size,market_cap,expected_move,implied_move,implied_move_pct,raw,content_hash,fetched_at,updated_at"
+      "id,symbol,company_name,logo,report_date,report_time,market_time,sector,is_sp500,market_cap_size,market_cap,call_volume,put_volume,expected_move,implied_move,implied_move_pct,raw,content_hash,fetched_at,updated_at"
     )
     .gte("report_date", minDate)
     .lte("report_date", maxDate)

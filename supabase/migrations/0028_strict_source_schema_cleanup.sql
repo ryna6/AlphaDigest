@@ -27,8 +27,6 @@ alter table public.unusual_whales_earnings_events
   drop column if exists open_interest,
   drop column if exists current_price,
   drop column if exists previous_price,
-  drop column if exists call_volume,
-  drop column if exists put_volume,
   drop column if exists stock_volume,
   drop column if exists street_mean_estimate,
   drop column if exists eps_mean_estimate,

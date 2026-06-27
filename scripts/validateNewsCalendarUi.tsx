@@ -81,6 +81,8 @@ function earningsEvent(
     sector: null,
     isSp500: false,
     marketCapSize: null,
+    callVolume: 500,
+    putVolume: 250,
     expectedMove: null,
     impliedMove: null,
     raw: {},
