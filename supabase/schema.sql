@@ -205,15 +205,9 @@ create table if not exists unusual_whales_news_feed (
   id text primary key,
   headline text not null,
   event_time timestamptz not null,
-  tickers text[] not null default '{}',
-  why_it_matters text,
   source_name text,
   source_url text,
   publisher text,
-  sentiment text,
-  major boolean,
-  category text,
-  impact text,
   raw jsonb,
   content_hash text not null,
   fetched_at timestamptz not null,
@@ -232,7 +226,6 @@ create table if not exists unusual_whales_featured_articles (
   tags text[] not null default '{}',
   image_url text,
   excerpt text,
-  content_text text,
   content_html text,
   source_url text,
   raw jsonb,
@@ -259,11 +252,8 @@ create table if not exists investing_economic_events (
   previous text,
   is_highlighted boolean not null default false,
   highlight_reason text,
-  country text,
-  source_name text,
   source_url text,
   raw jsonb,
-  content_hash text not null,
   fetched_at timestamptz not null,
   updated_at timestamptz not null default now()
 );
@@ -294,15 +284,9 @@ on market_quotes (source, symbol);
 alter table unusual_whales_news_feed add column if not exists id text;
 alter table unusual_whales_news_feed add column if not exists headline text;
 alter table unusual_whales_news_feed add column if not exists event_time timestamptz;
-alter table unusual_whales_news_feed add column if not exists tickers text[] not null default '{}';
-alter table unusual_whales_news_feed add column if not exists why_it_matters text;
 alter table unusual_whales_news_feed add column if not exists source_name text;
 alter table unusual_whales_news_feed add column if not exists source_url text;
 alter table unusual_whales_news_feed add column if not exists publisher text;
-alter table unusual_whales_news_feed add column if not exists sentiment text;
-alter table unusual_whales_news_feed add column if not exists major boolean;
-alter table unusual_whales_news_feed add column if not exists category text;
-alter table unusual_whales_news_feed add column if not exists impact text;
 alter table unusual_whales_news_feed add column if not exists raw jsonb;
 alter table unusual_whales_news_feed add column if not exists content_hash text;
 alter table unusual_whales_news_feed add column if not exists fetched_at timestamptz;
@@ -317,7 +301,6 @@ alter table unusual_whales_featured_articles add column if not exists created_at
 alter table unusual_whales_featured_articles add column if not exists tags text[] not null default '{}';
 alter table unusual_whales_featured_articles add column if not exists image_url text;
 alter table unusual_whales_featured_articles add column if not exists excerpt text;
-alter table unusual_whales_featured_articles add column if not exists content_text text;
 alter table unusual_whales_featured_articles add column if not exists content_html text;
 alter table unusual_whales_featured_articles add column if not exists source_url text;
 alter table unusual_whales_featured_articles add column if not exists raw jsonb;
@@ -341,11 +324,8 @@ alter table investing_economic_events add column if not exists forecast text;
 alter table investing_economic_events add column if not exists previous text;
 alter table investing_economic_events add column if not exists is_highlighted boolean not null default false;
 alter table investing_economic_events add column if not exists highlight_reason text;
-alter table investing_economic_events add column if not exists country text;
-alter table investing_economic_events add column if not exists source_name text;
 alter table investing_economic_events add column if not exists source_url text;
 alter table investing_economic_events add column if not exists raw jsonb;
-alter table investing_economic_events add column if not exists content_hash text;
 alter table investing_economic_events add column if not exists fetched_at timestamptz;
 alter table investing_economic_events add column if not exists updated_at timestamptz not null default now();
 create unique index if not exists idx_investing_economic_events_id on investing_economic_events (id);

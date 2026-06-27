@@ -30,7 +30,6 @@ export type InvestingEconomicEvent = {
   previous: string | null;
   isHighlighted: boolean;
   highlightReason: string | null;
-  country: string | null;
   fetchedAt: string;
   raw: Record<string, unknown>;
 };
@@ -278,8 +277,6 @@ function normalizeInvestingEconomicRow(
   );
   if (importance === "low") return null;
 
-  const country = asString(getPath(row, [["country"], ["country_name"], ["country", "name"]]));
-
   const eventDate = (timestamp ? formatEtDateKey(timestamp) : null) ?? dateKey;
 
   return {
@@ -308,7 +305,6 @@ function normalizeInvestingEconomicRow(
     ]),
     isHighlighted: Boolean(eventKey),
     highlightReason,
-    country,
     fetchedAt,
     raw: row
   };
@@ -431,7 +427,6 @@ function eventContentHash(event: InvestingEconomicEvent) {
     previous: event.previous,
     isHighlighted: event.isHighlighted,
     highlightReason: event.highlightReason,
-    country: event.country
   });
 }
 
@@ -453,7 +448,6 @@ function economicToDbRow(event: InvestingEconomicEvent) {
     highlight_reason: event.highlightReason,
     source_url: buildInvestingEconomicCalendarUrl(event.eventDate),
     raw: event.raw,
-    content_hash: eventContentHash(event),
     fetched_at: event.fetchedAt,
     updated_at: new Date().toISOString()
   };
@@ -479,7 +473,6 @@ function economicFromDbRow(row: UnknownRecord): InvestingEconomicEvent {
     previous: asString(row.previous),
     isHighlighted: Boolean(row.is_highlighted),
     highlightReason: asString(row.highlight_reason),
-    country: null,
     fetchedAt: asString(row.fetched_at) ?? new Date().toISOString(),
     raw: isRecord(row.raw) ? row.raw : {}
   };
@@ -633,7 +626,7 @@ export async function getCachedInvestingEconomicCalendar(
   const { data, error } = await supabase.client
     .from("investing_economic_events")
     .select(
-      "id,event_id,event_key,event_name,event_date,time,event_time,importance,stars,actual,forecast,previous,is_highlighted,highlight_reason,source_url,raw,content_hash,fetched_at,updated_at"
+      "id,event_id,event_key,event_name,event_date,time,event_time,importance,stars,actual,forecast,previous,is_highlighted,highlight_reason,source_url,raw,fetched_at,updated_at"
     )
     .eq("event_date", dateKey)
     .order("event_time", { ascending: true, nullsFirst: false });

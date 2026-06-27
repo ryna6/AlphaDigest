@@ -20,7 +20,6 @@ export default async function handler(request: Request) {
     maxDate: url.searchParams.get("max_date") ?? undefined,
     symbol: url.searchParams.get("symbol") ?? undefined,
     sp500Only: boolParam(url, "sp500_only"),
-    hasOptions: boolParam(url, "has_options"),
     order: url.searchParams.get("order") ?? "oi",
     limit
   });

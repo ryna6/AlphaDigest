@@ -111,7 +111,7 @@ Because not every Supabase table is wired to current UI flows, verify actual ada
 `get-uw-earnings.ts`:
 
 - URL: `/.netlify/functions/get-uw-earnings`
-- Accepts `min_date`, `max_date`, `symbol`, `sp500_only`, `has_options`, `order`, and `limit`.
+- Accepts `min_date`, `max_date`, `symbol`, `sp500_only`, `order`, and `limit`.
 - Returns frontend-safe earnings data through `getCachedUnusualWhalesEarnings()`.
 
 ### Placeholder functions
