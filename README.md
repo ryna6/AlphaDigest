@@ -55,7 +55,7 @@ A currently fixture-backed ownership view for Institutional/13F positioning and 
 
 ### Economy and Sentiment
 
-Economy and Sentiment are separate top-level tabs. Economy contains macro regime, rates, inflation, labor, oil/geopolitical risk, and liquidity sections. Sentiment contains sentiment/positioning indicators plus a Market Expectations section that shows a clean empty state until existing cached sources support live content. Today’s Earnings shows highest-priority market-cap importance subtext when earnings exist, and shared info popover body text is slightly smaller for dense explanations.
+Economy and Sentiment are separate top-level tabs. The primary nav uses monochrome lucide SVG icons instead of emoji-style tab glyphs: Today uses `Newspaper`, Markets uses `TrendingUp`, Economy uses `ChartColumn`, and Sentiment uses `Vote`. Economy contains macro regime, rates, inflation, labor, and liquidity sections; the former Oil & Geopolitical Risk UI card is no longer shown. Sentiment opens with a 3-card summary row from existing sentiment metrics, keeps sentiment/positioning content below it, and no longer shows top Indicators / Market Expectations buttons. Today’s Earnings shows highest-priority market-cap importance subtext when earnings exist, and shared info popover body text is slightly smaller for dense explanations.
 
 ### Methodology and Status
 
