@@ -49,6 +49,20 @@ export type EarningsMetadata = {
   meta: Record<string, unknown> | null;
 };
 
+export type EarningsRefreshResult = {
+  ok: boolean;
+  persisted: boolean;
+  changed: boolean;
+  changedRows?: number;
+  range: EarningsRange;
+  rowCount: number;
+  contentHash: string;
+  message?: string;
+  skippedMicroCount: number;
+  prunedOutsideWindowCount: number;
+  prunedMicroCount: number;
+};
+
 type CachedEarningsResult = {
   events: UnusualWhalesEarningsEvent[];
   metadata: EarningsMetadata | null;
@@ -385,6 +399,40 @@ function fromMetadataRow(row: UnknownRecord): EarningsMetadata {
   };
 }
 
+async function pruneStaleEarningsRows(client: SupabaseClient, range: EarningsRange) {
+  const { data: olderRows, error: olderError } = await client
+    .from("unusual_whales_earnings_events")
+    .delete()
+    .lt("report_date", range.minDate)
+    .select("id");
+  if (olderError) {
+    throw new Error(`Supabase earnings old-window prune failed: ${olderError.message}`);
+  }
+
+  const { data: newerRows, error: newerError } = await client
+    .from("unusual_whales_earnings_events")
+    .delete()
+    .gt("report_date", range.maxDate)
+    .select("id");
+  if (newerError) {
+    throw new Error(`Supabase earnings future-window prune failed: ${newerError.message}`);
+  }
+
+  const { data: microRows, error: microError } = await client
+    .from("unusual_whales_earnings_events")
+    .delete()
+    .ilike("market_cap_size", "micro")
+    .select("id");
+  if (microError) {
+    throw new Error(`Supabase earnings micro prune failed: ${microError.message}`);
+  }
+
+  return {
+    prunedOutsideWindowCount: (olderRows?.length ?? 0) + (newerRows?.length ?? 0),
+    prunedMicroCount: microRows?.length ?? 0
+  };
+}
+
 async function updateMetadata(
   client: SupabaseClient,
   range: EarningsRange,
@@ -411,7 +459,9 @@ async function updateMetadata(
   );
 }
 
-export async function refreshUnusualWhalesEarnings(range = defaultEarningsRange()) {
+export async function refreshUnusualWhalesEarnings(
+  range = defaultEarningsRange()
+): Promise<EarningsRefreshResult> {
   const supabase = createServerSupabaseClient();
   let fetched: Awaited<ReturnType<typeof fetchUnusualWhalesEarnings>>;
   try {
@@ -443,9 +493,14 @@ export async function refreshUnusualWhalesEarnings(range = defaultEarningsRange(
       range,
       rowCount: fetched.events.length,
       contentHash,
-      message: supabase.message
+      message: supabase.message,
+      skippedMicroCount: fetched.skippedMicroCount,
+      prunedOutsideWindowCount: 0,
+      prunedMicroCount: 0
     };
   }
+
+  const pruneResult = await pruneStaleEarningsRows(supabase.client, range);
 
   const { data: metadata } = await supabase.client
     .from("data_refresh_metadata")
@@ -466,7 +521,9 @@ export async function refreshUnusualWhalesEarnings(range = defaultEarningsRange(
       changed: false,
       range,
       rowCount: fetched.events.length,
-      contentHash
+      contentHash,
+      skippedMicroCount: fetched.skippedMicroCount,
+      ...pruneResult
     };
   }
 
@@ -504,7 +561,9 @@ export async function refreshUnusualWhalesEarnings(range = defaultEarningsRange(
     changedRows: changedEvents.length,
     range,
     rowCount: fetched.events.length,
-    contentHash
+    contentHash,
+    skippedMicroCount: fetched.skippedMicroCount,
+    ...pruneResult
   };
 }
 

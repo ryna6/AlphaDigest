@@ -317,10 +317,6 @@ function EarningsCalendar({
         <div className="mb-3 rounded-md border border-red-500/30 bg-red-500/10 px-3 py-2 text-xs text-red-200">
           Earnings data is stale: {data.earningsMetadata.error ?? "last refresh failed"}
         </div>
-      ) : data.earningsMessage ? (
-        <div className="mb-3 rounded-md border border-amber-400/30 bg-amber-400/10 px-3 py-2 text-xs text-amber-100">
-          {data.earningsMessage}
-        </div>
       ) : data.unusualWhalesEarnings.length === 0 ? (
         <div className="mb-3 rounded-md border border-amber-400/30 bg-amber-400/10 px-3 py-2 text-xs text-amber-100">
           No earnings rows were returned for the fetched calendar range.

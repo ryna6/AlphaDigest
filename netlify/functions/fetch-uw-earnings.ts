@@ -25,7 +25,12 @@ export default async function handler(request: Request) {
     minDate: dateParam(url, "min_date") ?? defaults.minDate,
     maxDate: dateParam(url, "max_date") ?? defaults.maxDate
   };
-  const runId = await startJobRun({ jobName: "Today’s Earnings", functionName: "fetch-uw-earnings", source: "Unusual Whales", metadata: { range } });
+  const runId = await startJobRun({
+    jobName: "Today’s Earnings",
+    functionName: "fetch-uw-earnings",
+    source: "Unusual Whales",
+    metadata: { range }
+  });
   try {
     const result = await refreshUnusualWhalesEarnings(range);
     console.log("uw_earnings_refresh", {
@@ -34,9 +39,26 @@ export default async function handler(request: Request) {
       max_date: range.maxDate,
       row_count: result.rowCount,
       changed: result.changed,
+      pruned_outside_window_count: result.prunedOutsideWindowCount,
+      skipped_micro_count: result.skippedMicroCount,
+      pruned_micro_count: result.prunedMicroCount,
       persisted: result.persisted
     });
-    await finishJobRun(runId, { status: result.ok && result.rowCount > 0 ? "success" : result.ok ? "warning" : "error", rowsFetched: result.rowCount, rowsInserted: result.changedRows ?? null, warningMessage: result.ok && result.rowCount === 0 ? "Job completed with zero fetched rows." : null, metadata: { persisted: result.persisted, changed: result.changed, range } });
+    await finishJobRun(runId, {
+      status: result.ok && result.rowCount > 0 ? "success" : result.ok ? "warning" : "error",
+      rowsFetched: result.rowCount,
+      rowsInserted: result.changedRows ?? null,
+      warningMessage:
+        result.ok && result.rowCount === 0 ? "Job completed with zero fetched rows." : null,
+      metadata: {
+        persisted: result.persisted,
+        changed: result.changed,
+        range,
+        prunedOutsideWindowCount: result.prunedOutsideWindowCount,
+        skippedMicroCount: result.skippedMicroCount,
+        prunedMicroCount: result.prunedMicroCount
+      }
+    });
     return json(result);
   } catch (error) {
     const message = error instanceof Error ? error.message : "Unknown earnings refresh error";
