@@ -1,6 +1,6 @@
 import { getHeatmapIconPath, getMetricIconPath } from "../../constants/asset-icons";
+import type { Metric } from "../schemas/common";
 import type {
-  EconomyPayload,
   FlowPayload,
   OwnershipPayload,
   MarketsPayload,
@@ -400,57 +400,18 @@ export const ownershipMock: OwnershipPayload = {
     mockMeta(
       "Capitol Trades fixture placeholder",
       "https://www.capitoltrades.com/trades?pageSize=96"
-    ),
-    mockMeta(
-      "sec-api.io 13F fixture placeholder",
-      "https://sec-api.io/docs/form-13-f-filings-institutional-holdings-api"
     )
   ],
   notices: []
 };
 
-export const economyMock: EconomyPayload = {
-  regimeBadges: [
-    { label: "Macro Backdrop", value: "Neutral", tone: "neutral" },
-    { label: "Rates", value: "Restrictive", tone: "warning" },
-    { label: "Inflation", value: "Cooling", tone: "positive" },
-    { label: "Labor", value: "Softening", tone: "warning" },
-    { label: "Credit", value: "Stable", tone: "positive" },
-    { label: "Oil", value: "Rising", tone: "warning" }
-  ],
-  rates: [
-    { label: "Fed policy rate", value: "5.25–5.50%", tone: "warning" },
-    { label: "2Y yield", value: "4.71%", change: "+3 bps", tone: "warning" },
-    { label: "10Y yield", value: "4.29%", change: "+2 bps", tone: "warning" },
-    { label: "10Y–2Y", value: "-42 bps", tone: "warning" }
-  ],
-  inflation: [
-    { label: "CPI YoY", value: "3.4%", tone: "warning" },
-    { label: "Core CPI YoY", value: "3.6%", tone: "warning" },
-    { label: "PPI YoY", value: "2.2%", tone: "neutral" }
-  ],
-  labor: [
-    { label: "Unemployment", value: "3.9%", tone: "neutral" },
-    { label: "Initial jobless claims", value: "229K", tone: "warning" },
-    { label: "Continuing claims", value: "1.79M", tone: "warning" }
-  ],
+export const economyMock: { sentiment: Metric[]; sourceMeta: ReturnType<typeof mockMeta>[] } = {
   sentiment: [
     { label: "CBOE total put/call", value: "0.91", tone: "neutral" },
     { label: "AAII bullish", value: "39.1%", tone: "neutral" },
     { label: "AAII bearish", value: "31.8%", tone: "warning" }
   ],
-  oilRisk: [
-    { label: "WTI crude", value: "$78.28", changePercent: "+0.54%", tone: "warning" },
-    { label: "Brent crude", value: "$82.44", changePercent: "+0.49%", tone: "warning" },
-    { label: "Hormuz status", value: "Optional / disabled", tone: "neutral" }
-  ],
-  liquidity: [
-    { label: "Reverse repo", value: "$412B", tone: "neutral" },
-    { label: "SOFR", value: "5.32%", tone: "warning" },
-    { label: "Fed balance sheet", value: "$7.3T", tone: "neutral" }
-  ],
   sourceMeta: [
-    mockMeta("FRED", "https://fred.stlouisfed.org/docs/api/fred/"),
     mockMeta("CBOE Market Statistics", "https://www.cboe.com/data/mktstat.aspx?dt=2026-06-04"),
     mockMeta("AAII Sentiment", "https://www.aaii.com/sentimentsurvey/sent_results")
   ]

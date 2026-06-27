@@ -11,11 +11,10 @@ const secretEnvVars = [
   "FINNHUB_SECTORS_HEATMAP_API_KEY",
   "FINNHUB_MACRO_HEATMAP_API_KEY",
   "TWELVE_DATA_API_KEY",
-  "FRED_API_KEY",
-  "SEC_API_KEY"
+  "FRED_API_KEY"
 ];
 
-const publicConfigVars = ["NEXT_PUBLIC_APP_NAME", "SCRAPER_ENABLED", "HORMUZ_TRACKER_ENABLED"];
+const publicConfigVars = ["NEXT_PUBLIC_APP_NAME", "SCRAPER_ENABLED"];
 
 export function GET() {
   return NextResponse.json({
@@ -40,11 +39,6 @@ export function GET() {
         source: "Unusual Whales",
         configured: true,
         message: "Configured through server-side settings; secret values are never exposed."
-      },
-      {
-        source: "CoinGecko",
-        configured: true,
-        message: "Primary crypto source; no app-level API key is required."
       }
     ]
   });

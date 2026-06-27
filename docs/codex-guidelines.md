@@ -64,7 +64,7 @@ Fixture-backed or placeholder areas:
 - Economy and Sentiment pages/API.
 - Ticker detail page/API.
 - Most generic refresh Netlify functions except the Unusual Whales earnings functions.
-- FRED, Twelve Data, CoinGecko, SEC API, Capitol Trades, CBOE, AAII, and HormuzTracker integrations unless future code wires them in.
+- FRED, Twelve Data, Capitol Trades, CBOE, and AAII integrations unless future code wires them in.
 
 ## High-risk coupling to avoid
 
