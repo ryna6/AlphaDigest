@@ -66,7 +66,7 @@ export function InfoTooltip({
                 placement === "bottom" && "-translate-x-1/2",
                 size === "compact"
                   ? "w-[15.3rem] p-2.5 text-[11px] leading-4"
-                  : "w-72 p-3 text-xs leading-5"
+                  : "w-72 p-3 text-[11px] leading-4"
               )}
               style={{ left: position.left, top: position.top }}
             >

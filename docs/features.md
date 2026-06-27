@@ -16,7 +16,8 @@ Current primary tabs:
 3. News & Calendar
 4. Flow
 5. Ownership
-6. Economy & Sentiment
+6. Economy
+7. Sentiment
 
 Current utility tabs:
 
@@ -39,12 +40,14 @@ The Today page displays:
   - Leading Sectors from the Markets sector heatmap.
   - Risk On / Risk Off from live VIX3M divided by live VIX when both valid positive values are available.
   - Put/Call Ratio from the Cboe current market-statistics source, storing Equity, Index, and Total ratios with Eastern release time; the Today Market Summary card displays only the Total ratio plus its 24h change, while Index and Equity remain available in cached backend data for future tabs. The server-side daily fallback requests Cboe daily statistics with a Toronto-date `?dt=YYYY-MM-DD` query only when intraday parsing is unavailable.
-  - Today's Earnings count from the Unusual Whales earnings flow.
+  - Today's Earnings count from the Unusual Whales earnings flow, with highest-priority `market_cap_size` importance subtext (`big` market movers, `large` high impact, `mid` moderate impact, then `small` low impact) when earnings exist. With no earnings, the value remains centered without an empty subtext row.
   - Today's Economic Events count from the Investing.com calendar flow.
 - Featured Unusual Whales articles with title, tags, timestamp, and excerpt.
 - Today's top earnings, limited to five rows.
 - Today's economic events.
 - Sector snapshot from the leading sector heatmap tiles.
+- Shared `i` info popover body text uses a smaller readable size while preserving the icon size and dark-theme tooltip styling.
+- Economy and Sentiment are separate top-level tabs. Economy keeps the macro regime, rates, inflation, labor, oil/geopolitical risk, and liquidity sections; Sentiment keeps sentiment/positioning indicators and includes a Market Expectations section with an empty state until existing cached data supports live content.
 
 Important behavior:
 
@@ -178,7 +181,7 @@ Flow Summary now labels the Whale Feed mini card as `Whale Feed (7D)` and explic
 
 The Status tab presents grouped automated jobs with the columns Job, Status, Source, Schedule, Last Run, and Next Run. The Source column replaces the former Endpoint label and uses short provider names rather than exact URLs or API paths. The component status legend is centered in its card with wider spacing and preserves the Healthy, Warning, Error, Unknown order. Unusual Whales News Feed / `refresh-news-feed` displays `Every 30m, Daily` and runs every 30 minutes on the hour and half-hour; Put/Call Ratio displays `Every 30m, Mon–Fri`; Flow source jobs display hourly Monday-Friday and `refresh-flow` displays `Every 1h at :05, Mon–Fri`.
 
-Status reads fresh Supabase `job_runs` telemetry written by scheduled functions. Last Run and status come from job metadata, Next Run remains schedule-based, and TBD or not-yet-run jobs remain Unknown. The Status page and `/api/cache/status` are dynamic/no-store so a browser refresh fetches current telemetry without redeploy, and the Status page auto-refreshes every 5 minutes while open. Component status labels render as Good/Healthy, Warning/Delayed or stale, Critical/Action required, and Offline/No status available. `job_runs` rows older than 24 hours are pruned server-side during telemetry writes via the tracked Supabase retention helper. Netlify logs are only for manual debugging in the Netlify UI/CLI and no Netlify auth token is required for Status.
+Status reads fresh Supabase `job_runs` telemetry written by scheduled functions. Last Run and status come from job metadata, Next Run remains schedule-based, and TBD or not-yet-run jobs remain Unknown. The Status page and `/api/cache/status` are dynamic/no-store so a browser refresh fetches current telemetry without redeploy, and the Status page auto-refreshes every 5 minutes while open. Component status labels render as Good/Healthy, Warning/Stale or delayed, Critical/Action required, and Offline/No status available. `job_runs` rows older than 24 hours are pruned server-side during telemetry writes via the tracked Supabase retention helper. Netlify logs are only for manual debugging in the Netlify UI/CLI and no Netlify auth token is required for Status.
 
 Status schedule notes: Market Overview / `refresh-market-quotes` runs every 5m from the start of Sunday through the end of Friday in Toronto/Eastern time (`*/5 * * * *` with a Toronto weekday guard); Put/Call Ratio / `refresh-put-call` runs every 30m Monday-Friday (`*/30 * * * 1-5`); Top News / `refresh-featured-articles` and Unusual Whales News Feed / `refresh-news-feed` run every 30m daily (`*/30 * * * *`); Today’s Economic Events / `refresh-economic-events` and Today’s Earnings / `fetch-uw-earnings` run every 6h daily (`0 */6 * * *`); Indices/Heatmaps / `refresh-markets` runs every 5m Monday-Friday (`*/5 * * * 1-5`); Insider Trades, Dark Pool, and Whale Feed run hourly Monday-Friday (`0 * * * 1-5`); `refresh-flow` wakes hourly at :05 (`5 * * * *`) and its Toronto weekday guard allows Monday-Friday provider work; source labels stay short and safe; and the Status note says `All times are shown in Eastern Standard Time.` Netlify may show platform-generated wording for cron expressions, so docs record both the actual cron and intended human-readable schedule.
 
