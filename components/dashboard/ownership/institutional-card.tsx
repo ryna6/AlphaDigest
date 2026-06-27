@@ -39,6 +39,7 @@ type Holding = {
   changePerc: number | null;
   percOfShareValue: number | null;
   value: number | null;
+  close: number | null;
 };
 type OptionHolding = {
   institutionName: string;
@@ -59,6 +60,7 @@ type Activity = {
   securityType: string | null;
   buyPrice: number | null;
   sellPrice: number | null;
+  priceOnReport: number | null;
   close: number | null;
 };
 
@@ -153,6 +155,18 @@ function activityValue(r: Activity) {
   const value = r.units != null && r.close != null ? r.units * r.close : null;
   return value != null && Number.isFinite(value) ? value : null;
 }
+function holdingValue(r: Holding) {
+  const value = r.units != null && r.close != null ? r.units * r.close : null;
+  return value != null && Number.isFinite(value) ? value : null;
+}
+function activityReportPrice(r: Activity) {
+  return r.unitsChange != null && r.unitsChange < 0 ? r.sellPrice : r.buyPrice;
+}
+function activityChangeValue(r: Activity) {
+  const value =
+    r.unitsChange != null && r.priceOnReport != null ? r.unitsChange * r.priceOnReport : null;
+  return value != null && Number.isFinite(value) ? value : null;
+}
 
 function activityToneClass(r: Activity) {
   const label = activityLabel(r).toLowerCase();
@@ -224,7 +238,7 @@ export function InstitutionalCard({
       : null;
   const tracked = payload?.tracked;
   const filteredHoldings = (tracked?.holdings ?? []).filter(
-    (r) => r.institutionName === active?.name
+    (r) => r.institutionName === active?.name && r.units !== 0
   );
   const filteredOptions = (tracked?.options ?? []).filter(
     (r) => r.institutionName === active?.name
@@ -395,24 +409,30 @@ function InstitutionDetail({
             </p>
           </div>
           {[
-            ["Founder(s)", founder(active.people)],
+            ["Founder(s)", founder(active.people), null],
             [
-              "YTD Return",
-              <ReturnValue key="y" value={active.ytdReturn} spy={active.spyYtdReturn} />
+              "YTD Returns",
+              <ReturnValue key="y" value={active.ytdReturn} spy={active.spyYtdReturn} />,
+              YTD_RETURNS_INFO
             ],
             [
               "1Y Return",
-              <ReturnValue key="o" value={active.oneYearReturn} spy={active.spyOneYearReturn} />
+              <ReturnValue key="o" value={active.oneYearReturn} spy={active.spyOneYearReturn} />,
+              null
             ],
             [
               "5Y Return",
-              <ReturnValue key="f" value={active.fiveYearReturn} spy={active.spyFiveYearReturn} />
+              <ReturnValue key="f" value={active.fiveYearReturn} spy={active.spyFiveYearReturn} />,
+              null
             ],
-            ["Total Value", money(active.totalValue)],
-            ["Last Report", date(active.date)]
-          ].map(([k, v]) => (
+            ["Total Value", money(active.totalValue), null],
+            ["Last Report", date(active.date), null]
+          ].map(([k, v, info]) => (
             <div key={String(k)}>
-              <p className="text-xs uppercase tracking-wide text-textMuted">{k}</p>
+              <p className="inline-flex items-center gap-1.5 text-xs uppercase tracking-wide text-textMuted">
+                {k}
+                {typeof info === "string" ? <InfoTooltip text={info} placement="top" /> : null}
+              </p>
               <p className="mt-1 text-sm font-medium text-textPrimary">{v}</p>
             </div>
           ))}
@@ -476,9 +496,9 @@ function DetailTable({
                     "Price",
                     "Units",
                     "Change in Units",
+                    "Change in Value",
                     "Current Price",
-                    "Change in Price",
-                    "Value"
+                    "Δ Price Since Activity"
                   ]
             ).map((h) => (
               <th key={h} className="border-b border-borderStrong px-3 py-2 font-medium">
@@ -511,7 +531,9 @@ function DetailTable({
                     {pct(r.changePerc)}
                   </td>
                   <td className="border-b border-borderStrong/50 px-3 py-2">{price(r.avgPrice)}</td>
-                  <td className="border-b border-borderStrong/50 px-3 py-2">{money(r.value)}</td>
+                  <td className="border-b border-borderStrong/50 px-3 py-2">
+                    {money(holdingValue(r))}
+                  </td>
                   <td className="border-b border-borderStrong/50 px-3 py-2">
                     {portfolioPct(r.percOfShareValue)}
                   </td>
@@ -542,8 +564,9 @@ function DetailTable({
                   </tr>
                 ))
               : activity.map((r) => {
-                  const p = r.unitsChange != null && r.unitsChange < 0 ? r.sellPrice : r.buyPrice;
+                  const p = activityReportPrice(r);
                   const cp = p && r.close ? ((r.close - p) / p) * 100 : null;
+                  const changeValue = activityChangeValue(r);
                   return (
                     <tr key={`${r.reportDate}-${r.ticker}-${r.securityType}`}>
                       <td className="border-b border-borderStrong/50 px-3 py-2">{r.ticker}</td>
@@ -568,6 +591,14 @@ function DetailTable({
                       >
                         {num(r.unitsChange)}
                       </td>
+                      <td
+                        className={cn(
+                          "border-b border-borderStrong/50 px-3 py-2",
+                          deltaClass(changeValue)
+                        )}
+                      >
+                        {money(changeValue)}
+                      </td>
                       <td className="border-b border-borderStrong/50 px-3 py-2">
                         {price(r.close)}
                       </td>
@@ -575,9 +606,6 @@ function DetailTable({
                         className={cn("border-b border-borderStrong/50 px-3 py-2", deltaClass(cp))}
                       >
                         {pct(cp)}
-                      </td>
-                      <td className="border-b border-borderStrong/50 px-3 py-2">
-                        {money(activityValue(r))}
                       </td>
                     </tr>
                   );
