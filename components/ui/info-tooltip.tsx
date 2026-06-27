@@ -31,6 +31,14 @@ export function InfoTooltip({
     }
     setOpen(true);
   };
+  const hideTooltip = () => setOpen(false);
+  const toggleTooltip = () => {
+    if (open) {
+      hideTooltip();
+      return;
+    }
+    showTooltip();
+  };
 
   return (
     <span
@@ -38,8 +46,13 @@ export function InfoTooltip({
       className="inline-flex"
       onMouseEnter={showTooltip}
       onFocus={showTooltip}
-      onMouseLeave={() => setOpen(false)}
-      onBlur={() => setOpen(false)}
+      onMouseLeave={hideTooltip}
+      onBlur={hideTooltip}
+      onClick={toggleTooltip}
+      onKeyDown={(event) => {
+        if (event.key === "Escape") hideTooltip();
+      }}
+      role="button"
       tabIndex={0}
     >
       <Info className="h-3.5 w-3.5 text-textMuted" aria-label={text} />

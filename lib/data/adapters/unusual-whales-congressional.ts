@@ -7,7 +7,7 @@ const LIST_URL = "https://phx.unusualwhales.com/api/portfolios_v2";
 const PROFILE_BASE_URL = "https://phx.unusualwhales.com/api/senate_stocks";
 const MAX_DUPLICATE_NAMES_TO_LOG = 10;
 const DISALLOWED_TRADE_ASSETS = new Set(["bond", "corporate bond", "municipal-security", "other"]);
-const TRADE_RETENTION_MONTHS = 24;
+const TRADE_RETENTION_MONTHS = 36;
 
 type Rec = Record<string, unknown>;
 const isRec = (v: unknown): v is Rec => !!v && typeof v === "object" && !Array.isArray(v);
@@ -245,7 +245,7 @@ function normalizeTrade(
   }
   const transactionDate = dateStr(raw, ["transaction_date", "traded_date"]);
   if (transactionDate && transactionDate < cutoffDate) {
-    return { trade: null, skipReason: "trade_older_than_24_months" };
+    return { trade: null, skipReason: "trade_older_than_3_years" };
   }
   return {
     trade: {
