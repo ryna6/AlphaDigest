@@ -249,7 +249,7 @@ function earningsSnapshotFromUnusualWhales(events: UnusualWhalesEarningsEvent[])
       ticker: event.symbol,
       company: event.companyName ?? event.symbol,
       time: earningsTimingFromReportTime(event.reportTime),
-      expectedEps: currencyOrDash(event.epsMeanEstimate ?? event.streetMeanEstimate),
+      expectedEps: "—",
       expectedRevenue: undefined,
       actualEps: "—",
       actualRevenue: "—",
@@ -314,7 +314,6 @@ function dashboardEventFromInvestingEvent(event: InvestingEconomicEvent): Econom
     stars: event.stars,
     isHighlighted: event.isHighlighted,
     highlightReason: event.highlightReason,
-    country: event.country,
     fetchedAt: event.fetchedAt
   };
 }
@@ -790,9 +789,7 @@ async function buildNewsCalendarPayload(): Promise<{
     tickers: article.tags,
     whyItMatters: article.excerpt ?? "Featured market article.",
     source: "Unusual Whales",
-    sourceUrl: article.sourceUrl,
-    category: "Market",
-    impact: "Medium" as const
+    sourceUrl: article.sourceUrl
   }));
   const news = newsResult.items.length ? newsResult.items : fallbackNews;
 

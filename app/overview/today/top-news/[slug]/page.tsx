@@ -136,16 +136,9 @@ export default async function TopNewsArticlePage({
               {article.excerpt}
             </p>
           ) : null}
-          {articleBlocks.length || article.contentText ? (
+          {articleBlocks.length ? (
             <div className="mt-6 max-w-[72ch] border-t border-borderStrong pt-6 text-base leading-[1.65] text-textPrimary">
-              {(articleBlocks.length
-                ? articleBlocks
-                : (article.contentText
-                    ?.split(/\n{2,}/)
-                    .map((paragraph) => paragraph.trim())
-                    .filter(Boolean)
-                    .map((text) => ({ type: "p" as const, text })) ?? [])
-              ).map((block, index) =>
+              {articleBlocks.map((block, index) =>
                 block.type === "h2" ? (
                   <h2
                     key={`${article.slug}-heading-${index}`}

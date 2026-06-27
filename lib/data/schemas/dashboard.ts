@@ -9,10 +9,6 @@ export const newsItemSchema = z.object({
   source: z.string().optional(),
   sourceUrl: z.string().url().optional(),
   publisher: z.string().optional(),
-  sentiment: z.string().optional(),
-  major: z.boolean().optional(),
-  category: z.string().optional(),
-  impact: z.enum(["Low", "Medium", "High"]).optional()
 });
 
 export const featuredArticleSchema = z.object({
@@ -24,7 +20,6 @@ export const featuredArticleSchema = z.object({
   tags: z.array(z.string()),
   imageUrl: z.string().url().optional(),
   excerpt: z.string().optional(),
-  contentText: z.string().optional(),
   contentHtml: z.string().optional(),
   sourceUrl: z.string().url().optional()
 });
@@ -51,7 +46,6 @@ export const eventSchema = z.object({
     .optional(),
   isHighlighted: z.boolean().optional(),
   highlightReason: z.string().nullable().optional(),
-  country: z.string().nullable().optional(),
   fetchedAt: z.string().optional()
 });
 
@@ -77,19 +71,12 @@ export const unusualWhalesEarningsEventSchema = z.object({
   reportTime: z.string().nullable(),
   marketTime: z.string().nullable(),
   sector: z.string().nullable(),
-  countryCode: z.string().nullable(),
   isSp500: z.boolean(),
-  hasOptions: z.boolean(),
   marketCapSize: z.string().nullable(),
   marketCap: z.number().nullable(),
-  openInterest: z.number().nullable(),
-  callVolume: z.number().nullable(),
-  putVolume: z.number().nullable(),
   expectedMove: z.number().nullable(),
   impliedMove: z.number().nullable(),
   impliedMovePct: z.number().nullable().default(null),
-  streetMeanEstimate: z.number().nullable(),
-  epsMeanEstimate: z.number().nullable(),
   raw: z.record(z.string(), z.unknown()),
   contentHash: z.string(),
   fetchedAt: z.string()

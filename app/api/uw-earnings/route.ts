@@ -18,7 +18,6 @@ export async function GET(request: Request) {
     maxDate: url.searchParams.get("max_date") ?? undefined,
     symbol: url.searchParams.get("symbol") ?? undefined,
     sp500Only: url.searchParams.get("sp500_only") === "true",
-    hasOptions: url.searchParams.get("has_options") === "true",
     limit: Number(url.searchParams.get("limit") ?? 250),
     order: url.searchParams.get("order") ?? "oi"
   });

@@ -24,19 +24,12 @@ export type UnusualWhalesEarningsEvent = {
   reportTime: "premarket" | "postmarket" | "regular" | string | null;
   marketTime: string | null;
   sector: string | null;
-  countryCode: string | null;
   isSp500: boolean;
-  hasOptions: boolean;
   marketCapSize: string | null;
   marketCap: number | null;
-  openInterest: number | null;
-  callVolume: number | null;
-  putVolume: number | null;
   expectedMove: number | null;
   impliedMove: number | null;
   impliedMovePct: number | null;
-  streetMeanEstimate: number | null;
-  epsMeanEstimate: number | null;
   raw: Record<string, unknown>;
   contentHash: string;
   fetchedAt: string;
@@ -191,19 +184,12 @@ export function normalizeUnusualWhalesEarningsRow(
     reportTime,
     marketTime: stringOrNull(row.market_time),
     sector: stringOrNull(row.sector),
-    countryCode: stringOrNull(row.country_code),
     isSp500: booleanValue(row.is_s_p_500),
-    hasOptions: booleanValue(row.has_options),
     marketCapSize: stringOrNull(row.market_cap_size),
     marketCap: numberOrNull(row.marketcap),
-    openInterest: numberOrNull(row.oi),
-    callVolume: numberOrNull(row.call_vol),
-    putVolume: numberOrNull(row.put_vol),
     expectedMove,
     impliedMove,
     impliedMovePct,
-    streetMeanEstimate: numberOrNull(row.street_mean_est),
-    epsMeanEstimate: numberOrNull(row.eps_mean_est),
     raw: row
   };
   return { ...base, contentHash: stableHash(base), fetchedAt };
@@ -307,19 +293,12 @@ function toDbRow(event: UnusualWhalesEarningsEvent) {
     report_time: event.reportTime,
     market_time: event.marketTime,
     sector: event.sector,
-    country_code: event.countryCode,
     is_sp500: event.isSp500,
-    has_options: event.hasOptions,
     market_cap_size: event.marketCapSize,
     market_cap: event.marketCap,
-    open_interest: event.openInterest,
-    call_volume: event.callVolume,
-    put_volume: event.putVolume,
     expected_move: event.expectedMove,
     implied_move: event.impliedMove,
     implied_move_pct: event.impliedMovePct,
-    street_mean_estimate: event.streetMeanEstimate,
-    eps_mean_estimate: event.epsMeanEstimate,
     raw: event.raw,
     content_hash: event.contentHash,
     fetched_at: event.fetchedAt,
@@ -346,19 +325,12 @@ function fromDbRow(row: UnknownRecord): UnusualWhalesEarningsEvent {
     reportTime: stringOrNull(row.report_time),
     marketTime: stringOrNull(row.market_time),
     sector: stringOrNull(row.sector),
-    countryCode: stringOrNull(row.country_code),
     isSp500: Boolean(row.is_sp500),
-    hasOptions: Boolean(row.has_options),
     marketCapSize: stringOrNull(row.market_cap_size),
     marketCap: numberOrNull(row.market_cap),
-    openInterest: numberOrNull(row.open_interest),
-    callVolume: numberOrNull(row.call_volume),
-    putVolume: numberOrNull(row.put_volume),
     expectedMove,
     impliedMove,
     impliedMovePct,
-    streetMeanEstimate: numberOrNull(row.street_mean_estimate),
-    epsMeanEstimate: numberOrNull(row.eps_mean_estimate),
     raw: isRecord(row.raw) ? row.raw : {},
     contentHash: String(row.content_hash ?? ""),
     fetchedAt: String(row.fetched_at ?? new Date().toISOString())
@@ -506,7 +478,6 @@ function filterAndSortEvents(
   options: {
     symbol?: string;
     sp500Only?: boolean;
-    hasOptions?: boolean;
     limit?: number;
     order?: string;
   }
@@ -519,19 +490,14 @@ function filterAndSortEvents(
         return event.expectedMove ?? -1;
       case "report_date":
         return new Date(event.reportDate).getTime();
-      case "call_volume":
-        return event.callVolume ?? -1;
-      case "put_volume":
-        return event.putVolume ?? -1;
       default:
-        return event.openInterest ?? -1;
+        return event.marketCap ?? -1;
     }
   };
   return suppressUnknownEarningsVariants(events)
     .filter((event) => {
       if (options.symbol && event.symbol !== options.symbol.toUpperCase()) return false;
       if (options.sp500Only && !event.isSp500) return false;
-      if (options.hasOptions && !event.hasOptions) return false;
       return true;
     })
     .sort((a, b) => orderValue(b) - orderValue(a))
@@ -543,7 +509,6 @@ async function getLiveServerEarnings(
   options: {
     symbol?: string;
     sp500Only?: boolean;
-    hasOptions?: boolean;
     limit?: number;
     order?: string;
   }
@@ -580,7 +545,6 @@ export async function getCachedUnusualWhalesEarnings(
     maxDate?: string;
     symbol?: string;
     sp500Only?: boolean;
-    hasOptions?: boolean;
     limit?: number;
     order?: string;
   } = {}
@@ -604,27 +568,21 @@ export async function getCachedUnusualWhalesEarnings(
   let query = supabase.client
     .from("unusual_whales_earnings_events")
     .select(
-      "id,symbol,company_name,logo,report_date,report_time,market_time,sector,country_code,is_sp500,has_options,market_cap_size,market_cap,open_interest,call_volume,put_volume,expected_move,implied_move,implied_move_pct,street_mean_estimate,eps_mean_estimate,raw,content_hash,fetched_at,updated_at"
+      "id,symbol,company_name,logo,report_date,report_time,market_time,sector,is_sp500,market_cap_size,market_cap,expected_move,implied_move,implied_move_pct,raw,content_hash,fetched_at,updated_at"
     )
     .gte("report_date", minDate)
     .lte("report_date", maxDate)
     .gte("market_cap", UW_EARNINGS_MIN_MARKET_CAP)
-    .eq("country_code", UW_EARNINGS_COUNTRY_CODE)
-    .neq("market_cap_size", "micro")
-    .neq("market_cap_size", "Micro")
-    .neq("market_cap_size", " MICRO ");
+    .neq("market_cap_size", "micro");
   if (options.symbol) query = query.eq("symbol", options.symbol.toUpperCase());
   if (options.sp500Only) query = query.eq("is_sp500", true);
-  if (options.hasOptions) query = query.eq("has_options", true);
   const orderMap: Record<string, string> = {
-    oi: "open_interest",
+    oi: "market_cap",
     market_cap: "market_cap",
     expected_move: "expected_move",
     report_date: "report_date",
-    call_volume: "call_volume",
-    put_volume: "put_volume"
   };
-  query = query.order(orderMap[options.order ?? "oi"] ?? "open_interest", {
+  query = query.order(orderMap[options.order ?? "oi"] ?? "market_cap", {
     ascending: false,
     nullsFirst: false
   });

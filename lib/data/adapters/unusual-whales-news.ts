@@ -36,12 +36,6 @@ function asString(value: unknown) {
   return typeof value === "string" && value.trim() ? value.trim() : undefined;
 }
 
-function asBoolean(value: unknown) {
-  if (typeof value === "boolean") return value;
-  if (typeof value === "string") return value.toLowerCase() === "true";
-  return undefined;
-}
-
 function asStringArray(value: unknown) {
   const raw = Array.isArray(value) ? value : typeof value === "string" ? value.split(",") : [];
   return raw
@@ -252,7 +246,6 @@ function normalizeFeaturedRecord(record: UnknownRecord, fetchedAt: string): Feat
     ...(excerpt ? { excerpt: textFromHtml(excerpt) } : {}),
     ...(rawContent
       ? {
-          contentText: articleTextFromHtml(rawContent),
           contentHtml: stripUnusualWhalesAdSection(rawContent)
         }
       : {}),
@@ -269,7 +262,6 @@ function extractFeaturedArticles(payload: unknown, fetchedAt: string) {
     bySlug.set(article.slug, {
       ...existing,
       ...article,
-      contentText: article.contentText ?? existing?.contentText,
       contentHtml: article.contentHtml ?? existing?.contentHtml,
       excerpt: article.excerpt ?? existing?.excerpt,
       tags: article.tags.length ? article.tags : (existing?.tags ?? [])
@@ -297,7 +289,6 @@ async function fetchFeaturedArticleDetail(
         title: detail.title || fallback.title,
         sourceUrl: fallback.sourceUrl,
         tags: detail.tags.length ? detail.tags : fallback.tags,
-        contentText: detail.contentText ?? fallback.contentText,
         contentHtml: detail.contentHtml ?? fallback.contentHtml,
         excerpt: detail.excerpt ?? fallback.excerpt
       }
@@ -381,12 +372,6 @@ function normalizeFeedRecord(record: UnknownRecord): NewsItem | null {
     source: publisher,
     publisher,
     ...(sourceUrl ? { sourceUrl } : {}),
-    ...(asString(record.sentiment) ? { sentiment: asString(record.sentiment) } : {}),
-    ...(asBoolean(record.major ?? record.major_only ?? record.is_major) !== undefined
-      ? { major: asBoolean(record.major ?? record.major_only ?? record.is_major) }
-      : {}),
-    category: asString(record.category) ?? "Market",
-    impact: "Medium"
   };
 }
 
@@ -444,10 +429,6 @@ function newsContentHash(item: NewsItem) {
     timestamp: item.timestamp,
     sourceUrl: item.sourceUrl,
     publisher: item.publisher,
-    sentiment: item.sentiment,
-    major: item.major,
-    category: item.category,
-    impact: item.impact
   });
 }
 
@@ -464,7 +445,7 @@ function newsToDbRow(item: NewsItem, fetchedAt: string) {
     source_name: item.source ?? item.publisher ?? "Unusual Whales",
     source_url: item.sourceUrl ?? null,
     publisher: item.publisher ?? item.source ?? "Unusual Whales",
-    raw: item,
+    raw: {},
     content_hash: newsContentHash(item),
     fetched_at: fetchedAt,
     updated_at: new Date().toISOString()
@@ -476,7 +457,6 @@ function newsFromDbRow(row: UnknownRecord): NewsItem {
     headline: String(row.headline ?? ""),
     timestamp:
       asString(row.event_time) ??
-      asString(row.timestamp) ??
       asString(row.fetched_at) ??
       new Date().toISOString(),
     tickers:
@@ -487,16 +467,6 @@ function newsFromDbRow(row: UnknownRecord): NewsItem {
     source: asString(row.source_name) ?? asString(row.publisher) ?? "Unusual Whales",
     ...(asString(row.source_url) ? { sourceUrl: asString(row.source_url) } : {}),
     ...(asString(row.publisher) ? { publisher: asString(row.publisher) } : {}),
-    ...(isRecord(row.raw) && asString(row.raw.sentiment)
-      ? { sentiment: asString(row.raw.sentiment) }
-      : {}),
-    ...(isRecord(row.raw) && typeof row.raw.major === "boolean" ? { major: row.raw.major } : {}),
-    ...(isRecord(row.raw) && asString(row.raw.category)
-      ? { category: asString(row.raw.category) }
-      : {}),
-    ...(isRecord(row.raw) && ["Low", "Medium", "High"].includes(String(row.raw.impact))
-      ? { impact: row.raw.impact as "Low" | "Medium" | "High" }
-      : {})
   };
 }
 
@@ -509,7 +479,6 @@ function articleContentHash(item: FeaturedArticle) {
     tags: item.tags,
     imageUrl: item.imageUrl,
     excerpt: item.excerpt,
-    contentText: item.contentText,
     contentHtml: item.contentHtml,
     sourceUrl: item.sourceUrl
   });
@@ -525,10 +494,9 @@ function featuredToDbRow(item: FeaturedArticle, fetchedAt: string) {
     tags: item.tags,
     image_url: item.imageUrl ?? null,
     excerpt: item.excerpt ?? null,
-    content_text: item.contentText ?? null,
     content_html: item.contentHtml ?? null,
     source_url: item.sourceUrl ?? originalArticleUrl(item.slug),
-    raw: item,
+    raw: {},
     content_hash: articleContentHash(item),
     fetched_at: fetchedAt,
     updated_at: new Date().toISOString()
@@ -548,7 +516,6 @@ function featuredFromDbRow(row: UnknownRecord): FeaturedArticle {
       : [],
     ...(asString(row.image_url) ? { imageUrl: asString(row.image_url) } : {}),
     ...(asString(row.excerpt) ? { excerpt: asString(row.excerpt) } : {}),
-    ...(asString(row.content_text) ? { contentText: asString(row.content_text) } : {}),
     ...(asString(row.content_html) ? { contentHtml: asString(row.content_html) } : {}),
     sourceUrl: asString(row.source_url) ?? originalArticleUrl(slug)
   };
@@ -772,7 +739,7 @@ export async function getCachedUnusualWhalesFeaturedArticles(
   const { data, error } = await supabase.client
     .from("unusual_whales_featured_articles")
     .select(
-      "id,slug,title,published_at,created_at_source,tags,image_url,excerpt,content_text,content_html,source_url,raw,content_hash,fetched_at,updated_at"
+      "id,slug,title,published_at,created_at_source,tags,image_url,excerpt,content_html,source_url,raw,content_hash,fetched_at,updated_at"
     )
     .order("published_at", { ascending: false, nullsFirst: false })
     .limit(limit);
