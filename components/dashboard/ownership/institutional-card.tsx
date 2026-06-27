@@ -3,7 +3,12 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { SectionHeader } from "@/components/ui/section-header";
-import { ReturnValue, returnPct, returnToneClass } from "@/components/dashboard/ownership/return-value";
+import { InfoTooltip } from "@/components/ui/info-tooltip";
+import {
+  ReturnValue,
+  returnPct,
+  returnToneClass
+} from "@/components/dashboard/ownership/return-value";
 import { cn } from "@/lib/utils/cn";
 import { formatCompactNumber, formatMarketCap } from "@/lib/utils/formatters";
 
@@ -56,6 +61,19 @@ type Activity = {
   sellPrice: number | null;
   close: number | null;
 };
+
+const YTD_RETURNS_INFO =
+  "Unusual Whales tracks disclosed institutional holdings, estimates trade timing from filing data, and values positions using market prices. Because 13F filings are delayed, actual trade dates are unknown, and institutions may have changed or closed positions at any time after filing, these performance figures are estimates rather than exact returns.";
+const BUY_VALUE_INFO =
+  "Unusual Whales estimate the total dollar value of securities an institution added from its portfolio during the reported quarter. These figures are derived from changes between consecutive 13F filings and represent estimated trading activity, not exact transaction values, as the timing and prices of individual trades are not disclosed.";
+const SELL_VALUE_INFO =
+  "Unusual Whales estimate the total dollar value of securities an institution reduced from its portfolio during the reported quarter. These figures are derived from changes between consecutive 13F filings and represent estimated trading activity, not exact transaction values, as the timing and prices of individual trades are not disclosed.";
+const INSTITUTION_HEADER_INFO: Record<string, string | undefined> = {
+  "YTD Returns": YTD_RETURNS_INFO,
+  "Buy Value": BUY_VALUE_INFO,
+  "Sell Value": SELL_VALUE_INFO
+};
+
 type Payload = {
   tracked?: {
     institutions: Institution[];
@@ -135,16 +153,80 @@ function activityValue(r: Activity) {
   const value = r.units != null && r.close != null ? r.units * r.close : null;
   return value != null && Number.isFinite(value) ? value : null;
 }
+
+type AggregatedActivity = Activity & {
+  value: number | null;
+  price: number | null;
+  priceChange: number | null;
+};
+function aggregateActivityRows(rows: Activity[]): AggregatedActivity[] {
+  const groups = new Map<string, Activity[]>();
+  for (const row of rows) {
+    const ticker = row.ticker?.trim().toUpperCase() || row.ticker;
+    groups.set(ticker, [...(groups.get(ticker) ?? []), { ...row, ticker }]);
+  }
+  return [...groups.values()]
+    .map((group) => {
+      const latest = [...group].sort((a, b) => b.reportDate.localeCompare(a.reportDate))[0];
+      const unitsChange = group.reduce((sum, r) => sum + (r.unitsChange ?? 0), 0);
+      const units = latest.units; // Activity table semantics show current/latest units; value sums each cached row's displayed units * close.
+      const securityTypes = [...new Set(group.map((r) => r.securityType?.trim()).filter(Boolean))];
+      const close = group.find((r) => r.close != null)?.close ?? null;
+      const priceSource =
+        unitsChange < 0
+          ? group.find((r) => r.sellPrice != null)?.sellPrice
+          : group.find((r) => r.buyPrice != null)?.buyPrice;
+      const valueParts = group.map(activityValue).filter((v): v is number => v != null);
+      const value = valueParts.length ? valueParts.reduce((sum, v) => sum + v, 0) : null;
+      const previousUnits = units == null ? null : units - unitsChange;
+      let labelUnits = units;
+      if (unitsChange > 0 && previousUnits === 0) labelUnits = unitsChange;
+      if (units === 0 && unitsChange < 0) labelUnits = 0;
+      const priceChange = priceSource && close ? ((close - priceSource) / priceSource) * 100 : null;
+      return {
+        ...latest,
+        securityType:
+          securityTypes.length === 1
+            ? (securityTypes[0] ?? null)
+            : securityTypes.length > 1
+              ? "Mixed"
+              : null,
+        units: labelUnits,
+        unitsChange,
+        close,
+        buyPrice: unitsChange >= 0 ? (priceSource ?? null) : null,
+        sellPrice: unitsChange < 0 ? (priceSource ?? null) : null,
+        value,
+        price: priceSource ?? null,
+        priceChange
+      };
+    })
+    .sort((a, b) => {
+      if (a.value == null && b.value == null) return 0;
+      if (a.value == null) return 1;
+      if (b.value == null) return -1;
+      return b.value - a.value;
+    });
+}
+
 function activityToneClass(r: Activity) {
   const label = activityLabel(r).toLowerCase();
-  if (label.startsWith("sold out") || label.startsWith("reduced") || label.startsWith("decreased")) return "text-negative";
+  if (label.startsWith("sold out") || label.startsWith("reduced") || label.startsWith("decreased"))
+    return "text-negative";
   if (label.startsWith("new position") || label.startsWith("increased")) return "text-positive";
   return "text-textMuted";
 }
 function oiPctValue(r: OptionHolding) {
   const type = (r.putCall ?? "").toLowerCase();
   const denom = type.includes("put") ? r.putOi : type.includes("call") ? r.callOi : null;
-  if (denom == null || !Number.isFinite(denom) || denom <= 0 || r.units == null || !Number.isFinite(r.units)) return null;
+  if (
+    denom == null ||
+    !Number.isFinite(denom) ||
+    denom <= 0 ||
+    r.units == null ||
+    !Number.isFinite(r.units)
+  )
+    return null;
   return (r.units / denom) * 100;
 }
 function oiPct(r: OptionHolding) {
@@ -202,20 +284,13 @@ export function InstitutionalCard({
   const filteredOptions = (tracked?.options ?? []).filter(
     (r) => r.institutionName === active?.name
   );
-  const filteredActivity = (tracked?.activity ?? [])
-    .filter(
+  const filteredActivity = aggregateActivityRows(
+    (tracked?.activity ?? []).filter(
       (r) =>
         r.institutionName === active?.name &&
         (r.securityType ?? "").trim().toLowerCase() !== "warrant"
     )
-    .sort((a, b) => {
-      const av = activityValue(a);
-      const bv = activityValue(b);
-      if (av == null && bv == null) return 0;
-      if (av == null) return 1;
-      if (bv == null) return -1;
-      return bv - av;
-    });
+  );
   if (error)
     return (
       <p className="rounded-none border border-negative/50 bg-negative/10 p-3 text-sm text-negative">
@@ -279,7 +354,12 @@ function InstitutionTable({ rows }: { rows: Institution[] }) {
               "Report Period"
             ].map((h) => (
               <th className="border-b border-borderStrong px-3 py-2 font-medium" key={h}>
-                {h}
+                <span className="inline-flex items-center gap-1.5">
+                  {h}
+                  {INSTITUTION_HEADER_INFO[h] ? (
+                    <InfoTooltip text={INSTITUTION_HEADER_INFO[h]} placement="right" />
+                  ) : null}
+                </span>
               </th>
             ))}
           </tr>
@@ -340,7 +420,7 @@ function InstitutionDetail({
   setScreen: (s: Screen) => void;
   holdings: Holding[];
   options: OptionHolding[];
-  activity: Activity[];
+  activity: AggregatedActivity[];
 }) {
   return (
     <div>
@@ -415,7 +495,7 @@ function DetailTable({
   screen: Screen;
   holdings: Holding[];
   options: OptionHolding[];
-  activity: Activity[];
+  activity: AggregatedActivity[];
 }) {
   const rows =
     screen === "Stock Holdings" ? holdings : screen === "Option Holdings" ? options : activity;
@@ -497,7 +577,9 @@ function DetailTable({
                     <td
                       className={cn(
                         "border-b border-borderStrong/50 px-3 py-2",
-                        (oiPctValue(r) ?? 0) > 25 ? "font-semibold text-positive" : "text-textPrimary"
+                        (oiPctValue(r) ?? 0) > 25
+                          ? "font-semibold text-positive"
+                          : "text-textPrimary"
                       )}
                     >
                       {oiPct(r)}
@@ -508,15 +590,23 @@ function DetailTable({
                   </tr>
                 ))
               : activity.map((r) => {
-                  const p = r.unitsChange != null && r.unitsChange < 0 ? r.sellPrice : r.buyPrice;
-                  const cp = p && r.close ? ((r.close - p) / p) * 100 : null;
+                  const ar = r as Activity & Partial<AggregatedActivity>;
+                  const p =
+                    ar.price ??
+                    (ar.unitsChange != null && ar.unitsChange < 0 ? ar.sellPrice : ar.buyPrice);
+                  const cp = ar.priceChange ?? (p && ar.close ? ((ar.close - p) / p) * 100 : null);
                   return (
                     <tr key={`${r.reportDate}-${r.ticker}-${r.securityType}`}>
                       <td className="border-b border-borderStrong/50 px-3 py-2">{r.ticker}</td>
                       <td className="border-b border-borderStrong/50 px-3 py-2">
                         {r.securityType ?? "—"}
                       </td>
-                      <td className={cn("border-b border-borderStrong/50 px-3 py-2", activityToneClass(r))}>
+                      <td
+                        className={cn(
+                          "border-b border-borderStrong/50 px-3 py-2",
+                          activityToneClass(r)
+                        )}
+                      >
                         {activityLabel(r)}
                       </td>
                       <td className="border-b border-borderStrong/50 px-3 py-2">{price(p)}</td>
@@ -538,7 +628,7 @@ function DetailTable({
                         {pct(cp)}
                       </td>
                       <td className="border-b border-borderStrong/50 px-3 py-2">
-                        {money(activityValue(r))}
+                        {money(ar.value ?? activityValue(ar))}
                       </td>
                     </tr>
                   );

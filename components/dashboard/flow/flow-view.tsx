@@ -10,6 +10,12 @@ import { DarkPoolTable } from "./dark-pool-table";
 import { WhaleFeedTable } from "./whale-feed-table";
 import { formatStockPrice, money, signed } from "./flow-formatters";
 
+const DARK_POOL_TOOLTIP =
+  "Dark Pool data tracks large equity transactions executed through private, off-exchange venues, allowing institutions to trade with reduced market impact. While these trades can provide insight into institutional activity, they do not reveal whether a position was opened, closed, or hedged.";
+
+const WHALE_FEED_TOOLTIP =
+  "Whale Feed tracks large equity trades executed on public exchanges, where orders are visible before execution and can immediately influence price. The feed highlights significant transactions from institutions and other large market participants in real time.";
+
 const INSIDER_SENTIMENT_TOOLTIP =
   "This percentage is the value of insider purchases divided by total insider trading value (purchases plus absolute sales).\n\nAbove 50% means insiders are buying more than they are selling, suggesting more bullish sentiment. Below 50% means insiders are selling more than they are buying, suggesting more bearish sentiment.";
 
@@ -41,7 +47,8 @@ function SummaryCard({ metric }: { metric: any }) {
     <div
       className={cn(
         "flex h-full min-h-32 flex-col rounded-none border border-borderStrong bg-sidebar p-4",
-        metric.href && "cursor-pointer transition duration-200 hover:-translate-y-0.5 hover:border-accentBlue/50 hover:bg-panelHover/60 hover:brightness-110"
+        metric.href &&
+          "cursor-pointer transition duration-200 hover:-translate-y-0.5 hover:border-accentBlue/50 hover:bg-panelHover/60 hover:brightness-110"
       )}
     >
       <div className="flex items-center gap-2">
@@ -132,10 +139,7 @@ export async function FlowView() {
       </Panel>
       <div className="mt-4 space-y-4">
         <Panel>
-          <SectionHeader
-            title="Insider Trades"
-            action={viewAll("/flow/insider-trades")}
-          />
+          <SectionHeader title="Insider Trades" action={viewAll("/flow/insider-trades")} />
           <div className="scrollbar-thin overflow-auto rounded-none border border-borderStrong">
             <table className="w-full min-w-[860px] border-collapse text-left text-[13px]">
               <thead className="bg-sidebar text-textMuted">
@@ -212,6 +216,7 @@ export async function FlowView() {
         <Panel>
           <SectionHeader
             title="Dark Pool"
+            info={DARK_POOL_TOOLTIP}
             action={viewAll("/flow/dark-pool")}
           />
           <DarkPoolTable rows={payload.darkPool.slice(0, 5)} />
@@ -219,6 +224,7 @@ export async function FlowView() {
         <Panel>
           <SectionHeader
             title="Whale Feed"
+            info={WHALE_FEED_TOOLTIP}
             action={viewAll("/flow/whale-feed")}
           />
           <WhaleFeedTable rows={payload.whaleTrades.slice(0, 5)} />
