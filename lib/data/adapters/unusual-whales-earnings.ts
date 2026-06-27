@@ -498,10 +498,6 @@ function filterAndSortEvents(
         return event.expectedMove ?? -1;
       case "report_date":
         return new Date(event.reportDate).getTime();
-      case "call_volume":
-        return event.callVolume ?? -1;
-      case "put_volume":
-        return event.putVolume ?? -1;
       default:
         return event.marketCap ?? -1;
     }
@@ -593,8 +589,6 @@ export async function getCachedUnusualWhalesEarnings(
     market_cap: "market_cap",
     expected_move: "expected_move",
     report_date: "report_date",
-    call_volume: "call_volume",
-    put_volume: "put_volume"
   };
   query = query.order(orderMap[options.order ?? "oi"] ?? "market_cap", {
     ascending: false,
