@@ -53,7 +53,7 @@ function chartLabelCoordinate(viewBox: unknown, key: "x" | "y" | "height") {
 }
 
 function YAxisUnitLabel({ viewBox, value }: { viewBox?: unknown; value?: unknown }) {
-  const x = chartLabelCoordinate(viewBox, "x") + 14;
+  const x = chartLabelCoordinate(viewBox, "x") + 4;
   const y = chartLabelCoordinate(viewBox, "y") + chartLabelCoordinate(viewBox, "height") / 2;
 
   return (
