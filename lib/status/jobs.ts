@@ -288,11 +288,11 @@ export const STATUS_JOBS: StatusJob[] = [
     job: "Economy Data",
     functionName: "refresh-economy",
     source: "FRED",
-    frequency: "Every 6h, Daily",
-    schedule: "0 */6 * * *",
-    scheduleDescription: "Every 6 hours from midnight UTC.",
-    nextRunUtcRule: { hours: [0, 6, 12, 18], minutes: [0] },
-    staleAfterMinutes: 480
+    frequency: "Daily",
+    schedule: "0 8 * * *",
+    scheduleDescription: "Daily at 08:00 UTC.",
+    nextRunUtcRule: { hours: [8], minutes: [0] },
+    staleAfterMinutes: 2160
   },
   {
     id: "sentiment-tbd",

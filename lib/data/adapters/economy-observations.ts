@@ -4,13 +4,13 @@ import { economyMainCards, type EconomyDataPoint, type EconomyMetricDefinition }
 import { fetchFredSeries } from "./fred";
 import { payloadContentHash, updateRefreshMetadata } from "./supabase-refresh";
 
-export const ECONOMY_OBSERVATIONS_TABLE = "economy_observations";
+export const ECONOMY_OBSERVATIONS_TABLE = "fred_economy";
 export const ECONOMY_PROVIDER = "fred";
-export const ECONOMY_REFRESH_SOURCE = "economy_observations";
+export const ECONOMY_REFRESH_SOURCE = "fred_economy";
 const THIRTY_YEARS = 30;
 
 export type EconomyObservationReadResult = { ok: true; points: EconomyDataPoint[] } | { ok: false; points: EconomyDataPoint[]; error: string };
-export type RefreshEconomyObservationsResult = { ok: boolean; count: number; upserted: number; seriesFetched: number; seriesFailed: string[]; error?: string };
+export type RefreshEconomyObservationsResult = { ok: boolean; count: number; upserted: number; seriesFetched: number; seriesSkipped: number; seriesFailed: string[]; error?: string };
 
 export function thirtyYearsAgoDate() {
   const date = new Date();
@@ -40,6 +40,26 @@ export async function readEconomyObservations(metric: EconomyMetricDefinition, o
   return { ok: true, points };
 }
 
+async function latestSavedObservationDate(client: SupabaseClient, seriesId: string) {
+  const { data, error } = await client
+    .from(ECONOMY_OBSERVATIONS_TABLE)
+    .select("date")
+    .eq("provider", ECONOMY_PROVIDER)
+    .eq("series_id", seriesId)
+    .order("date", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (error) throw error;
+  return typeof data?.date === "string" ? data.date : null;
+}
+
+function dayAfter(dateText: string) {
+  const date = new Date(`${dateText}T00:00:00Z`);
+  if (!Number.isFinite(date.getTime())) return null;
+  date.setUTCDate(date.getUTCDate() + 1);
+  return date.toISOString().slice(0, 10);
+}
+
 async function upsertMetricObservations(client: SupabaseClient, cardId: string, metric: EconomyMetricDefinition, points: EconomyDataPoint[]) {
   if (!points.length) return { upserted: 0 };
   const now = new Date().toISOString();
@@ -63,13 +83,27 @@ async function upsertMetricObservations(client: SupabaseClient, cardId: string, 
 
 export async function refreshEconomyObservations(): Promise<RefreshEconomyObservationsResult> {
   const supabase = createServerSupabaseClient();
-  if (!supabase.ok) return { ok: false, count: 0, upserted: 0, seriesFetched: 0, seriesFailed: [], error: supabase.message };
+  if (!supabase.ok) return { ok: false, count: 0, upserted: 0, seriesFetched: 0, seriesSkipped: 0, seriesFailed: [], error: supabase.message };
   const seriesFailed: string[] = [];
   let count = 0;
   let upserted = 0;
   let seriesFetched = 0;
-  for (const { card, metric } of configuredMetrics()) {
-    const result = await fetchFredSeries(metric.seriesId, { ...metric.fredOptions, observationStart: thirtyYearsAgoDate(), sortOrder: "asc" });
+  let seriesSkipped = 0;
+  const metrics = configuredMetrics();
+  console.info("fred_economy_refresh_configured", { totalConfiguredSeries: metrics.length, table: ECONOMY_OBSERVATIONS_TABLE });
+  for (const { card, metric } of metrics) {
+    let latestDate: string | null = null;
+    try {
+      latestDate = await latestSavedObservationDate(supabase.client, metric.seriesId);
+    } catch (error) {
+      seriesFailed.push(metric.seriesId);
+      console.warn("fred_economy_latest_date_failed", { seriesId: metric.seriesId, metricKey: metric.id, error: error instanceof Error ? error.message : "Unknown Supabase latest-date error" });
+      continue;
+    }
+    const incrementalStart = latestDate ? dayAfter(latestDate) : null;
+    const observationStart = incrementalStart ?? thirtyYearsAgoDate();
+    console.info("fred_economy_series_fetch_start", { seriesId: metric.seriesId, metricKey: metric.id, latestSavedDate: latestDate, observationStart });
+    const result = await fetchFredSeries(metric.seriesId, { ...metric.fredOptions, observationStart, sortOrder: "asc" });
     if (!result.ok) {
       seriesFailed.push(metric.seriesId);
       console.warn("fred_economy_series_failed", { seriesId: metric.seriesId, metricKey: metric.id, error: result.error });
@@ -77,16 +111,21 @@ export async function refreshEconomyObservations(): Promise<RefreshEconomyObserv
     }
     seriesFetched += 1;
     count += result.points.length;
+    if (!result.points.length) {
+      seriesSkipped += 1;
+      console.info("fred_economy_series_no_new_data", { seriesId: metric.seriesId, metricKey: metric.id, latestSavedDate: latestDate });
+      continue;
+    }
     const write = await upsertMetricObservations(supabase.client, card.id, metric, result.points);
     upserted += write.upserted;
-    console.info("fred_economy_series_upserted", { seriesId: metric.seriesId, metricKey: metric.id, points: result.points.length });
+    console.info("fred_economy_series_upserted", { seriesId: metric.seriesId, metricKey: metric.id, newObservationsFetched: result.points.length, observationsUpserted: write.upserted });
   }
   await updateRefreshMetadata(supabase.client, ECONOMY_REFRESH_SOURCE, {
     ok: seriesFetched > 0,
     rowCount: count,
     changed: null,
     contentHash: payloadContentHash([{ provider: ECONOMY_PROVIDER, count, upserted, seriesFetched, seriesFailed }]),
-    meta: { provider: ECONOMY_PROVIDER, historyYears: THIRTY_YEARS, seriesFetched, seriesFailed }
+    meta: { provider: ECONOMY_PROVIDER, historyYears: THIRTY_YEARS, seriesFetched, seriesSkipped, seriesFailed, incremental: true }
   });
-  return { ok: seriesFetched > 0, count, upserted, seriesFetched, seriesFailed, error: seriesFetched > 0 ? undefined : "No FRED series refreshed." };
+  return { ok: seriesFetched > 0, count, upserted, seriesFetched, seriesSkipped, seriesFailed, error: seriesFetched > 0 ? undefined : "No FRED series refreshed." };
 }

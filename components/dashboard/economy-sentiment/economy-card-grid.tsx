@@ -32,6 +32,41 @@ function formatMetricValue(metric: EconomyMetricSnapshot, value: number | null |
   return formatScaledMetricValue(metric, scaledValue(metric, value));
 }
 
+function formatAxisTick(metric: EconomyMetricSnapshot, value: number) {
+  if (!Number.isFinite(value)) return "—";
+  const rounded = Math.round(value);
+  if (metric.valueFormat === "percent") return `${rounded}%`;
+  if (metric.valueFormat === "currency-trillions") return `$${new Intl.NumberFormat("en-US", { notation: "compact", maximumFractionDigits: 0 }).format(rounded)}T`;
+  if (metric.valueFormat === "currency-billions") return `$${new Intl.NumberFormat("en-US", { notation: "compact", maximumFractionDigits: 0 }).format(rounded)}B`;
+  if (metric.valueFormat === "persons-thousands") return `${new Intl.NumberFormat("en-US", { notation: "compact", maximumFractionDigits: 0 }).format(rounded)}M`;
+  if (metric.unit.toLowerCase().includes("dollars per hour")) return `$${rounded}`;
+  return new Intl.NumberFormat("en-US", { notation: Math.abs(rounded) >= 10000 ? "compact" : "standard", maximumFractionDigits: 0 }).format(rounded);
+}
+
+function paddedDomain(values: number[]): [number, number] {
+  const finite = values.filter(Number.isFinite);
+  if (!finite.length) return [0, 1];
+  const min = Math.min(...finite);
+  const max = Math.max(...finite);
+  const range = max - min;
+  const rawStep = range > 0 ? range / 4 : Math.max(Math.abs(max) * 0.1, 1);
+  const magnitude = 10 ** Math.floor(Math.log10(Math.abs(rawStep) || 1));
+  const normalized = rawStep / magnitude;
+  const step = (normalized <= 1 ? 1 : normalized <= 2 ? 2 : normalized <= 5 ? 5 : 10) * magnitude;
+  return [Math.floor((min - step) / step) * step, Math.ceil((max + step) / step) * step];
+}
+
+function EconomyTooltip({ active, payload, label, metric }: { active?: boolean; payload?: ReadonlyArray<{ value?: unknown }>; label?: string | number; metric: EconomyMetricSnapshot }) {
+  const value = payload?.[0]?.value;
+  if (!active || value == null || !Number.isFinite(Number(value))) return null;
+  return (
+    <div className="border border-borderStrong bg-[#111827] px-3 py-2 text-xs text-textPrimary shadow-[0_18px_40px_rgba(0,0,0,.35)]">
+      <p>{String(label)}</p>
+      <p className="mt-1 font-semibold">{formatScaledMetricValue(metric, Number(value))}</p>
+    </div>
+  );
+}
+
 function formatChange(change: EconomyChangeSnapshot | undefined) {
   if (!change || change.value == null || !Number.isFinite(change.value)) return "—";
   const sign = change.value > 0 ? "+" : "";
@@ -71,7 +106,6 @@ function dateRangeLabel(metric: EconomyMetricSnapshot) {
   const history = metric.history ?? [];
   const first = history[0]?.date;
   const latest = metric.latestDate ?? history.at(-1)?.date;
-  if (!first && !latest) return "10Y";
   return `${first ?? "—"} to ${latest ?? "—"}`;
 }
 
@@ -80,6 +114,7 @@ function ChartPanel({ metric }: { metric: EconomyMetricSnapshot }) {
     () => (metric.history ?? []).map((point) => ({ date: point.date, value: scaledValue(metric, point.value) })),
     [metric]
   );
+  const yDomain = useMemo(() => paddedDomain(data.map((point) => point.value)), [data]);
 
   return (
     <div className="rounded-none border border-borderStrong bg-gradient-to-b from-sidebar/90 to-background/80 p-4 shadow-[0_0_24px_rgba(15,23,42,.22)]">
@@ -87,7 +122,7 @@ function ChartPanel({ metric }: { metric: EconomyMetricSnapshot }) {
         <div>
           <p className="text-sm font-semibold text-textPrimary">{metric.fullName}</p>
           <p className="mt-1 text-xs leading-5 text-textMuted">
-            Range: 10Y ({dateRangeLabel(metric)}) · Frequency: {metric.frequency} · Unit: {metric.unit} · {metric.seasonalAdjustment} · Source: {metric.dataSource ?? "FRED"}
+            Range: {dateRangeLabel(metric)} | Frequency: {metric.frequency} | Unit: {metric.unit} | {metric.seasonalAdjustment} | Source: {metric.dataSource ?? "FRED"}
           </p>
         </div>
         <div className="text-xs text-textMuted sm:text-right">
@@ -112,15 +147,10 @@ function ChartPanel({ metric }: { metric: EconomyMetricSnapshot }) {
               >
                 <Label value="Time" position="insideBottom" offset={-18} fill="rgba(148,163,184,.9)" fontSize={12} />
               </XAxis>
-              <YAxis width={58} domain={["dataMin", "dataMax"]} tick={{ fill: "rgba(148,163,184,.85)", fontSize: 11 }} axisLine={{ stroke: "rgba(148,163,184,.35)" }} tickLine={false} tickFormatter={(value) => Number(value).toFixed(2)}>
+              <YAxis width={58} domain={yDomain} tick={{ fill: "rgba(148,163,184,.85)", fontSize: 11 }} axisLine={{ stroke: "rgba(148,163,184,.35)" }} tickLine={false} tickFormatter={(value) => formatAxisTick(metric, Number(value))}>
                 <Label value={metric.chartAxisLabel} angle={-90} position="insideLeft" offset={4} fill="rgba(148,163,184,.9)" fontSize={12} />
               </YAxis>
-              <Tooltip
-                cursor={{ stroke: "rgba(79,140,255,.45)", strokeWidth: 1 }}
-                contentStyle={{ background: "#111827", border: "1px solid rgba(148,163,184,.35)", borderRadius: 0, color: "#F8FAFC", boxShadow: "0 18px 40px rgba(0,0,0,.35)" }}
-                formatter={(value) => [formatScaledMetricValue(metric, Number(value)), metric.label]}
-                labelFormatter={(label) => `Observation: ${String(label)}`}
-              />
+              <Tooltip cursor={{ stroke: "rgba(79,140,255,.45)", strokeWidth: 1 }} content={(props) => <EconomyTooltip {...props} metric={metric} />} />
               <Line type="monotone" dataKey="value" stroke="#4F8CFF" strokeWidth={2.5} dot={false} activeDot={{ r: 4, stroke: "#93C5FD", strokeWidth: 2, fill: "#0F172A" }} isAnimationActive={false} />
             </LineChart>
           </ResponsiveContainer>
@@ -138,7 +168,7 @@ function EconomyMetricCard({ card }: { card: EconomyCardSnapshot }) {
     <Panel>
       <SectionHeader title={card.title} info={card.description} />
       <div className="space-y-3">
-        <div className="grid gap-2 sm:grid-cols-2">
+        <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
           {card.metrics.map((metric) => {
             const active = metric.id === selectedMetric?.id;
             return (
