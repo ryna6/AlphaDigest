@@ -289,9 +289,9 @@ export const STATUS_JOBS: StatusJob[] = [
     functionName: "refresh-economy",
     source: "FRED",
     frequency: "Daily",
-    schedule: "0 8 * * *",
-    scheduleDescription: "Daily at 08:00 UTC.",
-    nextRunUtcRule: { hours: [8], minutes: [0] },
+    schedule: "0 * * * *",
+    scheduleDescription: "Hourly Netlify wake with a Toronto runtime guard that runs provider work once daily at 12:00 PM America/Toronto.",
+    nextRunRule: { startTime: "12:00", endTime: "12:00" },
     staleAfterMinutes: 2160
   },
   {
