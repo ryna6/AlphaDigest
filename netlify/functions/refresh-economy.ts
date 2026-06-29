@@ -2,7 +2,7 @@ import { refreshEconomyObservations } from "../../lib/data/adapters/economy-obse
 import { getEconomyPayload } from "../../lib/data/economy";
 import { finishJobRun, startJobRun } from "../../lib/status/job-runs";
 
-export const config = { schedule: "0 */6 * * *" };
+export const config = { schedule: "0 8 * * *" };
 
 const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json" } });
 
@@ -14,7 +14,7 @@ export default async function handler() {
     const result = await refreshEconomyObservations();
     const snapshot = result.ok ? await getEconomyPayload() : null;
     const ok = result.ok && Boolean(snapshot);
-    console.log("scheduled_refresh_complete", { job: "refresh-economy", ok, rowsFetched: result.count, rowsUpserted: result.upserted, seriesFetched: result.seriesFetched, seriesFailed: result.seriesFailed });
+    console.log("scheduled_refresh_complete", { job: "refresh-economy", ok, rowsFetched: result.count, rowsUpserted: result.upserted, seriesFetched: result.seriesFetched, seriesSkipped: result.seriesSkipped, seriesFailed: result.seriesFailed });
     await finishJobRun(runId, {
       status: ok && result.seriesFailed.length ? "warning" : ok ? "success" : "error",
       rowsFetched: result.count,
