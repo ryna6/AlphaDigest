@@ -20,6 +20,11 @@ export type EconomyMetricDefinition = {
   preferredChangeMode: EconomyChangeMode;
   valueFormat: EconomyValueFormat;
   chartAxisLabel: string;
+  signalLabel: string;
+  whatItMeasures: string;
+  whyInvestorsCare: string;
+  howToReadIt: string;
+  currentTakeaway: string;
   fredOptions?: FredSeriesOptions;
 };
 
@@ -48,6 +53,7 @@ export type EconomyCardDefinition = {
   description: string;
   statusLabel: string;
   interpretation: string;
+  sectionSummary?: string;
   metrics: EconomyMetricDefinition[];
   derivedFrom?: string[];
   hasMiniChart?: boolean;
@@ -61,8 +67,38 @@ const unavailableStatus = "—";
 const unavailableInterpretation = "—";
 const fredSource = "FRED";
 
-function metric(input: Omit<EconomyMetricDefinition, "dataSource">): EconomyMetricDefinition {
-  return { ...input, dataSource: fredSource };
+function defaultSignal(metric: Pick<EconomyMetricDefinition, "id" | "label" | "preferredChangeMode">) {
+  const id = metric.id.toLowerCase();
+  const label = metric.label.toLowerCase();
+  if (id.includes("spread") || id.includes("delinquency") || id.includes("claims") || id.includes("unemployment") || id.includes("financial-conditions")) return "Stressed";
+  if (label.includes("cpi") || label.includes("pce") || label.includes("earnings")) return "Sticky";
+  if (id.includes("sentiment") || id.includes("saving") || id.includes("yield")) return "Mixed";
+  if (id.includes("gdp") || id.includes("payroll") || id.includes("consumption")) return "Supportive";
+  if (metric.preferredChangeMode === "percentage-point") return "Contained";
+  return "Cooling";
+}
+
+function defaultMetricDetails(metric: Pick<EconomyMetricDefinition, "label" | "fullName" | "unit" | "frequency" | "preferredChangeMode">) {
+  const direction = metric.preferredChangeMode === "percentage-point" ? "percentage-point moves" : metric.preferredChangeMode === "absolute" ? "absolute level changes" : "growth rates";
+  return {
+    whatItMeasures: `${metric.fullName}, reported ${metric.frequency.toLowerCase()} in ${metric.unit}.`,
+    whyInvestorsCare: `${metric.label} helps frame the macro backdrop for earnings, rates, and risk appetite.`,
+    howToReadIt: `Watch the latest level and the QoQ/YoY ${direction} for acceleration or cooling.`,
+    currentTakeaway: `Use the current ${metric.label} trend with adjacent category signals before drawing a market conclusion.`
+  };
+}
+
+function metric(input: Omit<EconomyMetricDefinition, "dataSource" | "signalLabel" | "whatItMeasures" | "whyInvestorsCare" | "howToReadIt" | "currentTakeaway"> & Partial<Pick<EconomyMetricDefinition, "signalLabel" | "whatItMeasures" | "whyInvestorsCare" | "howToReadIt" | "currentTakeaway">>): EconomyMetricDefinition {
+  const details = defaultMetricDetails(input);
+  return {
+    ...input,
+    signalLabel: input.signalLabel ?? defaultSignal(input),
+    whatItMeasures: input.whatItMeasures ?? details.whatItMeasures,
+    whyInvestorsCare: input.whyInvestorsCare ?? details.whyInvestorsCare,
+    howToReadIt: input.howToReadIt ?? details.howToReadIt,
+    currentTakeaway: input.currentTakeaway ?? details.currentTakeaway,
+    dataSource: fredSource
+  };
 }
 
 export const economySummaryCards: EconomyCardDefinition[] = [
@@ -102,6 +138,7 @@ export const economyMainCards: EconomyCardDefinition[] = [
     description: "Real activity and demand momentum.",
     statusLabel: unavailableStatus,
     interpretation: unavailableInterpretation,
+    sectionSummary: "Growth is best read through real activity, production, orders, consumption, and broad activity breadth together.",
     hasMiniChart: true,
     metrics: [
       metric({ id: "real-gdp", label: "Real GDP", fullName: "Real Gross Domestic Product", seriesId: "GDPC1", unit: "Billions of chained 2017 dollars", frequency: "Quarterly", seasonalAdjustment: "Seasonally adjusted annual rate", preferredChangeMode: "percent", valueFormat: "number", chartAxisLabel: "Billions of chained 2017 dollars" }),
@@ -118,6 +155,7 @@ export const economyMainCards: EconomyCardDefinition[] = [
     description: "Consumer, expectation, and wage inflation.",
     statusLabel: unavailableStatus,
     interpretation: unavailableInterpretation,
+    sectionSummary: "Headline inflation remains elevated while core measures are sticky and market expectations are anchored.",
     hasMiniChart: true,
     metrics: [
       metric({ id: "headline-cpi", label: "Headline CPI", fullName: "Consumer Price Index for All Urban Consumers", seriesId: "CPIAUCSL", unit: "Index 1982-1984=100", frequency: "Monthly", seasonalAdjustment: "Seasonally adjusted", preferredChangeMode: "percent", valueFormat: "number", chartAxisLabel: "Index" }),
@@ -134,6 +172,7 @@ export const economyMainCards: EconomyCardDefinition[] = [
     description: "Employment, claims, wages, and openings.",
     statusLabel: unavailableStatus,
     interpretation: unavailableInterpretation,
+    sectionSummary: "Labor conditions balance hiring strength, claims pressure, wage growth, and job-opening demand.",
     hasMiniChart: true,
     metrics: [
       metric({ id: "unemployment-rate", label: "Unemployment Rate", fullName: "Unemployment Rate", seriesId: "UNRATE", unit: "Percent", frequency: "Monthly", seasonalAdjustment: "Seasonally adjusted", preferredChangeMode: "percentage-point", valueFormat: "percent", chartAxisLabel: "%" }),
@@ -150,6 +189,7 @@ export const economyMainCards: EconomyCardDefinition[] = [
     description: "Household spending, saving, debt, credit, and sentiment.",
     statusLabel: unavailableStatus,
     interpretation: unavailableInterpretation,
+    sectionSummary: "Consumer health is shaped by real spending, saving buffers, debt burdens, delinquencies, credit use, and sentiment.",
     hasMiniChart: true,
     metrics: [
       metric({ id: "real-personal-consumption-expenditures", label: "Real PCE", fullName: "Real Personal Consumption Expenditures", seriesId: "PCECC96", unit: "Billions of chained 2017 dollars", frequency: "Monthly", seasonalAdjustment: "Seasonally adjusted annual rate", preferredChangeMode: "percent", valueFormat: "number", chartAxisLabel: "Billions of chained 2017 dollars" }),
@@ -166,6 +206,7 @@ export const economyMainCards: EconomyCardDefinition[] = [
     description: "Policy rate, Treasury curve, spreads, and real yield.",
     statusLabel: unavailableStatus,
     interpretation: unavailableInterpretation,
+    sectionSummary: "Rate pressure reflects policy settings, Treasury yields, curve shape, and real yields facing investors.",
     hasMiniChart: true,
     metrics: [
       metric({ id: "effective-fed-funds-rate", label: "Fed Funds", fullName: "Effective Federal Funds Rate", seriesId: "DFF", unit: "Percent", frequency: "Daily", seasonalAdjustment: "Not seasonally adjusted", preferredChangeMode: "percentage-point", valueFormat: "percent", chartAxisLabel: "%" }),
@@ -182,6 +223,7 @@ export const economyMainCards: EconomyCardDefinition[] = [
     description: "Credit spread, liquidity, money supply, and balance-sheet conditions.",
     statusLabel: unavailableStatus,
     interpretation: unavailableInterpretation,
+    sectionSummary: "Credit stress combines spreads, liquidity, money supply, and balance-sheet conditions into a risk backdrop.",
     hasMiniChart: true,
     metrics: [
       metric({ id: "high-yield-credit-spread", label: "HY Spread", fullName: "ICE BofA US High Yield Index Option-Adjusted Spread", seriesId: "BAMLH0A0HYM2", unit: "Percent", frequency: "Daily", seasonalAdjustment: "Not seasonally adjusted", preferredChangeMode: "percentage-point", valueFormat: "percent", chartAxisLabel: "%" }),
