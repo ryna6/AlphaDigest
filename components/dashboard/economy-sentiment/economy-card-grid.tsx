@@ -32,9 +32,18 @@ function formatScaledMetricValue(metric: EconomyMetricSnapshot, scaled: number |
   return `${unitPrefix(metric)}${number}${unitSuffix(metric)}`;
 }
 
-function formatMetricValue(metric: EconomyMetricSnapshot, value: number | null | undefined) {
+function formatMetricCardValue(metric: EconomyMetricSnapshot, value: number | null | undefined) {
   if (value == null || !Number.isFinite(value)) return "—";
-  return formatScaledMetricValue(metric, scaledValue(metric, value));
+  const scaled = scaledValue(metric, value);
+  const digits = fractionDigits(scaled);
+  return new Intl.NumberFormat("en-US", { minimumFractionDigits: digits, maximumFractionDigits: digits }).format(scaled);
+}
+
+function metricUnitLabel(metric: EconomyMetricSnapshot) {
+  const unit = metric.unit.trim();
+  if (metric.valueFormat === "percent" && unit.toLowerCase() === "percent") return "%";
+  if (unit.toLowerCase() === "percentage points") return "pp";
+  return unit;
 }
 
 function formatAxisTick(metric: EconomyMetricSnapshot, value: number) {
@@ -133,7 +142,7 @@ function changeTone(change: EconomyChangeSnapshot | undefined) {
 function SummaryCard({ card }: { card: EconomyCardSnapshot }) {
   return (
     <Panel>
-      <SectionHeader title={card.title} info={card.description} />
+      <SectionHeader title={card.title} />
       <div className="space-y-3">
         <span className="rounded-full border border-borderStrong bg-sidebar px-3 py-1 text-xs font-semibold text-textSecondary">{card.statusLabel}</span>
         <div className="rounded-none border border-borderStrong bg-sidebar/70 p-3">
@@ -163,9 +172,13 @@ function ChartPanel({ metric }: { metric: EconomyMetricSnapshot }) {
     <div className="rounded-none border border-borderStrong bg-gradient-to-b from-sidebar/90 to-background/80 p-4 shadow-[0_0_24px_rgba(15,23,42,.22)]">
       <div className="mb-4 flex flex-col gap-2 border-b border-borderStrong/70 pb-3 sm:flex-row sm:items-end sm:justify-between">
         <div>
-          <p className="text-sm font-semibold text-textPrimary">{metric.fullName}</p>
-          <p className="mt-1 text-xs leading-5 text-textMuted">
-            Range: {dateRangeLabel(metric)} | Frequency: {metric.frequency} | Unit: {metric.unit} | {metric.seasonalAdjustment}
+          <p className="text-sm font-semibold text-textPrimary">{metric.fullName} ({metric.seriesId})</p>
+          <p className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs leading-5 text-textMuted sm:gap-x-4">
+            <span>Range: {dateRangeLabel(metric)}</span>
+            <span aria-hidden="true" className="text-borderStrong">|</span>
+            <span>Frequency: {metric.frequency}</span>
+            <span aria-hidden="true" className="text-borderStrong">|</span>
+            <span>{metric.seasonalAdjustment}</span>
           </p>
         </div>
         <div className="text-xs text-textMuted sm:text-right">
@@ -178,7 +191,7 @@ function ChartPanel({ metric }: { metric: EconomyMetricSnapshot }) {
       ) : (
         <div className="h-72 sm:h-80">
           <ResponsiveContainer width="100%" height="100%">
-            <LineChart data={data} margin={{ left: 4, right: 18, top: 12, bottom: 24 }}>
+            <LineChart data={data} margin={{ left: 56, right: 18, top: 12, bottom: 12 }}>
               <CartesianGrid stroke="rgba(148,163,184,.14)" strokeDasharray="3 3" vertical={false} />
               <XAxis
                 dataKey="date"
@@ -187,11 +200,9 @@ function ChartPanel({ metric }: { metric: EconomyMetricSnapshot }) {
                 tickLine={false}
                 minTickGap={46}
                 tickFormatter={(value) => formatPeriod(String(value), metric)}
-              >
-                <Label value="Date" position="insideBottom" offset={-18} fill="rgba(148,163,184,.9)" fontSize={12} />
-              </XAxis>
-              <YAxis width={58} domain={yAxis.domain} ticks={yAxis.ticks} tick={{ fill: "rgba(148,163,184,.85)", fontSize: 11 }} axisLine={{ stroke: "rgba(148,163,184,.35)" }} tickLine={false} tickFormatter={(value) => formatAxisTick(metric, Number(value))}>
-                <Label value={metric.unit} angle={-90} position="insideLeft" offset={4} fill="rgba(148,163,184,.9)" fontSize={12} />
+              />
+              <YAxis width={86} domain={yAxis.domain} ticks={yAxis.ticks} tick={{ fill: "rgba(148,163,184,.85)", fontSize: 11 }} axisLine={{ stroke: "rgba(148,163,184,.35)" }} tickLine={false} tickFormatter={(value) => formatAxisTick(metric, Number(value))}>
+                <Label value={metric.chartAxisLabel || metric.unit} angle={-90} position="left" offset={18} fill="rgba(148,163,184,.9)" fontSize={12} />
               </YAxis>
               <Tooltip cursor={{ stroke: "rgba(79,140,255,.45)", strokeWidth: 1 }} content={(props) => <EconomyTooltip {...props} metric={metric} />} />
               <Line type="monotone" dataKey="value" stroke="#4F8CFF" strokeWidth={2.5} dot={false} activeDot={{ r: 4, stroke: "#93C5FD", strokeWidth: 2, fill: "#0F172A" }} isAnimationActive={false} />
@@ -209,7 +220,7 @@ function EconomyMetricCard({ card }: { card: EconomyCardSnapshot }) {
 
   return (
     <Panel>
-      <SectionHeader title={card.title} info={card.description} />
+      <SectionHeader title={card.title} />
       <div className="space-y-3">
         <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
           {card.metrics.map((metric) => {
@@ -225,7 +236,10 @@ function EconomyMetricCard({ card }: { card: EconomyCardSnapshot }) {
                 <span className="flex items-start justify-between gap-3">
                   <span>
                     <span className="block text-xs text-textMuted">{metric.label}</span>
-                    <span className="mt-1 block text-sm font-semibold text-textPrimary">{formatMetricValue(metric, metric.latestValue)}</span>
+                    <span className="mt-1 flex min-w-0 flex-wrap items-baseline gap-x-1.5 gap-y-0.5">
+                      <span className="text-sm font-semibold text-textPrimary">{formatMetricCardValue(metric, metric.latestValue)}</span>
+                      <span className="max-w-[11rem] text-[10px] leading-3 text-textMuted">{metricUnitLabel(metric)}</span>
+                    </span>
                   </span>
                   <span className="grid shrink-0 grid-cols-2 gap-x-3 text-right text-[11px] leading-5">
                     <span className="text-textMuted">QoQ</span>
