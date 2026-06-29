@@ -247,6 +247,11 @@ const economyMetricDefinitionSchema = z.object({
   preferredChangeMode: economyChangeModeSchema,
   valueFormat: z.enum(["number", "percent", "currency-billions", "currency-trillions", "persons-thousands"]),
   chartAxisLabel: z.string(),
+  signalLabel: z.string(),
+  whatItMeasures: z.string(),
+  whyInvestorsCare: z.string(),
+  howToReadIt: z.string(),
+  currentTakeaway: z.string(),
   fredOptions: z.object({
     units: z.string().optional(),
     frequency: z.string().optional()
@@ -265,6 +270,7 @@ const economyCardDefinitionSchema = z.object({
   description: z.string(),
   statusLabel: z.string(),
   interpretation: z.string(),
+  sectionSummary: z.string().optional(),
   metrics: z.array(economyMetricDefinitionSchema),
   derivedFrom: z.array(z.string()).optional(),
   hasMiniChart: z.boolean().optional()

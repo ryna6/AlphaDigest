@@ -245,6 +245,26 @@ function ChartPanel({ metric }: { metric: EconomyMetricSnapshot }) {
   );
 }
 
+function MetricDetailCards({ metric }: { metric: EconomyMetricSnapshot }) {
+  const details = [
+    { title: "What it measures", body: metric.whatItMeasures },
+    { title: "Why investors care", body: metric.whyInvestorsCare },
+    { title: "How to read it", body: metric.howToReadIt },
+    { title: "Current takeaway", body: metric.currentTakeaway }
+  ];
+
+  return (
+    <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-1">
+      {details.map((detail) => (
+        <div key={detail.title} className="rounded-none border border-borderStrong bg-sidebar/80 p-3">
+          <p className="text-sm font-semibold text-textSecondary">{detail.title}</p>
+          <p className="mt-1 text-sm leading-5 text-textMuted">{detail.body}</p>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 function EconomyMetricCard({ card }: { card: EconomyCardSnapshot }) {
   const [selectedMetricId, setSelectedMetricId] = useState(card.metrics[0]?.id ?? "");
   const selectedMetric = card.metrics.find((metric) => metric.id === selectedMetricId) ?? card.metrics[0];
@@ -253,37 +273,52 @@ function EconomyMetricCard({ card }: { card: EconomyCardSnapshot }) {
     <Panel>
       <SectionHeader title={card.title} />
       <div className="space-y-3">
-        <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
-          {card.metrics.map((metric) => {
-            const active = metric.id === selectedMetric?.id;
-            return (
-              <button
-                key={metric.id}
-                type="button"
-                onClick={() => setSelectedMetricId(metric.id)}
-                className={`min-h-28 rounded-none border p-3 text-left transition focus:outline-none focus:ring-2 focus:ring-accent/70 ${active ? "border-accent bg-accent/10" : "border-borderStrong bg-sidebar hover:border-accent/60"}`}
-                aria-pressed={active}
-              >
-                <span className="flex items-start justify-between gap-3">
-                  <span>
-                    <span className="block text-sm text-textMuted">{metric.label}</span>
-                    <span className="mt-1 flex min-w-0 flex-wrap items-baseline gap-x-1.5 gap-y-0.5">
-                      <span className="text-xl font-semibold text-textPrimary">{formatMetricCardValue(metric, metric.latestValue)}</span>
-                      <span className="max-w-[11rem] text-[11px] leading-3 text-textMuted">{metricUnitLabel(metric)}</span>
+        {card.sectionSummary ? (
+          <div className="rounded-none border border-accent/45 bg-accent/10 px-4 py-3 shadow-[inset_3px_0_0_rgba(79,140,255,.75)]">
+            <p className="text-sm leading-6 text-textSecondary">{card.sectionSummary}</p>
+          </div>
+        ) : null}
+        <div className="overflow-x-auto pb-1">
+          <div className="grid min-w-[980px] grid-cols-6 gap-2 lg:min-w-0">
+            {card.metrics.map((metric) => {
+              const active = metric.id === selectedMetric?.id;
+              return (
+                <button
+                  key={metric.id}
+                  type="button"
+                  onClick={() => setSelectedMetricId(metric.id)}
+                  className={`min-h-32 rounded-none border p-3 text-left transition focus:outline-none focus:ring-2 focus:ring-accent/70 ${active ? "border-accent bg-accent/10" : "border-borderStrong bg-sidebar hover:border-accent/60"}`}
+                  aria-pressed={active}
+                >
+                  <span className="flex h-full flex-col justify-between gap-3">
+                    <span>
+                      <span className="flex items-start justify-between gap-2">
+                        <span className="min-w-0 text-sm text-textMuted">{metric.label}</span>
+                        <span className="shrink-0 rounded-full border border-borderStrong bg-background/70 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-textSecondary">{metric.signalLabel}</span>
+                      </span>
+                      <span className="mt-2 flex min-w-0 flex-wrap items-baseline gap-x-1.5 gap-y-0.5">
+                        <span className="text-xl font-semibold text-textPrimary">{formatMetricCardValue(metric, metric.latestValue)}</span>
+                        <span className="max-w-[11rem] text-[11px] leading-3 text-textMuted">{metricUnitLabel(metric)}</span>
+                      </span>
+                    </span>
+                    <span className="grid grid-cols-2 gap-x-3 text-xs leading-5">
+                      <span className="text-textMuted">QoQ</span>
+                      <span className={changeTone(metric.qoqChange)}>{formatChange(metric.qoqChange)}</span>
+                      <span className="text-textMuted">YoY</span>
+                      <span className={changeTone(metric.yoyChange)}>{formatChange(metric.yoyChange)}</span>
                     </span>
                   </span>
-                  <span className="grid shrink-0 grid-cols-2 gap-x-3 text-right text-xs leading-5">
-                    <span className="text-textMuted">QoQ</span>
-                    <span className={changeTone(metric.qoqChange)}>{formatChange(metric.qoqChange)}</span>
-                    <span className="text-textMuted">YoY</span>
-                    <span className={changeTone(metric.yoyChange)}>{formatChange(metric.yoyChange)}</span>
-                  </span>
-                </span>
-              </button>
-            );
-          })}
+                </button>
+              );
+            })}
+          </div>
         </div>
-        {card.hasMiniChart && selectedMetric ? <ChartPanel metric={selectedMetric} /> : null}
+        {card.hasMiniChart && selectedMetric ? (
+          <div className="grid gap-4 xl:grid-cols-[minmax(260px,320px)_minmax(0,1fr)]">
+            <MetricDetailCards metric={selectedMetric} />
+            <ChartPanel metric={selectedMetric} />
+          </div>
+        ) : null}
       </div>
     </Panel>
   );
