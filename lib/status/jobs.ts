@@ -283,12 +283,16 @@ export const STATUS_JOBS: StatusJob[] = [
     staleAfterMinutes: 2160
   },
   {
-    id: "economy-tbd",
+    id: "economy-data",
     group: "Economy",
-    job: "TBD",
-    functionName: "TBD",
-    source: "TBD",
-    frequency: "TBD"
+    job: "Economy Data",
+    functionName: "refresh-economy",
+    source: "FRED",
+    frequency: "Every 6h, Daily",
+    schedule: "0 */6 * * *",
+    scheduleDescription: "Every 6 hours from midnight UTC.",
+    nextRunUtcRule: { hours: [0, 6, 12, 18], minutes: [0] },
+    staleAfterMinutes: 480
   },
   {
     id: "sentiment-tbd",

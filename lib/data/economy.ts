@@ -10,11 +10,13 @@ import {
 } from "./economy-config";
 import type { EconomyPayload } from "./schemas/dashboard";
 import { fetchFredSeries } from "./adapters/fred";
+import { readEconomyObservations } from "./adapters/economy-observations";
 import { getSnapshotOrNull, isSnapshotFresh, upsertDashboardSnapshot } from "./adapters/dashboard-snapshots";
 
 const ECONOMY_SNAPSHOT_KEY = "economy:latest";
 const ECONOMY_TTL_SECONDS = 6 * 60 * 60;
 const TEN_YEAR_RANGE_LABEL = "10Y";
+const FRED_STORAGE_RANGE_LABEL = "30Y+";
 
 
 function hasDetailedMetricPayload(payload: EconomyPayload) {
@@ -53,11 +55,15 @@ function calculateChange(points: EconomyDataPoint[], frequency: EconomyFrequency
 }
 
 async function metricWithFredSnapshot(metric: EconomyMetricSnapshot): Promise<EconomyMetricSnapshot> {
-  const result = await fetchFredSeries(metric.seriesId, {
-    ...metric.fredOptions,
-    observationStart: tenYearsAgoDate(),
-    sortOrder: "asc"
-  });
+  const observationStart = tenYearsAgoDate();
+  const stored = await readEconomyObservations(metric, observationStart);
+  const result = stored.ok && stored.points.length
+    ? { ok: true as const, points: stored.points }
+    : await fetchFredSeries(metric.seriesId, {
+        ...metric.fredOptions,
+        observationStart,
+        sortOrder: "asc"
+      });
   if (!result.ok) {
     return {
       ...metric,
@@ -65,7 +71,7 @@ async function metricWithFredSnapshot(metric: EconomyMetricSnapshot): Promise<Ec
       history: [],
       qoqChange: { value: null, mode: metric.preferredChangeMode },
       yoyChange: { value: null, mode: metric.preferredChangeMode },
-      error: result.error
+      error: stored.ok ? result.error : `${stored.error}; fallback ${result.error}`
     };
   }
   const history = result.points;
@@ -99,7 +105,7 @@ async function buildEconomyPayload(): Promise<EconomyPayload> {
         sourceUrl: "https://api.stlouisfed.org/fred/series/observations",
         lastUpdated: new Date().toISOString(),
         mode: "live",
-        message: `Economy charts use a ${TEN_YEAR_RANGE_LABEL} server-side FRED observation range.`
+        message: `Economy charts default to a ${TEN_YEAR_RANGE_LABEL} server-side FRED display range and read Supabase-stored observations first; storage is prepared for ${FRED_STORAGE_RANGE_LABEL} history.`
       }
     ],
     notices: failedSeries.length ? [`Some FRED series were unavailable: ${failedSeries.join(", ")}.`] : []
@@ -117,7 +123,7 @@ export async function getEconomyPayload(): Promise<{ payload: EconomyPayload; mo
     ttlSeconds: ECONOMY_TTL_SECONDS,
     mode: "live",
     notices: payload.notices,
-    metadata: { provider: "FRED", range: TEN_YEAR_RANGE_LABEL, refreshedBy: "server-fallback" }
+    metadata: { provider: "FRED", displayRange: TEN_YEAR_RANGE_LABEL, storageRange: FRED_STORAGE_RANGE_LABEL, refreshedBy: "server-fallback" }
   });
   if (!write.ok && cached.snapshot) {
     return {
