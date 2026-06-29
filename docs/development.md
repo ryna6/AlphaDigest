@@ -219,7 +219,7 @@ Primary files:
 
 - `lib/data/fixtures/mock-dashboard.ts`
 - `components/dashboard/flow-ownership/flow-ownership-view.tsx`
-- `components/dashboard/economy-sentiment/economy-sentiment-view.tsx`
+- `components/dashboard/sentiment/sentiment-view.tsx`
 - API routes for those pages.
 
 If converting a fixture-backed page to live data, update docs to remove “fixture-backed” status and document the new source, fallback rules, env vars, and validation steps.

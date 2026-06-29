@@ -1,4 +1,4 @@
-import { MarketExpectationsView } from "@/components/dashboard/economy-sentiment/economy-sentiment-view";
+import { MarketExpectationsView } from "@/components/dashboard/sentiment/sentiment-view";
 
 export default function MarketExpectationsPage() {
   return <MarketExpectationsView />;

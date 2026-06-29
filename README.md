@@ -1,93 +1,273 @@
 # AlphaDigest
 
-AlphaDigest is a dark-mode market intelligence dashboard for quickly answering:
+AlphaDigest is a Next.js market intelligence dashboard built around server-side data ingestion, Supabase-backed cache tables, and Netlify scheduled functions. The product UI is intentionally compact; the engineering focus is reliable provider isolation, cache-first reads, typed API boundaries, and observable refresh jobs.
 
-- What is moving today?
-- Which headlines, earnings, and economic events matter?
-- Where is cross-asset performance strongest or weakest?
-- Which areas need a deeper look before the next market session?
+## Project overview
 
-The app combines live server-side market/news/calendar fetches with clearly labeled fallback data when an external source or API key is unavailable.
+AlphaDigest combines market, news, calendar, economy, flow, ownership, and status data into a single dashboard without exposing privileged provider credentials to the browser. Netlify functions fetch and normalize external data server-side, Supabase stores durable source rows and dashboard snapshots, and the Next.js App Router renders React dashboard views from normalized cache/API payloads.
 
-## What you can view
+Detailed tab behavior lives in [`docs/`](docs/). This README focuses on system architecture and implementation decisions.
 
-### Today
+## Architecture at a glance
 
-A daily briefing page with:
+```mermaid
+flowchart LR
+  Providers[External providers\nFRED · Unusual Whales · Cboe · Yahoo Finance · Finnhub · Investing.com]
+  Functions[Netlify scheduled functions\nand serverless handlers]
+  Supabase[(Supabase Postgres\nsource tables · dashboard_snapshots · job_runs)]
+  API[Next.js App Router\nserver components + API routes]
+  UI[React dashboard UI]
+  Status[Status tab\nfreshness + job telemetry]
 
-- Major market stats such as S&P 500, Nasdaq 100, WTI oil, gold, Bitcoin from live CoinGecko USD quotes, and VIX.
-- A compact market summary for leading sectors, risk tone, earnings count, and economic-event count.
-- Featured Unusual Whales articles with a separate Top News page.
-- Today's major earnings and economic events.
-- A sector snapshot based on the same market heatmap data used by the Markets tab.
+  Providers -->|server-side fetches only| Functions
+  Functions -->|normalize · validate · upsert| Supabase
+  Supabase -->|cache-first reads| API
+  API -->|typed payloads| UI
+  Functions -->|start/finish telemetry| Supabase
+  Supabase --> Status
+  UI -->|safe browser requests| API
+```
 
-### Markets
+## Core engineering decisions
 
-Cross-asset heatmaps and a market strip for:
+- **Next.js App Router + TypeScript** keeps page-level data loading, server components, API routes, and React UI boundaries typed and colocated.
+- **Netlify Functions** isolate provider fetches and scheduled refreshes from browser traffic, including high-risk provider calls and service-role Supabase writes.
+- **Supabase** acts as the durable cache, normalized source store, snapshot store, and job telemetry database.
+- **Server-side-only provider keys** prevent privileged API credentials from reaching client bundles; browser code reads only safe app routes or rendered server payloads.
+- **Cache-first UI reads** reduce latency, provider rate-limit pressure, and coupling between page navigation and third-party availability.
+- **Zod validation** is used for dashboard API envelopes and payload schemas before responses are returned through shared helpers.
+- **Scheduled refreshes** decouple ingestion from interactive browsing; users do not trigger most provider fetches directly.
+- **Retention/pruning** is implemented for high-churn caches such as job telemetry, earnings windows, news/feed rows, flow rows, and source snapshots where relevant.
 
-- Global markets.
-- U.S. sectors and semiconductors.
-- Major crypto pairs from a shared server-side CoinGecko quote adapter used by Today and Markets.
-- Macro assets such as gold, silver, oil, natural gas, bonds, credit, and the dollar.
+## Data flow
 
-### News & Calendar
+```mermaid
+sequenceDiagram
+  participant Cron as Netlify schedule
+  participant Fn as Refresh function
+  participant Provider as External provider
+  participant DB as Supabase
+  participant App as Next.js route/server component
+  participant User as Dashboard UI
 
-A combined events workspace with:
+  Cron->>Fn: Wake refresh job
+  Fn->>Provider: Fetch with server-side credentials
+  Provider-->>Fn: Provider payload
+  Fn->>Fn: Normalize, filter, validate, hash
+  Fn->>DB: Upsert source rows / dashboard snapshot
+  Fn->>DB: Record job_runs telemetry
+  User->>App: Navigate or request API route
+  App->>DB: Read dashboard_snapshots/source tables first
+  App-->>User: Return normalized UI payload
+```
 
-- Latest market headlines.
-- A weekday selector for last week, this week, and next week.
-- Economic calendar events with actual/forecast/previous values, highlighted high-importance releases, and exports/imports detail rows filtered out while Trade Balance remains visible.
-- Earnings grouped into before-open and after-close sessions.
-- Separate “View All” pages for market news and earnings.
+1. A scheduled Netlify function runs on a cron schedule, sometimes guarded by Toronto/Eastern market-session logic.
+2. Provider APIs are fetched server-side.
+3. Raw provider shapes are normalized into app-specific rows and payloads.
+4. Supabase source tables and/or `dashboard_snapshots` are upserted.
+5. Job telemetry is written to `job_runs`.
+6. Next.js pages and API routes read cached rows/snapshots first, with fixture or live fallback paths only where implemented.
+7. The Status tab reads job metadata and telemetry to surface stale, failed, skipped, or unknown refreshes.
 
-### Flow
+## Provider and data source overview
 
-A Supabase-first view for big-money flow concepts:
+Only providers present in the codebase are listed here:
 
-- Flow Summary.
-- Dark pool prints from server-side Unusual Whales refreshes.
-- Whale option trades, currently fixture-backed until a live endpoint is added.
-- Insider trades from server-side Unusual Whales refreshes, aggregated by company.
+| Provider/source | Current role |
+| --- | --- |
+| FRED | Economy time-series ingestion through `FRED_API_KEY`, stored in `fred_economy`, and cached under `economy:latest`. |
+| Unusual Whales | Featured articles, news feed, earnings calendar, dark pool, whale feed, insider trades, institutional data, and congressional data where adapters/functions are wired. |
+| Cboe | Server-side put/call market-statistics parser with optional Supabase persistence in `put_call_observations`. |
+| Yahoo Finance public endpoints | Selected quotes, VIX-related metrics, market quote cache helpers, and SPY comparison data. |
+| Finnhub | Market/heatmap quote flows and company/logo support when configured. |
+| Investing.com economic calendar endpoint | Economic calendar events normalized into app event shapes and optional Supabase cache rows. |
+| Supabase | Postgres persistence, dashboard snapshot cache, source metadata, and refresh telemetry. |
+| Static fixtures/fallback files | Used only for specific fallback or not-yet-live areas; responses label fallback/mock modes where applicable. |
 
-### Ownership
+## Database schema overview
 
-A currently fixture-backed ownership view for Institutional/13F positioning and Congressional trades until live providers are added.
+Supabase is organized around source-specific normalized tables plus small app-level cache/telemetry tables.
 
-### Economy and Sentiment
+### Economy/FRED
 
-Economy and Sentiment are separate top-level tabs. The primary nav uses monochrome lucide SVG icons instead of emoji-style tab glyphs: Today uses `Newspaper`, Markets uses `TrendingUp`, Economy uses `ChartColumn`, and Sentiment uses `Vote`. Economy has 3 compact derived summary cards and 6 FRED-backed main cards (Growth Trend, Inflation, Labor Market, Consumer Health, Rate Pressure, Credit Stress). Main-card metrics are clickable/tappable in a single-row six-card desktop layout with horizontal overflow on smaller screens; each card shows a compact signal tag beside its title, and selecting a metric updates the chart plus the always-visible four-card explanation column beside it. Economy line-chart y-axis domains are computed from the visible selected range, use natural 1/2/5/10-style intervals with roughly 5–10 ticks, add one nice interval of padding above and below the data where appropriate, avoid unnecessary decimals, and do not force line charts to zero; bar-chart scaling helpers are designed to start at zero. The x-axis title is omitted and x-axis ticks show years only, while tooltips still render quarterly periods such as `Q1 2022` instead of raw observation dates. Metric tiles show the metric label, latest value with a smaller muted unit beside it, QoQ change, and YoY change. Chart titles append the selected FRED series ID, chart subtext spaces `Range`, `Frequency`, and seasonal-adjustment fields with clear separators, and the detail line omits `Unit` and `Source: FRED`. FRED original units are preserved in values, y-axis labels, and tooltips (for example Real GDP remains `Billions of chained 2017 dollars` and is not converted to trillions), y-axis labels are vertically centered and use moderate left chart margin/axis width so they stay separated from large, compact, negative, index, and percentage tick values, and Economy-specific info icons are removed, no separate Economy metric View More page is used, and selected categories show a concise blue-accent summary bar above the metric cards. FRED fetching runs server-side through `fetchFredSeries` with `FRED_API_KEY` only read from server environment variables, stores observations in `fred_economy`, fetches only new/missing observations after each series latest saved date unless a series is empty, and economy snapshots are cached in `dashboard_snapshots` under `economy:latest`. Sentiment opens with a 3-card summary row from existing sentiment metrics, keeps sentiment/positioning content below it, and no longer shows top Indicators / Market Expectations buttons. Today’s Earnings shows highest-priority market-cap importance subtext when earnings exist, and shared info popover body text is slightly smaller for dense explanations.
+Purpose: durable FRED observations for Economy charts and incremental refreshes.
 
-### Methodology and Status
+```sql
+fred_economy (
+  id uuid primary key,
+  provider text,
+  series_id text,
+  metric_key text,
+  card_key text,
+  date date,
+  value numeric,
+  unit text,
+  frequency text,
+  seasonal_adjustment text,
+  source_label text,
+  created_at timestamptz,
+  updated_at timestamptz
+)
+```
 
-Methodology lists intended source coverage and environment variable names. The Status tab is a server-rendered job monitoring page grouped by dashboard tab. It keeps the table columns to Job, Status, Source, Schedule, Last Run, and Next Run; the Job cell shows both the user-facing component name and the actual Netlify function/job name, the Source cell shows short safe provider names, not raw endpoints, and the Status cell is center-aligned. Status rows read fresh Supabase `job_runs` telemetry for Last Run and health, calculate the next run from the central status job registry schedules, display times under the note “All times are shown in Eastern Standard Time.” without repeating timezone suffixes in each cell, and keep planned TBD jobs Unknown rather than Healthy. The Status page/API use dynamic no-store behavior, the page auto-refreshes every 5 minutes while open, and browser refreshes should fetch current telemetry without redeploy. Component status labels render as Good/Healthy, Warning/Stale or delayed, Critical/Action required, and Offline/No status available. Future automated jobs should be added to `lib/status/jobs.ts` and instrumented with `lib/status/job-runs.ts`; `job_runs` rows older than 24 hours are pruned server-side during telemetry writes via the tracked no-argument `public.cleanup_old_job_runs()` Supabase RPC; schedules that need Eastern/Toronto precision should use the shared Toronto runtime guard rather than fixed UTC offsets. Secret values are never shown in the browser. The desktop sidebar and mobile primary-tab bar remain available while scrolling.
+Important constraints/indexes: unique `(provider, series_id, date)` and lookup indexes by metric/card plus descending date. Refreshes fetch only missing/new observations after the latest saved series date when possible.
 
-## Data sources at a glance
+### Dashboard snapshots and metadata
 
-AlphaDigest keeps third-party calls server-side where possible. Current active sources include:
+Purpose: frontend-ready cache payloads such as `today:latest`, `markets:latest`, `news-calendar:latest`, `flow:latest`, `ownership:latest`, and `economy:latest`.
 
-- **Finnhub** for quote-driven market metrics and heatmaps when the relevant API keys are configured.
-- **Yahoo Finance public endpoints** for selected quote metrics such as `^VIX`, `^VIX3M`, and S&P 500 futures.
-- **Cboe U.S. Options Market Statistics** for intraday equity, index, and total put/call ratios, parsed server-side and optionally persisted to Supabase.
-- **Unusual Whales public endpoints/pages** for featured news, headline feed, and earnings calendar data.
-- **Investing.com economic calendar endpoint** for economic events.
-- **Supabase** as an optional durable cache for supported ingestion flows.
-- **Static fallback JSON** for the Unusual Whales earnings calendar when live/server cache paths fail. Market quotes and put/call values do not use synthetic fallback prices.
+```sql
+dashboard_snapshots (
+  key text primary key,
+  payload jsonb,
+  mode text,
+  notices jsonb,
+  generated_at timestamptz,
+  expires_at timestamptz,
+  source_hash text,
+  metadata jsonb
+)
+```
 
-Some tabs still use mock/fixture data while provider integrations are built out. The UI and API responses label fallback/mock mode where applicable.
+Important constraints/indexes: primary key/unique snapshot key plus freshness indexes on `expires_at` and `generated_at`.
 
-## Run locally
+### News, calendar, and earnings
 
-Requirements:
+Purpose: cache feed/calendar rows used by Today and News & Calendar.
 
-- Node.js 20 or newer.
-- npm.
+Representative tables:
+
+- `unusual_whales_news_feed` — headline rows keyed by provider id with `headline`, `event_time`, `source_url`, `publisher`, `content_hash`, and freshness fields.
+- `unusual_whales_featured_articles` — article rows keyed by id/slug with title, timestamps, tags, excerpt/content, source URL, and content hash.
+- `unusual_whales_earnings_events` — earnings rows for the active previous/current/next-week window; refreshes prune rows outside that active window and exclude configured micro-cap rows.
+- `investing_economic_events` — economic calendar rows with event keys, date/time, importance/stars, actual/forecast/previous, and highlight metadata.
+
+### Flow, ownership, institutional, and congressional data
+
+Purpose: server-side Unusual Whales ingestion for Flow and Ownership without browser calls to privileged endpoints.
+
+Representative tables:
+
+- `unusual_whales_dark_pool_flows` — dark-pool prints with execution timestamp, ticker, premium, size, volume, average-volume fields, and 14-day retention logic.
+- `unusual_whales_whale_feed` — lit whale-feed rows with ticker, price, NBBO fields, inferred side/sentiment, premium, size, and execution timestamp.
+- `unusual_whales_insider_trades` — normalized insider transaction rows retained for the rolling Flow window.
+- `unusual_whales_tracked_institutions`, `unusual_whales_tracked_institution_history`, holdings/activity tables — curated institutional holdings, historical totals, SPY comparison points, and latest-quarter activity.
+- `unusual_whales_congressional_portfolios` / `unusual_whales_congressional_trades` — normalized congressional portfolio/trade data with retention and asset cleanup migrations.
+
+### Status and observability
+
+Purpose: function/job telemetry for the Status tab.
+
+```sql
+job_runs (
+  id uuid primary key,
+  job_name text,
+  function_name text,
+  source text,
+  status text,
+  started_at timestamptz,
+  finished_at timestamptz,
+  rows_fetched integer,
+  rows_inserted integer,
+  rows_updated integer,
+  rows_deleted integer,
+  error_message text,
+  warning_message text,
+  metadata jsonb,
+  created_at timestamptz
+)
+```
+
+Important constraints/indexes: status is limited to `running`, `success`, `warning`, `error`, or `skipped`; indexes support latest-run lookups by function and status. A Supabase RPC prunes telemetry older than the configured retention window during writes.
+
+## API and scheduled function reference
+
+| Route/function | Purpose | Method/schedule | Source/provider | Cache behavior |
+| --- | --- | --- | --- | --- |
+| `/api/today` | Today dashboard payload | `GET` | Supabase snapshot/source rows plus market/news/calendar providers | Validates with `todayPayloadSchema`; reads cached/snapshot data where available. |
+| `/api/markets` | Markets strip/heatmap payload | `GET` | Yahoo Finance, Finnhub, fixtures where needed | Uses `markets:latest`/quote cache paths where supported. |
+| `/api/news-calendar` | News, economic calendar, and earnings payload | `GET` | Unusual Whales, Investing.com, Supabase | Reads normalized source rows and fallback paths. |
+| `/api/economy` | Economy payload | `GET` | FRED + Supabase `fred_economy`/`economy:latest` | Cache-first snapshot with live/server fallback. |
+| `/api/economy-sentiment` | Legacy Economy compatibility endpoint | `GET` | Same as `/api/economy` | Retained intentionally to avoid breaking old clients; new code should use `/api/economy`. |
+| `/api/flow` | Flow payload | `GET` | Supabase Flow source tables | Reads `flow:latest`, then source tables, then fixtures where necessary. |
+| `/api/ownership` | Ownership payload | `GET` | Supabase ownership data and fixtures | Reads ownership cache/snapshot paths where implemented. |
+| `/api/ownership/institutional` | Institutional summary/holdings | `GET` | Supabase tracked institutional tables | Browser-safe cached response. |
+| `/api/ownership/congressional` | Congressional holdings/trades | `GET` | Supabase congressional tables | Browser-safe cached response with SPY comparison support. |
+| `/api/sources/status` | Environment/source readiness | `GET` | Environment metadata only | Returns configured/missing booleans; never returns secret values. |
+| `/api/cache/status` | Cache diagnostics | `GET` | Supabase metadata/source tables | Reports row counts, freshness, and metadata diagnostics. |
+| `refresh-economy` | FRED ingestion and Economy snapshot | Hourly wake; provider work guarded to daily Toronto noon window | FRED | Incremental `fred_economy` upserts and `economy:latest` snapshot. |
+| `refresh-markets` / `refresh-market-quotes` | Market quote cache and Markets snapshot | Frequent weekday schedules | Yahoo Finance, Finnhub | Upserts quote rows and dashboard snapshots. |
+| `refresh-news`, `refresh-news-feed`, `refresh-featured-articles` | News source rows and News & Calendar snapshot | Every 30 minutes | Unusual Whales | Upserts feed/article rows and snapshot payloads. |
+| `fetch-uw-earnings` | Earnings calendar source cache | Every 6 hours | Unusual Whales | Upserts active-window rows and prunes outside-window rows. |
+| `refresh-economic-events` | Economic calendar cache | Every 6 hours | Investing.com | Upserts normalized economic events. |
+| `refresh-put-call` | Put/call observation cache | Every 30 minutes Monday-Friday | Cboe | Upserts latest put/call observation. |
+| `refresh-flow`, `refresh-dark-pool`, `refresh-whale-feed`, `refresh-insider-trades` | Flow source rows and snapshot | Hourly/weekday guarded schedules | Unusual Whales + Supabase | Refreshes source tables and composes `flow:latest`. |
+| `refresh-institutional-*`, `refresh-congressional-portfolios` | Ownership source rows | Daily schedules | Unusual Whales, Yahoo Finance SPY comparison | Upserts normalized ownership/institutional/congressional caches. |
+
+Representative API response envelope:
+
+```json
+{
+  "payload": {
+    "summaryCards": [],
+    "mainCards": [],
+    "sourceMeta": []
+  },
+  "mode": "cached",
+  "notices": [],
+  "timezone": "America/New_York",
+  "generatedAt": "2026-06-29T00:00:00.000Z"
+}
+```
+
+Representative Economy request:
+
+```http
+GET /api/economy
+```
+
+Representative cache/status shape:
+
+```json
+{
+  "snapshots": [{ "key": "economy:latest", "fresh": true, "generatedAt": "2026-06-29T00:00:00.000Z" }],
+  "sources": [{ "name": "fred_economy", "rowCount": 1200 }]
+}
+```
+
+## Status and observability
+
+The Status tab is backed by two layers:
+
+1. A static job registry in `lib/status/jobs.ts` that defines dashboard grouping, function names, sources, schedules, and freshness expectations.
+2. Runtime telemetry in `job_runs`, written by scheduled functions through shared helpers in `lib/status/job-runs.ts`.
+
+Status rows surface successful, skipped, warning, error, stale, critical, offline, and unknown conditions depending on telemetry and schedule definitions. The page is rendered with no-store/dynamic behavior and includes client auto-refresh so operational state can update without redeploying.
+
+## Security model
+
+- Provider keys such as `FRED_API_KEY` and market/news provider credentials are read only from server environments.
+- Browser components do not call privileged provider APIs directly.
+- `SUPABASE_SERVICE_ROLE_KEY` is used only server-side and is not exposed to client bundles.
+- Client-visible routes return normalized/cache-layer payloads instead of raw secret-bearing provider URLs or credentials.
+- Only variables intentionally safe for the browser should use a `NEXT_PUBLIC_` prefix.
+- Logs and diagnostics avoid dumping raw provider payloads or secrets.
+
+## Performance and reliability
+
+- Cache-first page/API reads keep dashboard navigation independent of most provider outages.
+- Scheduled ingestion reduces repeated provider calls during user traffic.
+- Economy/FRED refreshes are incremental by series date and reuse stored observations before live fetches.
+- Flow and feed tables use retention/pruning so high-volume caches do not grow indefinitely.
+- `dashboard_snapshots` stores frontend-ready payloads to avoid rebuilding every dashboard section on every request.
+- Failure paths preserve stale/last-known-good data where implemented and surface notices/status telemetry rather than silently hiding failures.
+
+## Local development
 
 ```bash
 npm install
 npm run dev
 ```
-
-Then open the local Next.js URL shown in your terminal, usually `http://localhost:3000`.
 
 Useful checks:
 
@@ -95,120 +275,15 @@ Useful checks:
 npm run typecheck
 npm run lint
 npm run build
-npm run validate:news-calendar
 ```
 
-## Environment variables
+Configure only the environment variables needed for the flows you are testing. Server-only provider keys and `SUPABASE_SERVICE_ROLE_KEY` must not be prefixed with `NEXT_PUBLIC_`. See [`docs/development.md`](docs/development.md) and [`docs/deployment.md`](docs/deployment.md) for deeper setup and deployment notes.
 
-For the best local or deployed experience, configure only the keys you actually use:
+## Documentation map
 
-```text
-NEXT_PUBLIC_APP_NAME=AlphaDigest
-
-SUPABASE_URL=
-SUPABASE_ANON_KEY=
-SUPABASE_SERVICE_ROLE_KEY=
-
-FINNHUB_GLOBAL_MARKETS_API_KEY=
-FINNHUB_SECTORS_HEATMAP_API_KEY=
-FINNHUB_CRYPTO_HEATMAP_API_KEY=
-FINNHUB_MACRO_HEATMAP_API_KEY=
-
-TWELVE_DATA_API_KEY=
-FRED_API_KEY=
-
-SCRAPER_ENABLED=
-```
-
-Server-only keys must not be exposed with a `NEXT_PUBLIC_` prefix.
-
-## Deployment
-
-The project is configured for Netlify with:
-
-- Build command: `npm run build`.
-- Publish directory: `.next`.
-- Netlify Next.js plugin.
-- Serverless functions in `netlify/functions/`.
-
-Production environment variables should be configured in Netlify site settings. Supabase is optional for the app to render, but it enables durable caches for supported refresh jobs.
-
-## Caveats
-
-- Live providers can fail because of rate limits, upstream shape changes, network errors, or missing API keys.
-- Unusual Whales and Investing.com integrations depend on public endpoint/page shapes and may need maintenance if those providers change their responses.
-- Some dashboard areas are intentionally fixture-backed today, especially Whale Feed, Ownership, Economy and Sentiment, and ticker detail data.
-- Data freshness depends on provider availability, request timing, optional Supabase cache state, and Netlify scheduled-function support.
-
-## Technical documentation
-
-Developer and Codex-focused documentation lives in [`docs/`](docs/):
-
-- [`docs/architecture.md`](docs/architecture.md)
-- [`docs/features.md`](docs/features.md)
-- [`docs/data-sources.md`](docs/data-sources.md)
-- [`docs/development.md`](docs/development.md)
-- [`docs/deployment.md`](docs/deployment.md)
-- [`docs/codex-guidelines.md`](docs/codex-guidelines.md)
-
-Documentation maintenance is required: when behavior, data flow, UI, scripts, APIs, deployment, environment variables, or architecture change, update the relevant docs in the same change.
-
-## Supabase-first dashboard cache
-
-AlphaDigest remains a serverless web deployment: GitHub stores code, Netlify hosts the Next.js frontend and scheduled/serverless functions, and Supabase Cloud hosts Postgres. The active dashboard tabs now prefer frontend-ready Supabase `dashboard_snapshots` rows before live provider calls:
-
-- `today:latest` for Today.
-- `markets:latest` for Markets.
-- `news-calendar:latest` for News & Calendar.
-
-Netlify scheduled functions refresh those snapshots ahead of user navigation. If Supabase is not configured or a snapshot is missing/stale, the existing live provider and fixture/static fallback paths still render the app.
-
-### Cache repair and verification
-
-Apply all Supabase migrations through `0006_source_cache_tables.sql` before relying on scheduled refreshes. The source refresh functions now upsert rows for news feed, featured articles, economic events, market quotes, earnings, and put/call data; dashboard refresh functions write `today:latest`, `markets:latest`, and `news-calendar:latest`. Use `/api/cache/status` after deploy to confirm row counts, latest metadata errors, missing snapshot keys, and snapshot freshness.
-
-### Production Supabase cache schema repair
-
-Netlify deploys do not automatically apply Supabase SQL migrations unless a separate migration pipeline is configured. If scheduled refresh logs show PostgREST schema-cache errors such as missing `investing_economic_events.source_url`, `unusual_whales_featured_articles.created_at_source`, `unusual_whales_news_feed.event_time`, `put_call_observations`, or `dashboard_snapshots`, run `supabase/manual/apply-cache-schema-fix.sql` in the Supabase SQL Editor. The SQL is idempotent, reloads the PostgREST schema cache with `notify pgrst, 'reload schema'`, and aligns production with the Netlify refresh adapters.
-
-After applying it, manually run `refresh-economic-events`, `refresh-featured-articles`, `refresh-news-feed`, `refresh-news`, `refresh-today`, `refresh-put-call`, and `refresh-markets` in Netlify. Then open `/api/cache/status` to confirm row counts, expected columns, current metadata, and snapshot keys `today:latest`, `markets:latest`, and `news-calendar:latest`.
-
-### Flow and Ownership split
-
-Flow and Ownership are now separate primary tabs. Flow contains a three-card Flow Summary, plus full-width Insider Trades, Dark Pool, and Whale Feed rows. Ownership contains tracked Institutional positioning and Congressional Holdings. Dark pool and insider trades are fetched server-side from Unusual Whales by Netlify scheduled functions and cached in Supabase; browser components never call Unusual Whales directly and never receive `SUPABASE_SERVICE_ROLE_KEY`.
-
-Dark pool uses the large-print Unusual Whales filter endpoint once daily and retains up to 14 days of rows in `unusual_whales_dark_pool_flows`; the current plan is expected to return roughly two-day delayed data. Insider trades use up to four server-side pages (up to 2,000 rows) from the provided corporate-insider endpoint once daily, store only normalized transaction fields in `unusual_whales_insider_trades`, and UI/API reads filter to the past 6 months. Dark Pool displays execution time as `MM/DD HH:mm` in Eastern Time and ticker detail pages show all available same-ticker prints sorted by most recent execution time first. Flow Summary replaces Top insider activity with Insider sentiment, displayed as `purchaseValue / (purchaseValue + saleValue)` percentage and labeled Bullish, Bearish, or Neutral. The Flow insider card and Insider sentiment both use the same full Supabase-backed 6-month insider row population as `/flow/insider-trades`; the main card slices the shared aggregate to the top 5, while `/flow/insider-trades` initially shows the top 25 and can reveal up to the top 50 with View more, and `/flow/insider-trades/[ticker]` shows individual transactions. Whale Feed is Supabase-backed from its server-side refresh table when rows exist. The Ownership Institutional Holdings card reads the tracked-institution Supabase cache, shows the top 5 institutions by latest total value, and links to a full tracked-institution list plus dedicated institution detail pages; Congressional Holdings use the server-side no-auth Unusual Whales `portfolios_v2` refresh from `json.etfs` into `unusual_whales_congressional_portfolios`, blacklist known broken/non-politician rows (`William Harnisch`, `Donald McEachin`, and `Ray Dalio`), dedupe normalized politician keys before upsert, and store only the top 20 politicians by the decimal-return `ytd_return`; the main card shows the top 5 and View All shows the cached top 20. Congressional trade refreshes skip only the normalized asset types `bond`, `corporate bond`, `municipal-security`, and `other`, preserve null/empty/missing asset rows, and retain trades from the rolling last 3 years, with the same safe cleanup captured in Supabase migrations. Browser UI reads only the cached Congressional API, capitalizes chamber/party and ticker-drilldown Asset display values, scales Congressional decimal YTD returns by 100 for display, compares Congressional YTD returns against Yahoo Finance/current-market SPY YTD data instead of Institutional quarterly SPY history, shows the Congressional YTD Returns info popover text beside YTD labels, colors transaction-direction fields such as purchases/buys and sales/sells green/red, leaves Asset uncolored, and shows unavailable chamber/party/district/asset fields as `—`.
-
-Apply `supabase/manual/apply-unusual-whales-flow.sql` in the Supabase SQL Editor before running `refresh-dark-pool`, `refresh-whale-feed`, `refresh-insider-trades`, `refresh-flow`, or `refresh-institutional-portfolios` in Netlify. `/api/cache/status` reports the new source tables and `flow:latest` / `ownership:latest` snapshots.
-
-Flow refresh diagnostics now distinguish provider/fetch success from data persistence success. `refresh-dark-pool` logs safe Unusual Whales response-shape diagnostics, including the observed `{ trades: [...] }` dark-pool shape and records `emptyReason` when zero rows are returned or all rows are skipped; dark-pool cache rows are retained for 14 days. `refresh-insider-trades` filters to the past 6 months, applies purchase/sale signs deterministically, creates stable upsert IDs, dedupes rows before Supabase upsert, and records duplicate-removal counts. `refresh-flow` may persist a partial `flow:latest` snapshot when one source succeeds, but logs source statuses and notices clearly. Use `/api/cache/status` after deployment to verify Flow row counts, metadata errors, dark-pool empty reasons, insider duplicate counts, `flow:latest` freshness, the 6-month insider rows used by Flow, insider aggregate counts, and the 14-day dark-pool retention/window.
-
-### Flow UI updates
-
-The Flow tab includes View All pages for Dark Pool, Whale Feed, and Insider Trades. Insider Trades on `/flow` shows the top 5 real Supabase-backed company aggregates when cached rows exist; `/flow/insider-trades` initially shows the top 25 and can reveal up to the top 50 with View more using the same aggregation helper and sort order. The weighted average trade price is calculated by shares as `sum(abs(shares) * price) / sum(abs(shares))`. Individual insider ticker pages include `shares_owned_after` in the far-right detail column. Flow timestamps are displayed in Eastern Time (`ET`) while Supabase timestamp storage remains UTC/timestamptz.
-
-Flow card navigation and fallback behavior were tightened so expanded-page Back controls sit in card header action areas, date-only insider transaction fields omit `ET`, and `/flow` rebuilds from Supabase source tables instead of trusting a fresh mock or stale pre-diagnostics `flow:latest` snapshot when real cached rows may exist. Flow Summary mini cards are clickable where a destination exists and use the same hover-lift cursor treatment as Markets heatmap tiles; the dark-pool summary title reflects the current 14-day retention as `Largest Dark Pool Print (14D)` and displays ticker left with premium beside it.
-
-### Flow Whale Feed and Dark Pool size fields
-
-Whale Feed replaces the former Whale Trades label in the Flow UI. Netlify wakes `refresh-whale-feed` on weekdays; a Toronto runtime guard runs provider work every hour Monday-Friday and calls the Unusual Whales `lit-trades?tab=whale` endpoint server-side only; browser components never call Unusual Whales and never receive `SUPABASE_SERVICE_ROLE_KEY`. Rows are normalized into `unusual_whales_whale_feed` with only `size`, `ticker`, `price`, `nbbo_ask`, `nbbo_bid`, `executed_at`, `premium`, `sector`, `volume`, `avg30_volume`, and internal `external_id`, `side`, `sentiment`, `fetched_at`, `created_at`, `updated_at` fields. The expanded Whale Feed page initially shows 15 server-loaded rows and supports client-side View more in batches of 15 after the server has loaded cached rows.
-
-Dark Pool ingestion stores `size` and `avg30_volume` in addition to existing normalized fields, but does not store NBBO, side, or sentiment. Flow displays Dark Pool individual trade size from `size`; `volume` is retained as total same-day ticker volume for `% Vol = size / volume`, and `avg30_volume` powers `% 30D Vol = size / avg30_volume`.
-
-When the Whale Feed provider does not send a direct side, Whale Feed uses a limited NBBO inference: price at or above `(nbbo_bid + nbbo_ask) / 2` is classified as ask-side/bullish, below midpoint is bid-side/bearish, and missing or invalid NBBO data is unknown. This inference is not used for Dark Pool.
-
-Apply `supabase/manual/apply-whale-feed-dark-pool-flow.sql` in production Supabase SQL Editor before running `refresh-whale-feed`, `refresh-dark-pool`, and `refresh-flow`; the SQL is idempotent and reloads the PostgREST schema cache.
-
-Flow Summary now labels the Whale Feed mini card as `Whale Feed (7D)` and explicitly selects the largest-premium Whale Feed row whose `executed_at` is within the past 7 days. When that summary row has a ticker, the card drills into `/flow/whale-feed/[ticker]`; otherwise it falls back to the expanded Whale Feed page only when a reliable destination exists. The Whale Feed summary subtext displays the row sentiment (`Bullish`, `Bearish`, or `Unknown`) with sentiment color, while the premium remains default text styling. The `Largest Dark Pool Print (14D)` summary subtext displays explanatory `% of 30D Vol` text using `size / avg30_volume` instead of sector. Whale Feed ticker detail pages show same-ticker rows sorted newest first from a fresh `flow:latest` snapshot when available, then the Supabase `unusual_whales_whale_feed` table, then fixtures only when no real rows are available. Stock/security prices use the shared full-price formatter (`$1,234.56` style) rather than compact currency, while premium/notional/market-cap values may remain compact. Supabase/serverless architecture is unchanged; browser components still do not call Unusual Whales or receive `SUPABASE_SERVICE_ROLE_KEY`.
-
-Status schedule notes: Congressional Holdings / `refresh-congressional-portfolios` runs daily (`0 10 * * *`) with source `Unusual Whales`; Market Overview / `refresh-market-quotes` runs every 5m from the start of Sunday through the end of Friday in Toronto/Eastern time (`*/5 * * * *` with a Toronto weekday guard); Put/Call Ratio / `refresh-put-call` runs every 30m Monday-Friday (`*/30 * * * 1-5`); Top News / `refresh-featured-articles` and Unusual Whales News Feed / `refresh-news-feed` run every 30m daily (`*/30 * * * *`); Today’s Economic Events / `refresh-economic-events` and Today’s Earnings / `fetch-uw-earnings` run every 6h daily (`0 */6 * * *`); Indices/Heatmaps / `refresh-markets` runs every 5m Monday-Friday (`*/5 * * * 1-5`); Insider Trades, Dark Pool, and Whale Feed run hourly Monday-Friday (`0 * * * 1-5`); `refresh-flow` wakes hourly at :05 (`5 * * * *`) and its Toronto weekday guard allows Monday-Friday provider work; Economy Data / `refresh-economy` wakes hourly (`0 * * * *`) but its Toronto guard runs FRED provider work once every 24 hours at 12:00 PM America/Toronto; source labels stay short and safe; and the Status note says `All times are shown in Eastern Standard Time.` Netlify may show platform-generated wording for cron expressions, so docs record both the actual cron and intended human-readable schedule.
-
-### Ownership Institutional data wiring
-
-Institutional Summary reads cached Supabase data via `/api/ownership/institutional`; browser code never calls Unusual Whales institutional endpoints or receives service-role credentials. Netlify runs `refresh-institutional-summary` daily at `0 8 * * *` to fetch institutional ticker-flow and sector-exposure data server-side and upsert `unusual_whales_institutional_ticker_flow` plus `unusual_whales_institutional_sector_exposure`. Ticker-flow rows retain only `investor_type`, `order`, `ticker`, `value`, `increased_positions`, `decreased_positions`, `holding_count`, `units`, `prev_units`, and freshness metadata. Sector exposure rows retain only `investor_type`, normalized State Street sector labels, `value`, `report_date`, and freshness metadata, filtered before persistence to each investor type's latest five valid quarter-end reports. The Ownership Institutional Summary keeps the investor-type selector for all cards and adds an Increased/Decreased/New/Sold Out selector scoped only to the middle positions card. The summary displays the latest cached sector report date when available, renders holdings and position-change data as compact tables whose QoQ Δ is calculated as `units - prev_units`, and renders sector exposure as a legend-free pie chart with an outside-positioned tooltip limited to sector label and percentage share plus a compact list with exact labels like `XLF (Financials)` and `XLC (Communications)`, share, QoQ percentage-point share change, and YoY percentage-point share change when enough cached report dates exist. The Investor Types modal scroll-locks background body scrolling while preserving X, Escape, and outside-click close behavior. The Top Positions control is compact and right-aligned below the card title, and the Top Holdings/Top Positions tables use larger row spacing with matching control-row alignment so the cards feel balanced without adding fake data or extra spacing to Sector Breakdown. The desktop sidebar is narrower without changing the mobile nav.
-
-Tracked Institutional data now powers the Ownership Institutional Holdings card. `/api/ownership/institutional` returns cached Supabase rows for the curated institutions while the Netlify `refresh-institutional-portfolios` function resolves Unusual Whales provider names server-side, fetches stock/fund holdings with `slim=true`, option holdings from the Option endpoint with `slim=true`, and activity rows, then writes only the retained fields to Supabase. Latest institution info stays in `unusual_whales_tracked_institutions`; the trailing 21 quarter-end reports / 5 years of historical `total_value` and `spy_price` are stored in `unusual_whales_tracked_institution_history`. The refresh also fetches `https://phx.unusualwhales.com/api/institutions/{institutionSlug}` server-side to persist historical `total_value` and `spy_price` in `unusual_whales_tracked_institution_history` for institution-vs-SPY YTD, 1Y, and 5Y returns. Browser code does not call Unusual Whales directly.
-
-Dark Pool expanded view initially shows 15 rows and reveals 30 additional rows per View more click, matching Whale Feed pagination while preserving Dark Pool-specific data logic. Institutional Holdings list tables display full `name`, while institution detail compact titles display `short_name` with a fallback to full `name`. Detail `% of Portfolio` uses cached `perc_of_share_value * 100` as a neutral unsigned percentage. Compare-to-SPY return popups render in a foreground portal layer to avoid clipping by table/card containers and are reused by Congressional YTD return cells. Option holdings persist `put_oi` and `call_oi` from the nested Unusual Whales `oi` object, including JSON-string `oi` payloads, so `% of OI` uses `units / put_oi` for puts and `units / call_oi` for calls, displays as an unsigned neutral percentage, and highlights values above 25% in green. Activity ingestion reads the endpoint `data` array, safely normalizes numeric strings/nulls, allows nullable buy/sell prices and security type, and logs safe per-institution fetch, normalize, upsert, and skip counts. The Institution Detail Stock Holdings UI hides zero-unit positions and displays current position Value as `units * close` from cached holdings data, showing `—` when `close` is unavailable instead of falling back to stale report-date pricing. The Institution Detail Activity UI shows row-level activity records without aggregating duplicate tickers, excludes `Warrant` rows case-insensitively, capitalizes activity labels, colors positive activity green and negative activity red, labels the price movement column `Δ Price Since Activity`, shows signed `Change in Value` as `units_change * price_on_report` immediately after Change in Units, and sorts by largest row-level displayed value (`units * close`) with missing values last. Activity ingestion now keeps only each institution's latest available `report_date` quarter, logs latest-quarter keep/skip counts, and the Supabase cleanup migration `0024_tracked_activity_latest_quarter_cleanup.sql` removes older-quarter and Warrant activity rows from `unusual_whales_tracked_institution_activity`.
-
-Earnings Calendar refreshes (`fetch-uw-earnings`) retain only `unusual_whales_earnings_events.report_date` rows inside the active window: Monday of the previous week through Friday of the next week in Toronto/Eastern time. Each server-side refresh prunes cached rows before `min_date` or after `max_date`, continues excluding `market_cap_size = micro`, and logs safe row/prune/skip counts without provider payloads or secrets. The News & Calendar Earnings Calendar card no longer renders the former optional-persistence helper text.
+- [`docs/architecture.md`](docs/architecture.md) — routing, data orchestration, cache patterns, and conventions.
+- [`docs/data-sources.md`](docs/data-sources.md) — provider-specific adapters, fallback rules, environment variables, and Supabase notes.
+- [`docs/features.md`](docs/features.md) — product/tab implementation details that do not belong in this README.
+- [`docs/development.md`](docs/development.md) — local workflows and validation commands.
+- [`docs/deployment.md`](docs/deployment.md) — Netlify/Supabase deployment guidance.
+- [`docs/codex-guidelines.md`](docs/codex-guidelines.md) — repository maintenance expectations for agent-assisted work.

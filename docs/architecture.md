@@ -48,7 +48,10 @@ supabase/                    Schema and migrations
 | `/flow`                           | Flow dashboard.                                        | `getFlowPayload()` reads `flow:latest`, Flow source tables, then fixtures.   |
 | `/ownership`                      | Ownership dashboard.                                   | `ownershipMock` fixture / optional `ownership:latest`.                       |
 | `/flow-ownership`                 | Legacy redirect.                                       | Redirects to `/flow`.                                                        |
-| `/economy-sentiment`              | Economy dashboard compatibility route.                  | `economyMock` fixture via `EconomyView`.                                     |
+| `/economy`                        | Economy dashboard.                                      | `getEconomyPayload()` and `EconomyView`.                                     |
+| `/sentiment`                      | Sentiment dashboard.                                    | `SentimentView` fixture-backed sentiment metrics.                            |
+| `/sentiment/market-expectations`  | Sentiment subpage placeholder.                          | `MarketExpectationsView`.                                                    |
+| `/economy-sentiment`              | Legacy compatibility redirect retained to avoid breaking old links. | Redirects to `/economy`; retained intentionally because it is a public route path. |
 | `/sources-methodology`            | Source reference table.                                | Static page-level source list.                                               |
 | `/status`                         | Job/component monitoring page.                         | Server-rendered status rows from `lib/status/jobs.ts` and Supabase metadata. |
 | `/settings`                       | Legacy redirect.                                       | Redirects to `/status`.                                                      |
@@ -79,7 +82,8 @@ All API responses that use `dashboardJson()` are wrapped with:
 | `/api/flow/insider-trades`                    | Returns up to top 50 cached insider company aggregates.                                 |
 | `/api/flow/insider-trades/[ticker]`           | Returns cached insider detail rows for one ticker.                                      |
 | `/api/flow-ownership`                         | Legacy redirect to `/api/flow`.                                                         |
-| `/api/economy-sentiment`                      | Returns `economyMock`.                                                                  |
+| `/api/economy`                                | Calls `getEconomyPayload()` and validates with `economyPayloadSchema`.                 |
+| `/api/economy-sentiment`                      | Legacy compatibility endpoint that re-exports `/api/economy`; retained to avoid breaking old clients. |
 | `/api/sources/status`                         | Returns configured/missing booleans for environment variables, never secret values.     |
 
 ## Data orchestration
