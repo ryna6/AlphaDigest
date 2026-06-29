@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { Label, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
+import { CartesianGrid, Label, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import type { EconomyCardSnapshot, EconomyChangeSnapshot, EconomyMetricSnapshot } from "@/lib/data/economy-config";
 import { Panel } from "@/components/ui/panel";
 import { SectionHeader } from "@/components/ui/section-header";
@@ -61,43 +61,71 @@ function SummaryCard({ card }: { card: EconomyCardSnapshot }) {
   );
 }
 
-function MetricDetailBox({ metric }: { metric: EconomyMetricSnapshot }) {
-  return (
-    <div className="rounded-none border border-borderStrong bg-sidebar/60 p-3 text-xs text-textMuted">
-      <p className="font-semibold text-textSecondary">{metric.fullName}</p>
-      <p className="mt-1">
-        Range: 10Y · Frequency: {metric.frequency} · Unit: {metric.unit} · {metric.seasonalAdjustment} · Latest: {metric.latestDate ?? "—"} · Source: {metric.dataSource ?? "FRED"}
-      </p>
-    </div>
-  );
+function formatChartDate(value: string) {
+  const date = new Date(`${value}T00:00:00Z`);
+  if (!Number.isFinite(date.getTime())) return value;
+  return new Intl.DateTimeFormat("en-US", { month: "short", year: "numeric", timeZone: "UTC" }).format(date);
 }
 
-function MiniSeriesChart({ metric }: { metric: EconomyMetricSnapshot }) {
+function dateRangeLabel(metric: EconomyMetricSnapshot) {
+  const history = metric.history ?? [];
+  const first = history[0]?.date;
+  const latest = metric.latestDate ?? history.at(-1)?.date;
+  if (!first && !latest) return "10Y";
+  return `${first ?? "—"} to ${latest ?? "—"}`;
+}
+
+function ChartPanel({ metric }: { metric: EconomyMetricSnapshot }) {
   const data = useMemo(
     () => (metric.history ?? []).map((point) => ({ date: point.date, value: scaledValue(metric, point.value) })),
     [metric]
   );
-  if (!data.length) {
-    return <div className="flex h-44 items-center justify-center rounded-none border border-dashed border-borderStrong bg-sidebar/50 text-sm text-textMuted sm:h-52">—</div>;
-  }
+
   return (
-    <div className="h-44 rounded-none border border-borderStrong bg-sidebar/50 p-2 sm:h-52">
-      <ResponsiveContainer width="100%" height="100%">
-        <LineChart data={data} margin={{ left: 8, right: 8, top: 12, bottom: 18 }}>
-          <XAxis dataKey="date" tick={false} axisLine={{ stroke: "rgba(148,163,184,.35)" }} tickLine={false} minTickGap={24}>
-            <Label value="Time" position="insideBottom" offset={-12} fill="rgba(148,163,184,.85)" fontSize={11} />
-          </XAxis>
-          <YAxis width={34} domain={["dataMin", "dataMax"]} tick={{ fill: "rgba(148,163,184,.85)", fontSize: 10 }} axisLine={{ stroke: "rgba(148,163,184,.35)" }} tickLine={false} tickFormatter={(value) => Number(value).toFixed(2)}>
-            <Label value={metric.chartAxisLabel} angle={-90} position="insideLeft" offset={0} fill="rgba(148,163,184,.85)" fontSize={11} />
-          </YAxis>
-          <Tooltip
-            contentStyle={{ background: "#111827", border: "1px solid rgba(148,163,184,.35)", borderRadius: 0, color: "#F8FAFC" }}
-            formatter={(value) => [formatScaledMetricValue(metric, Number(value)), metric.label]}
-            labelFormatter={(label) => String(label)}
-          />
-          <Line type="monotone" dataKey="value" stroke="#4F8CFF" strokeWidth={2} dot={false} isAnimationActive={false} />
-        </LineChart>
-      </ResponsiveContainer>
+    <div className="rounded-none border border-borderStrong bg-gradient-to-b from-sidebar/90 to-background/80 p-4 shadow-[0_0_24px_rgba(15,23,42,.22)]">
+      <div className="mb-4 flex flex-col gap-2 border-b border-borderStrong/70 pb-3 sm:flex-row sm:items-end sm:justify-between">
+        <div>
+          <p className="text-sm font-semibold text-textPrimary">{metric.fullName}</p>
+          <p className="mt-1 text-xs leading-5 text-textMuted">
+            Range: 10Y ({dateRangeLabel(metric)}) · Frequency: {metric.frequency} · Unit: {metric.unit} · {metric.seasonalAdjustment} · Source: {metric.dataSource ?? "FRED"}
+          </p>
+        </div>
+        <div className="text-xs text-textMuted sm:text-right">
+          <p>Latest observation</p>
+          <p className="font-semibold text-textSecondary">{metric.latestDate ?? "—"}</p>
+        </div>
+      </div>
+      {!data.length ? (
+        <div className="flex h-72 items-center justify-center rounded-none border border-dashed border-borderStrong bg-background/40 text-sm text-textMuted">—</div>
+      ) : (
+        <div className="h-72 sm:h-80">
+          <ResponsiveContainer width="100%" height="100%">
+            <LineChart data={data} margin={{ left: 4, right: 18, top: 12, bottom: 24 }}>
+              <CartesianGrid stroke="rgba(148,163,184,.14)" strokeDasharray="3 3" vertical={false} />
+              <XAxis
+                dataKey="date"
+                tick={{ fill: "rgba(148,163,184,.85)", fontSize: 11 }}
+                axisLine={{ stroke: "rgba(148,163,184,.35)" }}
+                tickLine={false}
+                minTickGap={46}
+                tickFormatter={formatChartDate}
+              >
+                <Label value="Time" position="insideBottom" offset={-18} fill="rgba(148,163,184,.9)" fontSize={12} />
+              </XAxis>
+              <YAxis width={58} domain={["dataMin", "dataMax"]} tick={{ fill: "rgba(148,163,184,.85)", fontSize: 11 }} axisLine={{ stroke: "rgba(148,163,184,.35)" }} tickLine={false} tickFormatter={(value) => Number(value).toFixed(2)}>
+                <Label value={metric.chartAxisLabel} angle={-90} position="insideLeft" offset={4} fill="rgba(148,163,184,.9)" fontSize={12} />
+              </YAxis>
+              <Tooltip
+                cursor={{ stroke: "rgba(79,140,255,.45)", strokeWidth: 1 }}
+                contentStyle={{ background: "#111827", border: "1px solid rgba(148,163,184,.35)", borderRadius: 0, color: "#F8FAFC", boxShadow: "0 18px 40px rgba(0,0,0,.35)" }}
+                formatter={(value) => [formatScaledMetricValue(metric, Number(value)), metric.label]}
+                labelFormatter={(label) => `Observation: ${String(label)}`}
+              />
+              <Line type="monotone" dataKey="value" stroke="#4F8CFF" strokeWidth={2.5} dot={false} activeDot={{ r: 4, stroke: "#93C5FD", strokeWidth: 2, fill: "#0F172A" }} isAnimationActive={false} />
+            </LineChart>
+          </ResponsiveContainer>
+        </div>
+      )}
     </div>
   );
 }
@@ -138,25 +166,41 @@ function EconomyMetricCard({ card }: { card: EconomyCardSnapshot }) {
             );
           })}
         </div>
-        {card.hasMiniChart && selectedMetric ? (
-          <>
-            <MetricDetailBox metric={selectedMetric} />
-            <MiniSeriesChart metric={selectedMetric} />
-          </>
-        ) : null}
+        {card.hasMiniChart && selectedMetric ? <ChartPanel metric={selectedMetric} /> : null}
       </div>
     </Panel>
   );
 }
 
 export function EconomyCardGrid({ summaryCards, mainCards }: { summaryCards: EconomyCardSnapshot[]; mainCards: EconomyCardSnapshot[] }) {
+  const [selectedCardId, setSelectedCardId] = useState(mainCards[0]?.id ?? "");
+  const selectedCard = mainCards.find((card) => card.id === selectedCardId) ?? mainCards[0];
+
   return (
     <>
       <div className="grid gap-4 md:grid-cols-3">
         {summaryCards.map((card) => <SummaryCard key={card.id} card={card} />)}
       </div>
-      <div className="mt-4 grid gap-4 xl:grid-cols-2">
-        {mainCards.map((card) => <EconomyMetricCard key={card.id} card={card} />)}
+      <div className="mt-4 overflow-x-auto border border-borderStrong bg-sidebar/50 p-2">
+        <div className="flex min-w-max gap-2 sm:min-w-0 sm:flex-wrap">
+          {mainCards.map((card) => {
+            const active = card.id === selectedCard?.id;
+            return (
+              <button
+                key={card.id}
+                type="button"
+                onClick={() => setSelectedCardId(card.id)}
+                className={`rounded-none border px-3 py-2 text-sm font-semibold transition focus:outline-none focus:ring-2 focus:ring-accent/70 ${active ? "border-accent bg-accent/15 text-textPrimary" : "border-borderStrong bg-background/50 text-textMuted hover:border-accent/60 hover:text-textSecondary"}`}
+                aria-pressed={active}
+              >
+                {card.title}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+      <div className="mt-4">
+        {selectedCard ? <EconomyMetricCard key={selectedCard.id} card={selectedCard} /> : null}
       </div>
     </>
   );

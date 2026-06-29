@@ -72,7 +72,7 @@ export const economySummaryCards: EconomyCardDefinition[] = [
     description: "Future derived readout across growth, inflation, labor, consumer, and financial conditions.",
     statusLabel: unavailableStatus,
     interpretation: unavailableInterpretation,
-    derivedFrom: ["Growth Momentum", "Inflation Pressure", "Labor Strength", "Consumer Health", "Financial Conditions"],
+    derivedFrom: ["Growth Trend", "Inflation", "Labor Market", "Consumer Health", "Credit Stress"],
     metrics: []
   },
   {
@@ -81,7 +81,7 @@ export const economySummaryCards: EconomyCardDefinition[] = [
     description: "Future derived readout across inflation, labor, and rates pressure.",
     statusLabel: unavailableStatus,
     interpretation: unavailableInterpretation,
-    derivedFrom: ["Inflation Pressure", "Labor Strength", "Rates & Yield Curve"],
+    derivedFrom: ["Inflation", "Labor Market", "Rate Pressure"],
     metrics: []
   },
   {
@@ -90,7 +90,7 @@ export const economySummaryCards: EconomyCardDefinition[] = [
     description: "Future derived readout across consumer, labor, yield curve, and financial condition stress.",
     statusLabel: unavailableStatus,
     interpretation: unavailableInterpretation,
-    derivedFrom: ["Consumer Health", "Labor Strength", "Rates & Yield Curve", "Financial Conditions"],
+    derivedFrom: ["Consumer Health", "Labor Market", "Rate Pressure", "Credit Stress"],
     metrics: []
   }
 ];
@@ -98,7 +98,7 @@ export const economySummaryCards: EconomyCardDefinition[] = [
 export const economyMainCards: EconomyCardDefinition[] = [
   {
     id: "growth-momentum",
-    title: "Growth Momentum",
+    title: "Growth Trend",
     description: "Real activity and demand momentum.",
     statusLabel: unavailableStatus,
     interpretation: unavailableInterpretation,
@@ -114,7 +114,7 @@ export const economyMainCards: EconomyCardDefinition[] = [
   },
   {
     id: "inflation-pressure",
-    title: "Inflation Pressure",
+    title: "Inflation",
     description: "Consumer, expectation, and wage inflation.",
     statusLabel: unavailableStatus,
     interpretation: unavailableInterpretation,
@@ -130,7 +130,7 @@ export const economyMainCards: EconomyCardDefinition[] = [
   },
   {
     id: "labor-strength",
-    title: "Labor Strength",
+    title: "Labor Market",
     description: "Employment, claims, wages, and openings.",
     statusLabel: unavailableStatus,
     interpretation: unavailableInterpretation,
@@ -162,7 +162,7 @@ export const economyMainCards: EconomyCardDefinition[] = [
   },
   {
     id: "rates-yield-curve",
-    title: "Rates & Yield Curve",
+    title: "Rate Pressure",
     description: "Policy rate, Treasury curve, spreads, and real yield.",
     statusLabel: unavailableStatus,
     interpretation: unavailableInterpretation,
@@ -178,7 +178,7 @@ export const economyMainCards: EconomyCardDefinition[] = [
   },
   {
     id: "financial-conditions",
-    title: "Financial Conditions",
+    title: "Credit Stress",
     description: "Credit spread, liquidity, money supply, and balance-sheet conditions.",
     statusLabel: unavailableStatus,
     interpretation: unavailableInterpretation,
