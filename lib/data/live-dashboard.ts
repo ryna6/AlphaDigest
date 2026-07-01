@@ -32,7 +32,7 @@ import { readInsiderTradeRows } from "./adapters/unusual-whales-insider-trades";
 import { INSIDER_TRADES_LOOKBACK_MONTHS } from "./insider-window";
 import { DARK_POOL_RETENTION_DAYS } from "./adapters/unusual-whales-dark-pool";
 import { aggregateInsiderTrades } from "./insider-aggregation";
-import { deriveFlowSummary } from "./flow-summary";
+import { deriveFlowSummary, WHALE_FEED_SUMMARY_WINDOW_DAYS } from "./flow-summary";
 import { payloadContentHash, updateRefreshMetadata } from "./adapters/supabase-refresh";
 import { createServerSupabaseClient } from "@/lib/db/supabase";
 import {
@@ -273,10 +273,10 @@ function formatEarningsCount(count: number) {
 
 function todayEarningsImportanceSubtext(events: UnusualWhalesEarningsEvent[]) {
   const priority = [
-    { size: "big", singular: "market mover", plural: "market movers" },
-    { size: "large", singular: "high impact", plural: "high impact" },
-    { size: "mid", singular: "moderate impact", plural: "moderate impact" },
-    { size: "small", singular: "low impact", plural: "low impact" }
+    { size: "big", singular: "Market Mover", plural: "Market Movers" },
+    { size: "large", singular: "High Impact", plural: "High Impact" },
+    { size: "mid", singular: "Moderate Impact", plural: "Moderate Impact" },
+    { size: "small", singular: "Low Impact", plural: "Low Impact" }
   ];
 
   for (const category of priority) {
@@ -1196,7 +1196,7 @@ export async function buildOwnershipPayload(): Promise<{
 function hasRevisedFlowSummary(payload: FlowPayload) {
   return (
     payload.summary.some((metric) => metric.label === "Insider sentiment") &&
-    payload.summary.some((metric) => metric.label === "Whale Feed (7D)")
+    payload.summary.some((metric) => metric.label === `Whale Feed (${WHALE_FEED_SUMMARY_WINDOW_DAYS}D)`)
   );
 }
 
