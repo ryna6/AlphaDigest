@@ -1,8 +1,21 @@
 "use client";
 
-import { useMemo, useState } from "react";
-import { CartesianGrid, Label, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
-import type { EconomyCardSnapshot, EconomyChangeSnapshot, EconomyMetricSnapshot } from "@/lib/data/economy-config";
+import { useEffect, useId, useMemo, useState } from "react";
+import {
+  CartesianGrid,
+  Label,
+  Line,
+  LineChart,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis
+} from "recharts";
+import type {
+  EconomyCardSnapshot,
+  EconomyChangeSnapshot,
+  EconomyMetricSnapshot
+} from "@/lib/data/economy-config";
 import { Panel } from "@/components/ui/panel";
 import { SectionHeader } from "@/components/ui/section-header";
 
@@ -28,7 +41,10 @@ function fractionDigits(value: number) {
 function formatScaledMetricValue(metric: EconomyMetricSnapshot, scaled: number | null | undefined) {
   if (scaled == null || !Number.isFinite(scaled)) return "—";
   const digits = fractionDigits(scaled);
-  const number = new Intl.NumberFormat("en-US", { minimumFractionDigits: digits, maximumFractionDigits: digits }).format(scaled);
+  const number = new Intl.NumberFormat("en-US", {
+    minimumFractionDigits: digits,
+    maximumFractionDigits: digits
+  }).format(scaled);
   return `${unitPrefix(metric)}${number}${unitSuffix(metric)}`;
 }
 
@@ -36,13 +52,23 @@ function formatMetricCardValue(metric: EconomyMetricSnapshot, value: number | nu
   if (value == null || !Number.isFinite(value)) return "—";
   const scaled = scaledValue(metric, value);
   const digits = fractionDigits(scaled);
-  return new Intl.NumberFormat("en-US", { minimumFractionDigits: digits, maximumFractionDigits: digits }).format(scaled);
+  return new Intl.NumberFormat("en-US", {
+    minimumFractionDigits: digits,
+    maximumFractionDigits: digits
+  }).format(scaled);
+}
+
+function isIndexUnit(unit: string) {
+  const normalized = unit.trim().toLowerCase();
+  return normalized === "index" || /^index\s+(?:\d{4}|\d{4}-\d{4})\s*=\s*100$/.test(normalized);
 }
 
 function metricUnitLabel(metric: EconomyMetricSnapshot) {
   const unit = metric.unit.trim();
-  if (metric.valueFormat === "percent" && unit.toLowerCase() === "percent") return "%";
-  if (unit.toLowerCase() === "percentage points") return "pp";
+  const normalized = unit.toLowerCase();
+  if (!unit || normalized === "number" || isIndexUnit(unit)) return "";
+  if (metric.valueFormat === "percent" && normalized === "percent") return "%";
+  if (normalized === "percentage points") return "pp";
   return unit;
 }
 
@@ -76,7 +102,10 @@ function formatAxisTick(metric: EconomyMetricSnapshot, value: number) {
   const abs = Math.abs(value);
   const notation = abs >= 100000 ? "compact" : "standard";
   const digits = fractionDigits(value);
-  const number = new Intl.NumberFormat("en-US", { notation, maximumFractionDigits: notation === "compact" ? 1 : digits }).format(value);
+  const number = new Intl.NumberFormat("en-US", {
+    notation,
+    maximumFractionDigits: notation === "compact" ? 1 : digits
+  }).format(value);
   return `${unitPrefix(metric)}${number}${unitSuffix(metric)}`;
 }
 
@@ -135,8 +164,18 @@ function formatPeriod(value: string, metric: EconomyMetricSnapshot) {
   if (metric.frequency === "Quarterly") return formatQuarter(value);
   const date = new Date(`${value}T00:00:00Z`);
   if (!Number.isFinite(date.getTime())) return value;
-  if (metric.frequency === "Daily" || metric.frequency === "Weekly") return new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric", year: "2-digit", timeZone: "UTC" }).format(date);
-  return new Intl.DateTimeFormat("en-US", { month: "short", year: "numeric", timeZone: "UTC" }).format(date);
+  if (metric.frequency === "Daily" || metric.frequency === "Weekly")
+    return new Intl.DateTimeFormat("en-US", {
+      month: "short",
+      day: "numeric",
+      year: "2-digit",
+      timeZone: "UTC"
+    }).format(date);
+  return new Intl.DateTimeFormat("en-US", {
+    month: "short",
+    year: "numeric",
+    timeZone: "UTC"
+  }).format(date);
 }
 
 function formatXAxisTick(value: string) {
@@ -145,7 +184,17 @@ function formatXAxisTick(value: string) {
   return String(date.getUTCFullYear());
 }
 
-function EconomyTooltip({ active, payload, label, metric }: { active?: boolean; payload?: ReadonlyArray<{ value?: unknown }>; label?: string | number; metric: EconomyMetricSnapshot }) {
+function EconomyTooltip({
+  active,
+  payload,
+  label,
+  metric
+}: {
+  active?: boolean;
+  payload?: ReadonlyArray<{ value?: unknown }>;
+  label?: string | number;
+  metric: EconomyMetricSnapshot;
+}) {
   const value = payload?.[0]?.value;
   if (!active || value == null || !Number.isFinite(Number(value))) return null;
   return (
@@ -166,7 +215,8 @@ function formatChange(change: EconomyChangeSnapshot | undefined) {
 }
 
 function changeTone(change: EconomyChangeSnapshot | undefined) {
-  if (!change || change.value == null || !Number.isFinite(change.value) || change.value === 0) return "text-textMuted";
+  if (!change || change.value == null || !Number.isFinite(change.value) || change.value === 0)
+    return "text-textMuted";
   return change.value > 0 ? "text-positive" : "text-negative";
 }
 
@@ -175,7 +225,9 @@ function SummaryCard({ card }: { card: EconomyCardSnapshot }) {
     <Panel>
       <SectionHeader title={card.title} />
       <div className="space-y-3">
-        <span className="rounded-full border border-borderStrong bg-sidebar px-3 py-1 text-sm font-semibold text-textSecondary">{card.statusLabel}</span>
+        <span className="rounded-full border border-borderStrong bg-sidebar px-3 py-1 text-sm font-semibold text-textSecondary">
+          {card.statusLabel}
+        </span>
         <div className="rounded-none border border-borderStrong bg-sidebar/70 p-3">
           <p className="text-sm font-semibold text-textSecondary">Derived signal</p>
           <p className="mt-1 text-sm text-textMuted">{card.derivedFrom?.join(" · ") ?? "—"}</p>
@@ -194,21 +246,38 @@ function dateRangeLabel(metric: EconomyMetricSnapshot) {
 
 function ChartPanel({ metric }: { metric: EconomyMetricSnapshot }) {
   const data = useMemo(
-    () => (metric.history ?? []).map((point) => ({ date: point.date, value: scaledValue(metric, point.value) })),
+    () =>
+      (metric.history ?? []).map((point) => ({
+        date: point.date,
+        value: scaledValue(metric, point.value)
+      })),
     [metric]
   );
-  const yAxis = useMemo(() => chartDomain(data.map((point) => point.value), "line"), [data]);
+  const yAxis = useMemo(
+    () =>
+      chartDomain(
+        data.map((point) => point.value),
+        "line"
+      ),
+    [data]
+  );
 
   return (
     <div className="rounded-none border border-borderStrong bg-gradient-to-b from-sidebar/90 to-background/80 p-4 shadow-[0_0_24px_rgba(15,23,42,.22)]">
       <div className="mb-4 flex flex-col gap-2 border-b border-borderStrong/70 pb-3 sm:flex-row sm:items-end sm:justify-between">
         <div>
-          <p className="text-base font-semibold text-textPrimary">{metric.fullName} ({metric.seriesId})</p>
+          <p className="text-base font-semibold text-textPrimary">
+            {metric.fullName} ({metric.seriesId})
+          </p>
           <p className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs leading-5 text-textMuted sm:gap-x-4">
             <span>Range: {dateRangeLabel(metric)}</span>
-            <span aria-hidden="true" className="text-borderStrong">|</span>
+            <span aria-hidden="true" className="text-borderStrong">
+              |
+            </span>
             <span>Frequency: {metric.frequency}</span>
-            <span aria-hidden="true" className="text-borderStrong">|</span>
+            <span aria-hidden="true" className="text-borderStrong">
+              |
+            </span>
             <span>{metric.seasonalAdjustment}</span>
           </p>
         </div>
@@ -218,12 +287,18 @@ function ChartPanel({ metric }: { metric: EconomyMetricSnapshot }) {
         </div>
       </div>
       {!data.length ? (
-        <div className="flex h-72 items-center justify-center rounded-none border border-dashed border-borderStrong bg-background/40 text-sm text-textMuted">—</div>
+        <div className="flex h-72 items-center justify-center rounded-none border border-dashed border-borderStrong bg-background/40 text-sm text-textMuted">
+          —
+        </div>
       ) : (
         <div className="h-72 sm:h-80">
           <ResponsiveContainer width="100%" height="100%">
             <LineChart data={data} margin={{ left: 24, right: 18, top: 12, bottom: 12 }}>
-              <CartesianGrid stroke="rgba(148,163,184,.14)" strokeDasharray="3 3" vertical={false} />
+              <CartesianGrid
+                stroke="rgba(148,163,184,.14)"
+                strokeDasharray="3 3"
+                vertical={false}
+              />
               <XAxis
                 dataKey="date"
                 tick={{ fill: "rgba(148,163,184,.85)", fontSize: 12 }}
@@ -232,11 +307,30 @@ function ChartPanel({ metric }: { metric: EconomyMetricSnapshot }) {
                 minTickGap={46}
                 tickFormatter={(value) => formatXAxisTick(String(value))}
               />
-              <YAxis width={72} domain={yAxis.domain} ticks={yAxis.ticks} tick={{ fill: "rgba(148,163,184,.85)", fontSize: 12 }} axisLine={{ stroke: "rgba(148,163,184,.35)" }} tickLine={false} tickFormatter={(value) => formatAxisTick(metric, Number(value))}>
+              <YAxis
+                width={72}
+                domain={yAxis.domain}
+                ticks={yAxis.ticks}
+                tick={{ fill: "rgba(148,163,184,.85)", fontSize: 12 }}
+                axisLine={{ stroke: "rgba(148,163,184,.35)" }}
+                tickLine={false}
+                tickFormatter={(value) => formatAxisTick(metric, Number(value))}
+              >
                 <Label value={metric.unit} content={(props) => <YAxisUnitLabel {...props} />} />
               </YAxis>
-              <Tooltip cursor={{ stroke: "rgba(79,140,255,.45)", strokeWidth: 1 }} content={(props) => <EconomyTooltip {...props} metric={metric} />} />
-              <Line type="monotone" dataKey="value" stroke="#4F8CFF" strokeWidth={2.5} dot={false} activeDot={{ r: 4, stroke: "#93C5FD", strokeWidth: 2, fill: "#0F172A" }} isAnimationActive={false} />
+              <Tooltip
+                cursor={{ stroke: "rgba(79,140,255,.45)", strokeWidth: 1 }}
+                content={(props) => <EconomyTooltip {...props} metric={metric} />}
+              />
+              <Line
+                type="monotone"
+                dataKey="value"
+                stroke="#4F8CFF"
+                strokeWidth={2.5}
+                dot={false}
+                activeDot={{ r: 4, stroke: "#93C5FD", strokeWidth: 2, fill: "#0F172A" }}
+                isAnimationActive={false}
+              />
             </LineChart>
           </ResponsiveContainer>
         </div>
@@ -245,28 +339,108 @@ function ChartPanel({ metric }: { metric: EconomyMetricSnapshot }) {
   );
 }
 
+const SIGNAL_EXPLANATION_PLACEHOLDER = "Level explanations will be added here.";
+
+function SignalExplanationModal({
+  metric,
+  onClose
+}: {
+  metric: EconomyMetricSnapshot;
+  onClose: () => void;
+}) {
+  const titleId = useId();
+
+  useEffect(() => {
+    const original = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") onClose();
+    };
+    document.addEventListener("keydown", onKeyDown);
+    return () => {
+      document.body.style.overflow = original;
+      document.removeEventListener("keydown", onKeyDown);
+    };
+  }, [onClose]);
+
+  return (
+    <div
+      aria-labelledby={titleId}
+      aria-modal="true"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/65 p-4"
+      role="dialog"
+      onMouseDown={onClose}
+    >
+      <div
+        className="max-h-[85vh] w-full max-w-2xl overflow-auto border border-borderStrong bg-panel p-5 shadow-panel"
+        onMouseDown={(event) => event.stopPropagation()}
+      >
+        <div className="mb-4 flex items-start justify-between gap-4">
+          <div>
+            <h3 id={titleId} className="text-lg font-semibold text-textPrimary">
+              {metric.signalLabel}
+            </h3>
+            <p className="mt-1 text-xs text-textMuted">{metric.label} signal explanation</p>
+          </div>
+          <button
+            type="button"
+            aria-label="Close signal explanation"
+            className="border border-borderStrong px-2 py-1 text-sm text-textSecondary hover:border-accentBlue/50 hover:text-textPrimary"
+            onClick={onClose}
+          >
+            X
+          </button>
+        </div>
+        <p className="text-sm leading-6 text-textSecondary">{SIGNAL_EXPLANATION_PLACEHOLDER}</p>
+      </div>
+    </div>
+  );
+}
+
 function MetricDetailCards({ metric }: { metric: EconomyMetricSnapshot }) {
+  const [explanationOpen, setExplanationOpen] = useState(false);
   const details = [
     { title: "What it measures", body: metric.whatItMeasures },
-    { title: "Why investors care", body: metric.whyInvestorsCare },
-    { title: "Current takeaway", body: metric.currentTakeaway }
+    { title: "Why investors care", body: metric.whyInvestorsCare }
   ];
 
   return (
-    <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-1">
-      {details.map((detail) => (
-        <div key={detail.title} className="rounded-none border border-borderStrong bg-sidebar/80 p-3">
-          <p className="text-sm font-semibold text-textSecondary">{detail.title}</p>
-          <p className="mt-1 text-sm leading-5 text-textMuted">{detail.body}</p>
+    <>
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-1">
+        {details.map((detail) => (
+          <div
+            key={detail.title}
+            className="rounded-none border border-borderStrong bg-sidebar/80 p-3"
+          >
+            <p className="text-sm font-semibold text-textSecondary">{detail.title}</p>
+            <p className="mt-1 text-sm leading-5 text-textMuted">{detail.body}</p>
+          </div>
+        ))}
+        <div className="rounded-none border border-borderStrong bg-sidebar/80 p-3">
+          <div className="flex flex-wrap items-center gap-2">
+            <p className="text-sm font-semibold text-textSecondary">Current takeaway</p>
+            <button
+              type="button"
+              className="rounded-full border border-borderStrong bg-background/70 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-textSecondary transition hover:border-accentBlue/50 hover:text-textPrimary focus:outline-none focus:ring-1 focus:ring-accentBlue"
+              onClick={() => setExplanationOpen(true)}
+            >
+              {metric.signalLabel}
+            </button>
+          </div>
+          <p className="mt-1 text-sm leading-5 text-textMuted">{metric.currentTakeaway}</p>
         </div>
-      ))}
-    </div>
+      </div>
+      {explanationOpen ? (
+        <SignalExplanationModal metric={metric} onClose={() => setExplanationOpen(false)} />
+      ) : null}
+    </>
   );
 }
 
 function EconomyMetricCard({ card }: { card: EconomyCardSnapshot }) {
   const [selectedMetricId, setSelectedMetricId] = useState(card.metrics[0]?.id ?? "");
-  const selectedMetric = card.metrics.find((metric) => metric.id === selectedMetricId) ?? card.metrics[0];
+  const selectedMetric =
+    card.metrics.find((metric) => metric.id === selectedMetricId) ?? card.metrics[0];
 
   return (
     <Panel>
@@ -291,20 +465,27 @@ function EconomyMetricCard({ card }: { card: EconomyCardSnapshot }) {
                 >
                   <span className="flex h-full flex-col justify-between gap-3">
                     <span>
-                      <span className="flex items-start justify-between gap-2">
-                        <span className="min-w-0 text-sm text-textMuted">{metric.label}</span>
-                        <span className="shrink-0 rounded-full border border-borderStrong bg-background/70 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-textSecondary">{metric.signalLabel}</span>
-                      </span>
-                      <span className="mt-2 flex min-w-0 flex-wrap items-baseline gap-x-1.5 gap-y-0.5">
-                        <span className="text-xl font-semibold text-textPrimary">{formatMetricCardValue(metric, metric.latestValue)}</span>
-                        <span className="max-w-[11rem] text-[11px] leading-3 text-textMuted">{metricUnitLabel(metric)}</span>
+                      <span className="block min-w-0 text-sm text-textMuted">{metric.label}</span>
+                      <span className="mt-2 flex min-w-0 items-center gap-x-1.5">
+                        <span className="shrink-0 text-xl font-semibold text-textPrimary">
+                          {formatMetricCardValue(metric, metric.latestValue)}
+                        </span>
+                        {metricUnitLabel(metric) ? (
+                          <span className="min-w-0 max-w-[8.75rem] overflow-hidden text-[11px] leading-3 text-textMuted">
+                            {metricUnitLabel(metric)}
+                          </span>
+                        ) : null}
                       </span>
                     </span>
                     <span className="grid grid-cols-2 gap-x-3 text-xs leading-5">
                       <span className="text-textMuted">QoQ</span>
-                      <span className={changeTone(metric.qoqChange)}>{formatChange(metric.qoqChange)}</span>
+                      <span className={changeTone(metric.qoqChange)}>
+                        {formatChange(metric.qoqChange)}
+                      </span>
                       <span className="text-textMuted">YoY</span>
-                      <span className={changeTone(metric.yoyChange)}>{formatChange(metric.yoyChange)}</span>
+                      <span className={changeTone(metric.yoyChange)}>
+                        {formatChange(metric.yoyChange)}
+                      </span>
                     </span>
                   </span>
                 </button>
@@ -323,14 +504,22 @@ function EconomyMetricCard({ card }: { card: EconomyCardSnapshot }) {
   );
 }
 
-export function EconomyCardGrid({ summaryCards, mainCards }: { summaryCards: EconomyCardSnapshot[]; mainCards: EconomyCardSnapshot[] }) {
+export function EconomyCardGrid({
+  summaryCards,
+  mainCards
+}: {
+  summaryCards: EconomyCardSnapshot[];
+  mainCards: EconomyCardSnapshot[];
+}) {
   const [selectedCardId, setSelectedCardId] = useState(mainCards[0]?.id ?? "");
   const selectedCard = mainCards.find((card) => card.id === selectedCardId) ?? mainCards[0];
 
   return (
     <>
       <div className="grid gap-4 md:grid-cols-3">
-        {summaryCards.map((card) => <SummaryCard key={card.id} card={card} />)}
+        {summaryCards.map((card) => (
+          <SummaryCard key={card.id} card={card} />
+        ))}
       </div>
       <div className="mt-4 overflow-x-auto border border-borderStrong bg-sidebar/50 p-2">
         <div className="flex min-w-max gap-2 sm:min-w-0 sm:flex-wrap">
