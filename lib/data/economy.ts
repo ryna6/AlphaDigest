@@ -30,6 +30,29 @@ function hasDetailedMetricPayload(payload: EconomyPayload) {
   );
 }
 
+function configuredMetricDetailsById() {
+  return new Map(economyMainCards.flatMap((card) => card.metrics.map((metric) => [metric.id, metric])));
+}
+
+function withCurrentMetricDetails(payload: EconomyPayload): EconomyPayload {
+  const configuredMetrics = configuredMetricDetailsById();
+  return {
+    ...payload,
+    mainCards: payload.mainCards.map((card) => ({
+      ...card,
+      metrics: card.metrics.map((metric) => {
+        const configuredMetric = configuredMetrics.get(metric.id);
+        if (!configuredMetric) return metric;
+        return {
+          ...metric,
+          whatItMeasures: configuredMetric.whatItMeasures,
+          whyInvestorsCare: configuredMetric.whyInvestorsCare
+        };
+      })
+    }))
+  };
+}
+
 function tenYearsAgoDate() {
   const date = new Date();
   date.setUTCFullYear(date.getUTCFullYear() - 10);
@@ -115,7 +138,7 @@ async function buildEconomyPayload(): Promise<EconomyPayload> {
 export async function getEconomyPayload(): Promise<{ payload: EconomyPayload; mode: "live" | "cached" | "unavailable"; notices: string[] }> {
   const cached = await getSnapshotOrNull<EconomyPayload>(ECONOMY_SNAPSHOT_KEY);
   if (cached.snapshot && isSnapshotFresh(cached.snapshot) && hasDetailedMetricPayload(cached.snapshot.payload)) {
-    return { payload: cached.snapshot.payload, mode: "cached", notices: cached.snapshot.notices };
+    return { payload: withCurrentMetricDetails(cached.snapshot.payload), mode: "cached", notices: cached.snapshot.notices };
   }
 
   const payload = await buildEconomyPayload();
@@ -127,7 +150,7 @@ export async function getEconomyPayload(): Promise<{ payload: EconomyPayload; mo
   });
   if (!write.ok && cached.snapshot) {
     return {
-      payload: cached.snapshot.payload,
+      payload: withCurrentMetricDetails(cached.snapshot.payload),
       mode: "cached",
       notices: [...cached.snapshot.notices, "Showing cached economy data because the latest snapshot could not be persisted."]
     };
