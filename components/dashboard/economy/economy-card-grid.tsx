@@ -60,13 +60,15 @@ function formatMetricCardValue(metric: EconomyMetricSnapshot, value: number | nu
 
 function isIndexUnit(unit: string) {
   const normalized = unit.trim().toLowerCase();
-  return normalized === "index" || /^index\s+(?:\d{4}|\d{4}-\d{4})\s*=\s*100$/.test(normalized);
+  return normalized === "index" || /^index(?:\s|$)/.test(normalized) || /(?:^|\s)\d{4}(?::q[1-4])?(?:-\d{4})?\s*=\s*100$/i.test(normalized);
 }
 
 function metricUnitLabel(metric: EconomyMetricSnapshot) {
   const unit = metric.unit.trim();
   const normalized = unit.toLowerCase();
-  if (!unit || normalized === "number" || isIndexUnit(unit)) return "";
+  if (metric.id === "initial-jobless-claims" || metric.id === "continuing-claims") return "Number of persons";
+  if (isIndexUnit(unit)) return "Index";
+  if (!unit || normalized === "number") return "";
   if (metric.valueFormat === "percent" && normalized === "percent") return "%";
   if (normalized === "percentage points") return "pp";
   return unit;
