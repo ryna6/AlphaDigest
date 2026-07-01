@@ -37,7 +37,7 @@ const viewAll = (href: string) => (
 
 function summaryDisplayLabel(label: string) {
   if (label === "Dark Pool Signal") return "Dark Pool Print";
-  if (label === "Whale Feed Signal") return "Whale Feed (7D)";
+  if (label === "Whale Feed Signal") return "Whale Feed (14D)";
   return label;
 }
 
@@ -107,7 +107,7 @@ const summaryOrder = [
   "Largest Dark Pool Print (7D)",
   "Largest Dark Pool Print (30D)",
   "Dark Pool Signal",
-  "Whale Feed (7D)",
+  "Whale Feed (14D)",
   "Whale Feed",
   "Whale Feed Signal"
 ];

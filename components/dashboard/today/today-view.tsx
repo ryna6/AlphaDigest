@@ -78,6 +78,15 @@ function roroExplanation(metric: Metric) {
   return "neutral";
 }
 
+function capitalizeTodayEarningsImpact(metric: Metric, text?: string) {
+  if (metric.label !== "Today's Earnings" || !text) return text;
+  return text.replace(
+    /^(\d+\s+)(.+)$/,
+    (_match, countPrefix: string, impactLabel: string) =>
+      `${countPrefix}${impactLabel.replace(/\b\w/g, (char) => char.toUpperCase())}`
+  );
+}
+
 function featuredArticleTime(article: FeaturedArticle) {
   return article.publishedAt ?? article.createdAt ?? article.fetchedAt;
 }
@@ -241,7 +250,7 @@ export function TodayView({ data }: { data: TodayPayload }) {
         <SectionHeader title="Market Summary" />
         <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
           {data.marketSummary.map((metric) => {
-            const explanation = roroExplanation(metric);
+            const explanation = capitalizeTodayEarningsImpact(metric, roroExplanation(metric));
             const isRiskOnRiskOff =
               metric.label === "Risk On Risk Off" || metric.label === "Risk On / Risk Off";
             const isLeadingSectors = metric.label === "Leading Sectors";

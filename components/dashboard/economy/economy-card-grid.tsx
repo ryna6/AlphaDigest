@@ -204,7 +204,7 @@ function ChartPanel({ metric }: { metric: EconomyMetricSnapshot }) {
       <div className="mb-4 flex flex-col gap-2 border-b border-borderStrong/70 pb-3 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <p className="text-base font-semibold text-textPrimary">{metric.fullName} ({metric.seriesId})</p>
-          <p className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm leading-6 text-textMuted sm:gap-x-4">
+          <p className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs leading-5 text-textMuted sm:gap-x-4">
             <span>Range: {dateRangeLabel(metric)}</span>
             <span aria-hidden="true" className="text-borderStrong">|</span>
             <span>Frequency: {metric.frequency}</span>
@@ -212,7 +212,7 @@ function ChartPanel({ metric }: { metric: EconomyMetricSnapshot }) {
             <span>{metric.seasonalAdjustment}</span>
           </p>
         </div>
-        <div className="text-sm text-textMuted sm:text-right">
+        <div className="text-xs text-textMuted sm:text-right">
           <p>Latest observation</p>
           <p className="font-semibold text-textSecondary">{metric.latestDate ?? "—"}</p>
         </div>
@@ -249,7 +249,6 @@ function MetricDetailCards({ metric }: { metric: EconomyMetricSnapshot }) {
   const details = [
     { title: "What it measures", body: metric.whatItMeasures },
     { title: "Why investors care", body: metric.whyInvestorsCare },
-    { title: "How to read it", body: metric.howToReadIt },
     { title: "Current takeaway", body: metric.currentTakeaway }
   ];
 
