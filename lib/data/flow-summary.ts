@@ -4,7 +4,7 @@ import type { Metric } from "./schemas/common";
 // Keep a small neutral band around 50% so rounding noise does not overstate direction.
 const NEUTRAL_LOW = 0.495;
 const NEUTRAL_HIGH = 0.505;
-export const WHALE_FEED_SUMMARY_WINDOW_DAYS = 7;
+export const WHALE_FEED_SUMMARY_WINDOW_DAYS = 14;
 
 export type FlowSummaryMetric = Metric & {
   href?: string;
@@ -100,8 +100,8 @@ export function deriveFlowSummary({
   whaleTrades: WhaleFeedRow[];
 }): FlowSummaryMetric[] {
   const largest = [...darkPool].sort((a, b) => (b.premium ?? 0) - (a.premium ?? 0))[0];
-  const whaleRows7d = whaleTrades.filter((row) => isWithinDays(row.executedAt, WHALE_FEED_SUMMARY_WINDOW_DAYS));
-  const whale = [...whaleRows7d].sort((a, b) => (b.premium ?? 0) - (a.premium ?? 0))[0];
+  const whaleRows = whaleTrades.filter((row) => isWithinDays(row.executedAt, WHALE_FEED_SUMMARY_WINDOW_DAYS));
+  const whale = [...whaleRows].sort((a, b) => (b.premium ?? 0) - (a.premium ?? 0))[0];
   const sentiment = deriveInsiderSentiment(insiderRows);
   return [
     {
@@ -128,7 +128,7 @@ export function deriveFlowSummary({
       tone: "neutral"
     },
     {
-      label: "Whale Feed (7D)",
+      label: `Whale Feed (${WHALE_FEED_SUMMARY_WINDOW_DAYS}D)`,
       value: whale ? whale.ticker : "—",
       subtext: whale ? capitalizeSentiment(whale.sentiment) : undefined,
       change: whale ? money(whale.premium) : undefined,
