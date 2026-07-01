@@ -1,6 +1,7 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { CartesianGrid, Label, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import type { EconomyCardSnapshot, EconomyChangeSnapshot, EconomyMetricSnapshot } from "@/lib/data/economy-config";
 import { Panel } from "@/components/ui/panel";
@@ -39,11 +40,70 @@ function formatMetricCardValue(metric: EconomyMetricSnapshot, value: number | nu
   return new Intl.NumberFormat("en-US", { minimumFractionDigits: digits, maximumFractionDigits: digits }).format(scaled);
 }
 
+function isIndexUnit(unit: string) {
+  const normalized = unit.trim().toLowerCase();
+  return /^index(?:\b|\s*\d|\s*[=:])/.test(normalized);
+}
+
 function metricUnitLabel(metric: EconomyMetricSnapshot) {
   const unit = metric.unit.trim();
-  if (metric.valueFormat === "percent" && unit.toLowerCase() === "percent") return "%";
-  if (unit.toLowerCase() === "percentage points") return "pp";
+  const normalized = unit.toLowerCase();
+  if (!unit || normalized === "number" || isIndexUnit(unit)) return "";
+  if (metric.valueFormat === "percent" && normalized === "percent") return "%";
+  if (normalized === "percentage points") return "pp";
   return unit;
+}
+
+const metricLevelExplanation = "Level explanations will be added here.";
+
+function MetricLabelPopover({ label }: { label: string }) {
+  const [open, setOpen] = useState(false);
+  const [position, setPosition] = useState({ left: 0, top: 0 });
+  const anchorRef = useRef<HTMLButtonElement>(null);
+
+  const showPopover = () => {
+    const rect = anchorRef.current?.getBoundingClientRect();
+    if (rect) {
+      const left = Math.min(Math.max(rect.left + rect.width / 2, 144), window.innerWidth - 144);
+      setPosition({ left, top: rect.bottom + 8 });
+    }
+    setOpen(true);
+  };
+
+  const hidePopover = () => setOpen(false);
+  const togglePopover = () => (open ? hidePopover() : showPopover());
+
+  return (
+    <>
+      <button
+        ref={anchorRef}
+        type="button"
+        className="rounded-none border-b border-dotted border-accent/70 text-left font-semibold text-textPrimary transition hover:text-accent focus:outline-none focus:ring-2 focus:ring-accent/70"
+        aria-expanded={open}
+        aria-haspopup="dialog"
+        aria-label={`Show level explanation for ${label}`}
+        onClick={togglePopover}
+        onBlur={hidePopover}
+        onKeyDown={(event) => {
+          if (event.key === "Escape") hidePopover();
+        }}
+      >
+        {label}
+      </button>
+      {open && typeof document !== "undefined"
+        ? createPortal(
+            <div
+              className="fixed z-[9999] w-[min(18rem,calc(100vw-2rem))] -translate-x-1/2 rounded-none border border-borderStrong bg-sidebar p-3 text-left text-[11px] leading-4 text-textSecondary shadow-2xl shadow-black/60"
+              style={{ left: position.left, top: position.top }}
+              role="status"
+            >
+              {metricLevelExplanation}
+            </div>,
+            document.body
+          )
+        : null}
+    </>
+  );
 }
 
 function chartLabelCoordinate(viewBox: unknown, key: "x" | "y" | "height") {
@@ -248,8 +308,7 @@ function ChartPanel({ metric }: { metric: EconomyMetricSnapshot }) {
 function MetricDetailCards({ metric }: { metric: EconomyMetricSnapshot }) {
   const details = [
     { title: "What it measures", body: metric.whatItMeasures },
-    { title: "Why investors care", body: metric.whyInvestorsCare },
-    { title: "Current takeaway", body: metric.currentTakeaway }
+    { title: "Why investors care", body: metric.whyInvestorsCare }
   ];
 
   return (
@@ -260,6 +319,13 @@ function MetricDetailCards({ metric }: { metric: EconomyMetricSnapshot }) {
           <p className="mt-1 text-sm leading-5 text-textMuted">{detail.body}</p>
         </div>
       ))}
+      <div className="rounded-none border border-borderStrong bg-sidebar/80 p-3 sm:col-span-2 lg:col-span-1">
+        <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
+          <p className="text-sm font-semibold text-textSecondary">Current Takeaway</p>
+          <MetricLabelPopover label={metric.label} />
+        </div>
+        <p className="mt-1 text-sm leading-5 text-textMuted">{metric.currentTakeaway}</p>
+      </div>
     </div>
   );
 }
@@ -291,13 +357,16 @@ function EconomyMetricCard({ card }: { card: EconomyCardSnapshot }) {
                 >
                   <span className="flex h-full flex-col justify-between gap-3">
                     <span>
-                      <span className="flex items-start justify-between gap-2">
-                        <span className="min-w-0 text-sm text-textMuted">{metric.label}</span>
+                      <span className="flex justify-end">
                         <span className="shrink-0 rounded-full border border-borderStrong bg-background/70 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-textSecondary">{metric.signalLabel}</span>
                       </span>
-                      <span className="mt-2 flex min-w-0 flex-wrap items-baseline gap-x-1.5 gap-y-0.5">
-                        <span className="text-xl font-semibold text-textPrimary">{formatMetricCardValue(metric, metric.latestValue)}</span>
-                        <span className="max-w-[11rem] text-[11px] leading-3 text-textMuted">{metricUnitLabel(metric)}</span>
+                      <span className="mt-3 flex min-w-0 items-start gap-x-1.5">
+                        <span className="shrink-0 text-xl font-semibold leading-6 text-textPrimary">{formatMetricCardValue(metric, metric.latestValue)}</span>
+                        {metricUnitLabel(metric) ? (
+                          <span className="min-w-0 max-w-[9.5rem] overflow-hidden text-[11px] leading-3 text-textMuted [display:-webkit-box] [-webkit-line-clamp:2] [-webkit-box-orient:vertical]">
+                            {metricUnitLabel(metric)}
+                          </span>
+                        ) : null}
                       </span>
                     </span>
                     <span className="grid grid-cols-2 gap-x-3 text-xs leading-5">
