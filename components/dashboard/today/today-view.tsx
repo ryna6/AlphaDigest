@@ -15,7 +15,7 @@ import { cn } from "@/lib/utils/cn";
 import { formatEtDateTime, formatEtTime, timestampTitle } from "@/lib/utils/time";
 
 const putCallInfoText =
-  "This metric compares the trading volume (or open interest) of put options to call options.\n\nWhen the ratio > 1.2, it suggests traders are buying significantly more puts than calls, reflecting a more bearish sentiment. When the ratio < 0.7, it suggests traders are buying more calls than puts, reflecting a more bullish sentiment.";
+  "This metric compares the trading volume (or open interest) of put options to call options.\n\nWhen the ratio > 1.2, it suggests traders are buying significantly more puts than calls, reflecting a more bearish sentiment. When the ratio < 0.8, it suggests traders are buying more calls than puts, reflecting a more bullish sentiment.";
 
 function formatPutCallRatio(value: number | null | undefined) {
   return typeof value === "number" && Number.isFinite(value) ? value.toFixed(2) : "--";

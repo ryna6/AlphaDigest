@@ -417,7 +417,7 @@ function putCallValue(response: Awaited<ReturnType<typeof getLatestCboePutCallRa
 function putCallSentiment(total: number | null | undefined) {
   if (typeof total !== "number" || !Number.isFinite(total)) return "Signal unavailable";
   if (total > 1.2) return "Bearish";
-  if (total < 0.7) return "Bullish";
+  if (total < 0.8) return "Bullish";
   return "Neutral";
 }
 
