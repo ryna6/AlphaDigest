@@ -66,7 +66,7 @@ function isIndexUnit(unit: string) {
 function metricUnitLabel(metric: EconomyMetricSnapshot) {
   const unit = metric.unit.trim();
   const normalized = unit.toLowerCase();
-  if (metric.id === "initial-jobless-claims" || metric.id === "continuing-claims") return "Number of persons";
+  if (metric.id === "initial-jobless-claims" || metric.id === "continuing-claims") return "Persons";
   if (isIndexUnit(unit)) return "Index";
   if (!unit || normalized === "number") return "";
   if (metric.valueFormat === "percent" && normalized === "percent") return "%";
