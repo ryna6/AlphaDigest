@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useId, useMemo, useState } from "react";
 import { CartesianGrid, Label, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import type { EconomyCardSnapshot, EconomyChangeSnapshot, EconomyMetricSnapshot } from "@/lib/data/economy-config";
 import { Panel } from "@/components/ui/panel";
@@ -39,11 +39,89 @@ function formatMetricCardValue(metric: EconomyMetricSnapshot, value: number | nu
   return new Intl.NumberFormat("en-US", { minimumFractionDigits: digits, maximumFractionDigits: digits }).format(scaled);
 }
 
+function isIndexUnit(unit: string) {
+  const normalized = unit.trim().toLowerCase();
+  return /^index(?:\b|\s*\d|\s*[=:])/.test(normalized);
+}
+
 function metricUnitLabel(metric: EconomyMetricSnapshot) {
   const unit = metric.unit.trim();
-  if (metric.valueFormat === "percent" && unit.toLowerCase() === "percent") return "%";
-  if (unit.toLowerCase() === "percentage points") return "pp";
+  const normalized = unit.toLowerCase();
+  if (!unit || normalized === "number" || isIndexUnit(unit)) return "";
+  if (metric.valueFormat === "percent" && normalized === "percent") return "%";
+  if (normalized === "percentage points") return "pp";
   return unit;
+}
+
+const metricLevelExplanation = "Level explanations will be added here.";
+
+function isLongMetricUnitLabel(label: string) {
+  return label.length > 18;
+}
+
+function MetricSignalExplanationModal({ signalLabel, onClose }: { signalLabel: string; onClose: () => void }) {
+  const titleId = useId();
+
+  useEffect(() => {
+    const original = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") onClose();
+    };
+    document.addEventListener("keydown", onKeyDown);
+    return () => {
+      document.body.style.overflow = original;
+      document.removeEventListener("keydown", onKeyDown);
+    };
+  }, [onClose]);
+
+  return (
+    <div
+      aria-labelledby={titleId}
+      aria-modal="true"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/65 p-4"
+      role="dialog"
+      onMouseDown={onClose}
+    >
+      <div
+        className="max-h-[85vh] w-full max-w-2xl overflow-auto border border-borderStrong bg-panel p-5 shadow-panel"
+        onMouseDown={(event) => event.stopPropagation()}
+      >
+        <div className="mb-4 flex items-start justify-between gap-4">
+          <h3 id={titleId} className="text-lg font-semibold text-textPrimary">
+            {signalLabel}
+          </h3>
+          <button
+            type="button"
+            aria-label="Close metric level explanation"
+            className="border border-borderStrong px-2 py-1 text-sm text-textSecondary hover:border-accentBlue/50 hover:text-textPrimary"
+            onClick={onClose}
+          >
+            X
+          </button>
+        </div>
+        <p className="text-sm leading-6 text-textSecondary">{metricLevelExplanation}</p>
+      </div>
+    </div>
+  );
+}
+
+function MetricSignalLabel({ label }: { label: string }) {
+  const [open, setOpen] = useState(false);
+
+  return (
+    <>
+      <button
+        type="button"
+        className="rounded-full border border-borderStrong bg-background/70 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-textSecondary transition hover:border-accent/60 hover:text-textPrimary focus:outline-none focus:ring-2 focus:ring-accent/70"
+        aria-haspopup="dialog"
+        onClick={() => setOpen(true)}
+      >
+        {label}
+      </button>
+      {open ? <MetricSignalExplanationModal signalLabel={label} onClose={() => setOpen(false)} /> : null}
+    </>
+  );
 }
 
 function chartLabelCoordinate(viewBox: unknown, key: "x" | "y" | "height") {
@@ -248,8 +326,7 @@ function ChartPanel({ metric }: { metric: EconomyMetricSnapshot }) {
 function MetricDetailCards({ metric }: { metric: EconomyMetricSnapshot }) {
   const details = [
     { title: "What it measures", body: metric.whatItMeasures },
-    { title: "Why investors care", body: metric.whyInvestorsCare },
-    { title: "Current takeaway", body: metric.currentTakeaway }
+    { title: "Why investors care", body: metric.whyInvestorsCare }
   ];
 
   return (
@@ -260,6 +337,13 @@ function MetricDetailCards({ metric }: { metric: EconomyMetricSnapshot }) {
           <p className="mt-1 text-sm leading-5 text-textMuted">{detail.body}</p>
         </div>
       ))}
+      <div className="rounded-none border border-borderStrong bg-sidebar/80 p-3 sm:col-span-2 lg:col-span-1">
+        <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
+          <p className="text-sm font-semibold text-textSecondary">Current Takeaway</p>
+          <MetricSignalLabel label={metric.signalLabel} />
+        </div>
+        <p className="mt-1 text-sm leading-5 text-textMuted">{metric.currentTakeaway}</p>
+      </div>
     </div>
   );
 }
@@ -281,6 +365,8 @@ function EconomyMetricCard({ card }: { card: EconomyCardSnapshot }) {
           <div className="grid min-w-[980px] grid-cols-6 gap-2 lg:min-w-0">
             {card.metrics.map((metric) => {
               const active = metric.id === selectedMetric?.id;
+              const unitLabel = metricUnitLabel(metric);
+              const longUnitLabel = isLongMetricUnitLabel(unitLabel);
               return (
                 <button
                   key={metric.id}
@@ -291,13 +377,20 @@ function EconomyMetricCard({ card }: { card: EconomyCardSnapshot }) {
                 >
                   <span className="flex h-full flex-col justify-between gap-3">
                     <span>
-                      <span className="flex items-start justify-between gap-2">
-                        <span className="min-w-0 text-sm text-textMuted">{metric.label}</span>
-                        <span className="shrink-0 rounded-full border border-borderStrong bg-background/70 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-textSecondary">{metric.signalLabel}</span>
-                      </span>
-                      <span className="mt-2 flex min-w-0 flex-wrap items-baseline gap-x-1.5 gap-y-0.5">
-                        <span className="text-xl font-semibold text-textPrimary">{formatMetricCardValue(metric, metric.latestValue)}</span>
-                        <span className="max-w-[11rem] text-[11px] leading-3 text-textMuted">{metricUnitLabel(metric)}</span>
+                      <span className="min-w-0 text-sm text-textMuted">{metric.label}</span>
+                      <span className={`mt-2 flex min-w-0 gap-x-1.5 gap-y-0.5 ${longUnitLabel ? "items-start" : "items-baseline"}`}>
+                        <span className="shrink-0 text-xl font-semibold leading-6 text-textPrimary">{formatMetricCardValue(metric, metric.latestValue)}</span>
+                        {unitLabel ? (
+                          <span
+                            className={
+                              longUnitLabel
+                                ? "min-w-0 max-w-[9.5rem] overflow-hidden text-[11px] leading-3 text-textMuted [display:-webkit-box] [-webkit-line-clamp:2] [-webkit-box-orient:vertical]"
+                                : "min-w-0 max-w-[11rem] text-[11px] leading-3 text-textMuted"
+                            }
+                          >
+                            {unitLabel}
+                          </span>
+                        ) : null}
                       </span>
                     </span>
                     <span className="grid grid-cols-2 gap-x-3 text-xs leading-5">
