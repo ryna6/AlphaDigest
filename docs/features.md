@@ -217,6 +217,10 @@ The Ownership tab keeps the `Congressional Holdings` card name. The card shows t
 
 Each politician row opens a Politician Detail view with a Back button, profile section, YTD return, and a grouped stock summary. The grouped table sorts by summed disclosed amount ranges across all buys and sells for each ticker and shows Ticker, Trades, Purchases, Sales, and Total Volume. Clicking a ticker opens a drilldown titled `[Politician Name]’s [Ticker] Trades` showing all cached Supabase trades for that politician/ticker by Date, Ticker, Asset, Type, and Amount, newest first.
 
+### Economy scoring framework
+
+The current Economy tab does not yet compute active card scores for Economy Regime, Fed Pressure, Stress Level, or the six main Economy cards. `docs/economy-scoring.md` records the proposed future scoring framework: metric scores should combine historical level, direction-aware trend, and acceleration components using frequency-aware windows while preserving the existing server-side FRED/Supabase/cache-first data path.
+
 ### Economy chart refinements
 
 The Economy tab stores FRED observations in `fred_economy`, refreshes them daily and incrementally after each series' latest saved observation date, and keeps FRED API access server-side only. Selected-card metrics use a six-card single-row desktop layout with responsive horizontal overflow on smaller screens, y-axis ticks are whole-number compact labels, chart domains include padding above and below the data, the y-axis label is vertically centered and offset with balanced left margin/axis width so it does not overlap tick values, tooltips show only date and formatted value, chart titles include the selected FRED ID, the x-axis title is removed while year-only tick labels remain, metric tiles show smaller muted units beside values, Economy info icons are removed, and detail text uses spaced `Range: start to end | Frequency: ... | ...` metadata without `Unit` or `Source: FRED`.
