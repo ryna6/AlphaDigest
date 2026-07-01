@@ -400,6 +400,7 @@ function SignalExplanationModal({
 function MetricDetailCards({ metric }: { metric: EconomyMetricSnapshot }) {
   const [explanationOpen, setExplanationOpen] = useState(false);
   const details = [
+    { title: "What it is", body: metric.whatItIs },
     { title: "What it measures", body: metric.whatItMeasures },
     { title: "Why investors care", body: metric.whyInvestorsCare }
   ];

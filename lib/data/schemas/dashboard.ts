@@ -248,6 +248,7 @@ const economyMetricDefinitionSchema = z.object({
   valueFormat: z.enum(["number", "percent", "currency-billions", "currency-trillions", "persons-thousands"]),
   chartAxisLabel: z.string(),
   signalLabel: z.string(),
+  whatItIs: z.string(),
   whatItMeasures: z.string(),
   whyInvestorsCare: z.string(),
   howToReadIt: z.string(),
