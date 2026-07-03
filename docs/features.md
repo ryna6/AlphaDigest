@@ -73,18 +73,22 @@ Route/component/data:
 The Markets page displays:
 
 - Market strip metrics: S&P 500, Nasdaq 100, Mid Cap, Small Cap, and S&P 500 Futures.
-- Four switchable heatmaps:
+- Five switchable heatmaps with S&P 500 first/default:
+  - S&P 500
   - Global Markets
   - Sectors
   - Crypto
   - Macro
-- Fallback breadth and movers cards from `marketsMock()`.
+- Fallback breadth and Market Movers cards from `marketsMock()`.
 
 Important behavior:
 
 - Heatmap groups are defined in `quoteSymbols` inside `lib/data/live-dashboard.ts`.
 - Finnhub feature areas are routed through dedicated environment variables by `lib/data/adapters/finnhub-key-router.ts`.
 - S&P 500 futures currently comes from Yahoo Finance when available.
+- The S&P 500 heatmap uses a proportional squarified treemap: No Group lays out all valid constituents by market cap, and Sector mode uses fixed State Street/site sector container percentages before laying out each sector by constituent market cap. Daily close vs previous close percentage change controls red/green tile color.
+- Market Breadth Participation is equal-weighted: valid S&P 500 rows with `close > prev_close` divided by rows with valid non-zero numeric `close` and `prev_close`; invalid rows are ignored and no fallback breadth values are invented from them.
+- The Market Movers card shows Leaders and Laggards as ticker plus percentage move only.
 - If individual live requests fail, fallback metrics/tiles are used for those positions.
 - If all live requests fail, mode is `mock` and notices include missing-key messages.
 - Heatmap icon paths come from `getHeatmapIconPath()`; metric icon paths come from `getMetricIconPath()`.
