@@ -246,7 +246,7 @@ function dateRangeLabel(metric: EconomyMetricSnapshot) {
   return `${first ?? "—"} to ${latest ?? "—"}`;
 }
 
-function ChartPanel({ metric }: { metric: EconomyMetricSnapshot }) {
+function ChartPanel({ metric, loading = false }: { metric: EconomyMetricSnapshot; loading?: boolean }) {
   const data = useMemo(
     () =>
       (metric.history ?? []).map((point) => ({
@@ -290,7 +290,7 @@ function ChartPanel({ metric }: { metric: EconomyMetricSnapshot }) {
       </div>
       {!data.length ? (
         <div className="flex h-72 items-center justify-center rounded-none border border-dashed border-borderStrong bg-background/40 text-sm text-textMuted">
-          —
+          {loading ? "Loading..." : "—"}
         </div>
       ) : (
         <div className="h-72 sm:h-80">
@@ -439,7 +439,7 @@ function MetricDetailCards({ metric }: { metric: EconomyMetricSnapshot }) {
   );
 }
 
-function EconomyMetricCard({ card }: { card: EconomyCardSnapshot }) {
+function EconomyMetricCard({ card, loading = false }: { card: EconomyCardSnapshot; loading?: boolean }) {
   const [selectedMetricId, setSelectedMetricId] = useState(card.metrics[0]?.id ?? "");
   const selectedMetric =
     card.metrics.find((metric) => metric.id === selectedMetricId) ?? card.metrics[0];
@@ -470,7 +470,7 @@ function EconomyMetricCard({ card }: { card: EconomyCardSnapshot }) {
                       <span className="block min-w-0 text-sm text-textMuted">{metric.label}</span>
                       <span className="mt-2 flex min-w-0 items-center gap-x-1.5">
                         <span className="shrink-0 text-xl font-semibold text-textPrimary">
-                          {formatMetricCardValue(metric, metric.latestValue)}
+                          {loading ? "Loading..." : formatMetricCardValue(metric, metric.latestValue)}
                         </span>
                         {metricUnitLabel(metric) ? (
                           <span className="min-w-0 max-w-[8.75rem] overflow-hidden text-[11px] leading-3 text-textMuted">
@@ -482,11 +482,11 @@ function EconomyMetricCard({ card }: { card: EconomyCardSnapshot }) {
                     <span className="grid grid-cols-2 gap-x-3 text-xs leading-5">
                       <span className="text-textMuted">QoQ</span>
                       <span className={changeTone(metric.qoqChange)}>
-                        {formatChange(metric.qoqChange)}
+                        {loading ? "Loading..." : formatChange(metric.qoqChange)}
                       </span>
                       <span className="text-textMuted">YoY</span>
                       <span className={changeTone(metric.yoyChange)}>
-                        {formatChange(metric.yoyChange)}
+                        {loading ? "Loading..." : formatChange(metric.yoyChange)}
                       </span>
                     </span>
                   </span>
@@ -498,7 +498,7 @@ function EconomyMetricCard({ card }: { card: EconomyCardSnapshot }) {
         {card.hasMiniChart && selectedMetric ? (
           <div className="grid gap-4 xl:grid-cols-[minmax(260px,320px)_minmax(0,1fr)]">
             <MetricDetailCards metric={selectedMetric} />
-            <ChartPanel metric={selectedMetric} />
+            <ChartPanel metric={selectedMetric} loading={loading} />
           </div>
         ) : null}
       </div>
@@ -508,10 +508,14 @@ function EconomyMetricCard({ card }: { card: EconomyCardSnapshot }) {
 
 export function EconomyCardGrid({
   summaryCards,
-  mainCards
+  mainCards,
+  loading = false,
+  error = null
 }: {
   summaryCards: EconomyCardSnapshot[];
   mainCards: EconomyCardSnapshot[];
+  loading?: boolean;
+  error?: string | null;
 }) {
   const [selectedCardId, setSelectedCardId] = useState(mainCards[0]?.id ?? "");
   const selectedCard = mainCards.find((card) => card.id === selectedCardId) ?? mainCards[0];
@@ -542,7 +546,10 @@ export function EconomyCardGrid({
         </div>
       </div>
       <div className="mt-4">
-        {selectedCard ? <EconomyMetricCard key={selectedCard.id} card={selectedCard} /> : null}
+        {error ? (
+          <div className="mb-3 border border-[#facc15]/40 bg-[#facc15]/10 p-3 text-sm text-textPrimary">{error}</div>
+        ) : null}
+        {selectedCard ? <EconomyMetricCard key={selectedCard.id} card={selectedCard} loading={loading} /> : null}
       </div>
     </>
   );

@@ -11,6 +11,7 @@ const THIRTY_YEARS = 30;
 
 export type EconomyObservationReadResult = { ok: true; points: EconomyDataPoint[] } | { ok: false; points: EconomyDataPoint[]; error: string };
 export type RefreshEconomyObservationsResult = { ok: boolean; count: number; upserted: number; seriesFetched: number; seriesSkipped: number; seriesFailed: string[]; error?: string };
+const OBSERVATION_PAGE_SIZE = 1000;
 
 export function thirtyYearsAgoDate() {
   const date = new Date();
@@ -25,19 +26,42 @@ function configuredMetrics() {
 export async function readEconomyObservations(metric: EconomyMetricDefinition, observationStart: string): Promise<EconomyObservationReadResult> {
   const supabase = createServerSupabaseClient();
   if (!supabase.ok) return { ok: false, points: [], error: supabase.message };
-  const { data, error } = await supabase.client
-    .from(ECONOMY_OBSERVATIONS_TABLE)
-    .select("date,value")
-    .eq("provider", ECONOMY_PROVIDER)
-    .eq("series_id", metric.seriesId)
-    .gte("date", observationStart)
-    .order("date", { ascending: true });
-  if (error) return { ok: false, points: [], error: error.message };
-  const points = (data ?? []).flatMap((row) => {
+  const rows: { date: string; value: unknown }[] = [];
+  for (let from = 0; ; from += OBSERVATION_PAGE_SIZE) {
+    const to = from + OBSERVATION_PAGE_SIZE - 1;
+    const { data, error } = await supabase.client
+      .from(ECONOMY_OBSERVATIONS_TABLE)
+      .select("date,value")
+      .eq("provider", ECONOMY_PROVIDER)
+      .eq("series_id", metric.seriesId)
+      .gte("date", observationStart)
+      .order("date", { ascending: true })
+      .range(from, to);
+    if (error) return { ok: false, points: [], error: error.message };
+    rows.push(...((data ?? []) as { date: string; value: unknown }[]));
+    if (!data || data.length < OBSERVATION_PAGE_SIZE) break;
+  }
+  const points = rows.flatMap((row) => {
     const value = Number(row.value);
     return typeof row.date === "string" && Number.isFinite(value) ? [{ date: row.date, value }] : [];
   });
   return { ok: true, points };
+}
+
+export async function readLatestEconomyObservationDates(seriesIds: string[]): Promise<Record<string, string>> {
+  const supabase = createServerSupabaseClient();
+  if (!supabase.ok || !seriesIds.length) return {};
+  const entries = await Promise.all(
+    [...new Set(seriesIds)].map(async (seriesId) => {
+      try {
+        const date = await latestSavedObservationDate(supabase.client, seriesId);
+        return date ? ([seriesId, date] as const) : null;
+      } catch {
+        return null;
+      }
+    })
+  );
+  return Object.fromEntries(entries.filter((entry): entry is readonly [string, string] => Boolean(entry)));
 }
 
 async function latestSavedObservationDate(client: SupabaseClient, seriesId: string) {

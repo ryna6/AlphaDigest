@@ -10,14 +10,24 @@ import {
 } from "./economy-config";
 import type { EconomyPayload } from "./schemas/dashboard";
 import { fetchFredSeries } from "./adapters/fred";
-import { readEconomyObservations } from "./adapters/economy-observations";
+import { readEconomyObservations, readLatestEconomyObservationDates } from "./adapters/economy-observations";
 import { getSnapshotOrNull, isSnapshotFresh, upsertDashboardSnapshot } from "./adapters/dashboard-snapshots";
 
 const ECONOMY_SNAPSHOT_KEY = "economy:latest";
 const ECONOMY_TTL_SECONDS = 6 * 60 * 60;
 const TEN_YEAR_RANGE_LABEL = "10Y";
 const FRED_STORAGE_RANGE_LABEL = "30Y+";
+const DAILY_SERIES_WITH_PRIOR_TRUNCATION = ["DFF", "DGS2", "DGS10", "T5YIE"];
 
+function cachedPayloadIsCurrentWithSource(payload: EconomyPayload, sourceLatestDates: Record<string, string>) {
+  for (const card of payload.mainCards) {
+    for (const metric of card.metrics) {
+      const sourceLatestDate = metric.seriesId ? sourceLatestDates[metric.seriesId] : undefined;
+      if (sourceLatestDate && (!metric.latestDate || metric.latestDate < sourceLatestDate)) return false;
+    }
+  }
+  return true;
+}
 
 function hasDetailedMetricPayload(payload: EconomyPayload) {
   return payload.mainCards.every((card) =>
@@ -137,7 +147,13 @@ async function buildEconomyPayload(): Promise<EconomyPayload> {
 
 export async function getEconomyPayload(): Promise<{ payload: EconomyPayload; mode: "live" | "cached" | "unavailable"; notices: string[] }> {
   const cached = await getSnapshotOrNull<EconomyPayload>(ECONOMY_SNAPSHOT_KEY);
-  if (cached.snapshot && isSnapshotFresh(cached.snapshot) && hasDetailedMetricPayload(cached.snapshot.payload)) {
+  const sourceLatestDates = await readLatestEconomyObservationDates(DAILY_SERIES_WITH_PRIOR_TRUNCATION);
+  if (
+    cached.snapshot &&
+    isSnapshotFresh(cached.snapshot) &&
+    hasDetailedMetricPayload(cached.snapshot.payload) &&
+    cachedPayloadIsCurrentWithSource(cached.snapshot.payload, sourceLatestDates)
+  ) {
     return { payload: withCurrentMetricDetails(cached.snapshot.payload), mode: "cached", notices: cached.snapshot.notices };
   }
 

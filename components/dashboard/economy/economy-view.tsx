@@ -1,13 +1,12 @@
-import { getEconomyPayload } from "@/lib/data/economy";
 import { PageTitle } from "@/components/dashboard/page-title";
-import { EconomyCardGrid } from "./economy-card-grid";
+import { economyMainCards, economySummaryCards } from "@/lib/data/economy-config";
+import { EconomyLoader } from "./economy-loader";
 
-export async function EconomyView() {
-  const { payload } = await getEconomyPayload();
+export function EconomyView() {
   return (
     <>
       <PageTitle title="Economy" />
-      <EconomyCardGrid summaryCards={payload.summaryCards} mainCards={payload.mainCards} />
+      <EconomyLoader summaryCards={economySummaryCards} mainCards={economyMainCards} />
     </>
   );
 }
