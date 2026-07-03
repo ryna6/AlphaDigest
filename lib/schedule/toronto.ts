@@ -16,6 +16,7 @@ export type TorontoRunWindowOptions = {
   minuteOffset?: number;
   hours?: number[];
   minutes?: number[];
+  enforceInterval?: boolean;
 };
 
 export type TorontoRunDecision = {
@@ -117,7 +118,7 @@ export function shouldRunInTorontoWindow(options: TorontoRunWindowOptions = {}):
     return { shouldRun: false, reason: "outside_toronto_minutes", torontoTime: parts.label };
   }
 
-  if (options.intervalMinutes) {
+  if (options.intervalMinutes && options.enforceInterval) {
     const minuteOfDay = parts.hour * 60 + parts.minute;
     const windowStart = options.windows?.find((window) => window.day === undefined || window.day === parts.day)?.startTime ?? options.startTime ?? "00:00";
     const elapsed = minuteOfDay - minutesFromTime(windowStart);
@@ -137,7 +138,7 @@ export function nextTorontoRun(options: TorontoRunWindowOptions = {}, from = new
   next.setUTCSeconds(0, 0);
   const deadline = from.getTime() + 14 * 24 * 60 * 60 * 1000;
   while (next.getTime() <= deadline) {
-    if (shouldRunInTorontoWindow({ ...options, now: next }).shouldRun) return next;
+    if (shouldRunInTorontoWindow({ ...options, now: next, enforceInterval: true }).shouldRun) return next;
     next.setUTCMinutes(next.getUTCMinutes() + 1);
   }
   return null;
