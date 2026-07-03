@@ -3,6 +3,7 @@ import { PageTitle } from "@/components/dashboard/page-title";
 import { Panel } from "@/components/ui/panel";
 import { SectionHeader } from "@/components/ui/section-header";
 import { StatusAutoRefresh } from "@/components/status/status-auto-refresh";
+import { StatusInfoButton } from "@/components/status/status-info-button";
 import { getStatusRowsWithDiagnostics, STATUS_GROUPS, type StatusValue } from "@/lib/status/jobs";
 
 export const metadata = { title: "Status" };
@@ -40,8 +41,6 @@ const statusDisplay: Record<StatusValue, { label: string; description: string }>
   Unknown: { label: "Offline", description: "No status available" }
 };
 
-const legend: StatusValue[] = ["Healthy", "Warning", "Error", "Unknown"];
-
 export default async function StatusPage() {
   const { rows, supabaseReadHealth } = await getStatusRowsWithDiagnostics();
   const lastUpdated = supabaseReadHealth.checkedAt;
@@ -49,21 +48,11 @@ export default async function StatusPage() {
   return (
     <>
       <StatusAutoRefresh />
-      <PageTitle title="Status" subtitle="Job and component health for cached dashboard data." />
+      <PageTitle title="Status" />
       <Panel>
-        <SectionHeader title="Component Status" />
-        <div className="mb-3 flex flex-wrap items-center justify-center gap-x-20 gap-y-3 text-sm text-textSecondary">
-          {legend.map((status) => (
-            <div key={status} className="flex items-center gap-2 whitespace-nowrap">
-              <span className={`h-2.5 w-2.5 rounded-full ${statusDot[status]}`} aria-hidden="true" />
-              <span className="font-medium text-textPrimary">{statusDisplay[status].label}</span>
-              <span className="ml-1 text-xs text-textSecondary">{statusDisplay[status].description}</span>
-            </div>
-          ))}
-        </div>
+        <SectionHeader title="Component Status" action={<StatusInfoButton />} />
         <div className="mb-3 text-right text-xs text-textSecondary">
           <p>Last updated: {formatStatusPageDateTime(lastUpdated)}</p>
-          <p>All times are shown in Eastern Standard Time.</p>
         </div>
         {supabaseReadHealth.status === "error" ? (
           <div className="mb-4 rounded-lg border border-[#facc15]/40 bg-[#facc15]/10 px-4 py-3 text-sm text-textPrimary">

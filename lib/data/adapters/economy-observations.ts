@@ -31,7 +31,8 @@ export async function readEconomyObservations(metric: EconomyMetricDefinition, o
     .eq("provider", ECONOMY_PROVIDER)
     .eq("series_id", metric.seriesId)
     .gte("date", observationStart)
-    .order("date", { ascending: true });
+    .order("date", { ascending: true })
+    .limit(10000);
   if (error) return { ok: false, points: [], error: error.message };
   const points = (data ?? []).flatMap((row) => {
     const value = Number(row.value);

@@ -1,7 +1,12 @@
 export const dynamic = "force-dynamic";
 
-import { EconomyView } from "@/components/dashboard/economy/economy-view";
+import { Suspense } from "react";
+import { EconomyPlaceholderView, EconomyView } from "@/components/dashboard/economy/economy-view";
 
 export default function EconomyPage() {
-  return <EconomyView />;
+  return (
+    <Suspense fallback={<EconomyPlaceholderView />}>
+      <EconomyView />
+    </Suspense>
+  );
 }

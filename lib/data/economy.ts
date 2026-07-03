@@ -53,6 +53,26 @@ function withCurrentMetricDetails(payload: EconomyPayload): EconomyPayload {
   };
 }
 
+function latestPointFromHistory(history: EconomyDataPoint[] | undefined) {
+  return (history ?? [])
+    .filter((point) => Number.isFinite(point.value))
+    .sort((a, b) => a.date.localeCompare(b.date))
+    .at(-1);
+}
+
+function withLatestValuesFromHistory(payload: EconomyPayload): EconomyPayload {
+  return {
+    ...payload,
+    mainCards: payload.mainCards.map((card) => ({
+      ...card,
+      metrics: card.metrics.map((metric) => {
+        const latest = latestPointFromHistory(metric.history);
+        return latest ? { ...metric, latestDate: latest.date, latestValue: latest.value } : metric;
+      })
+    }))
+  };
+}
+
 function tenYearsAgoDate() {
   const date = new Date();
   date.setUTCFullYear(date.getUTCFullYear() - 10);
@@ -109,6 +129,15 @@ async function metricWithFredSnapshot(metric: EconomyMetricSnapshot): Promise<Ec
   };
 }
 
+export function getEconomyPlaceholderPayload(): EconomyPayload {
+  return {
+    summaryCards: economySummaryCards,
+    mainCards: economyMainCards.map((card) => ({ ...card, metrics: card.metrics.map((metric) => ({ ...metric })) })),
+    sourceMeta: [],
+    notices: []
+  };
+}
+
 async function buildEconomyPayload(): Promise<EconomyPayload> {
   const mainCards = await Promise.all(
     economyMainCards.map(async (card): Promise<EconomyCardSnapshot> => ({
@@ -138,7 +167,7 @@ async function buildEconomyPayload(): Promise<EconomyPayload> {
 export async function getEconomyPayload(): Promise<{ payload: EconomyPayload; mode: "live" | "cached" | "unavailable"; notices: string[] }> {
   const cached = await getSnapshotOrNull<EconomyPayload>(ECONOMY_SNAPSHOT_KEY);
   if (cached.snapshot && isSnapshotFresh(cached.snapshot) && hasDetailedMetricPayload(cached.snapshot.payload)) {
-    return { payload: withCurrentMetricDetails(cached.snapshot.payload), mode: "cached", notices: cached.snapshot.notices };
+    return { payload: withLatestValuesFromHistory(withCurrentMetricDetails(cached.snapshot.payload)), mode: "cached", notices: cached.snapshot.notices };
   }
 
   const payload = await buildEconomyPayload();
@@ -150,7 +179,7 @@ export async function getEconomyPayload(): Promise<{ payload: EconomyPayload; mo
   });
   if (!write.ok && cached.snapshot) {
     return {
-      payload: withCurrentMetricDetails(cached.snapshot.payload),
+      payload: withLatestValuesFromHistory(withCurrentMetricDetails(cached.snapshot.payload)),
       mode: "cached",
       notices: [...cached.snapshot.notices, "Showing cached economy data because the latest snapshot could not be persisted."]
     };
