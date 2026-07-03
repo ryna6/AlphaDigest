@@ -3,7 +3,7 @@ import { refreshDashboardSnapshot } from "../../lib/data/live-dashboard";
 import { shouldRunInTorontoWindow } from "../../lib/schedule/toronto";
 import { finishJobRun, recordJobRun, startJobRun } from "../../lib/status/job-runs";
 
-export const config = { schedule: "0 * * * 1-5" };
+export const config = { schedule: "*/15 * * * 1-5" };
 
 function json(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json" } });
@@ -11,7 +11,7 @@ function json(body: unknown, status = 200) {
 
 export default async function handler() {
   const startedAt = new Date().toISOString();
-  const runWindow = shouldRunInTorontoWindow({ days: [1, 2, 3, 4, 5], intervalMinutes: 60, minuteOffset: 0 });
+  const runWindow = shouldRunInTorontoWindow({ days: [1, 2, 3, 4, 5], intervalMinutes: 15, minuteOffset: 0 });
   if (!runWindow.shouldRun) {
     await recordJobRun({ jobName: "Market Breadth", functionName: "refresh-market-breadth", source: "Barchart", status: "skipped", startedAt, metadata: { reason: runWindow.reason, torontoTime: runWindow.torontoTime } });
     return json({ ok: true, skipped: true, job: "refresh-market-breadth", startedAt, reason: runWindow.reason, torontoTime: runWindow.torontoTime });
