@@ -28,48 +28,118 @@ function changeTextColor(change: number) {
 
 type Rect = { x: number; y: number; w: number; h: number };
 type Positioned = HeatmapTile & Rect;
+type WeightedItem<T> = T & { weight: number };
 
-function aggregateRemainder(rows: HeatmapTile[], label: string) {
-  if (!rows.length) return [];
-  const total = rows.reduce((sum, r) => sum + Math.max(0, r.weight), 0);
-  let running = 0;
-  const visible: HeatmapTile[] = [];
-  const remainder: HeatmapTile[] = [];
-  for (const row of [...rows].sort((a, b) => b.weight - a.weight)) {
-    if (running / total < 0.8) { visible.push(row); running += Math.max(0, row.weight); }
-    else remainder.push(row);
-  }
-  if (remainder.length) {
-    visible.push({ symbol: "OTHER", label, value: 0, weight: remainder.reduce((s, r) => s + r.weight, 0), changePercent: remainder.reduce((s, r) => s + r.changePercent, 0) / remainder.length, aggregate: true });
-  }
-  return visible;
-}
-
-function layout(items: HeatmapTile[], rect: Rect, vertical = true): Positioned[] {
-  if (!items.length) return [];
-  const [first, ...rest] = items;
-  const total = items.reduce((sum, item) => sum + Math.max(0, item.weight), 0) || 1;
-  const share = Math.max(0.03, Math.min(0.97, first.weight / total));
-  if (!rest.length) return [{ ...first, ...rect }];
-  if (vertical) {
-    const w = rect.w * share;
-    return [{ ...first, x: rect.x + rect.w - w, y: rect.y, w, h: rect.h }, ...layout(rest, { x: rect.x, y: rect.y, w: rect.w - w, h: rect.h }, false)];
-  }
-  const h = rect.h * share;
-  return [{ ...first, x: rect.x, y: rect.y, w: rect.w, h }, ...layout(rest, { x: rect.x, y: rect.y + h, w: rect.w, h: rect.h - h }, true)];
-}
-
+const MAX_ASPECT_RATIO = 1.5;
 const sectorOrder = ["Technology", "Utilities", "Financials", "Health Care", "Energy", "Consumer Discretionary", "Consumer Staples", "Industrials", "Materials", "Communication Services", "Real Estate", "Other"];
 
+function normalizedWeight(weight: number) {
+  return Number.isFinite(weight) && weight > 0 ? weight : 0;
+}
+
+function worstAspect(row: number[], side: number) {
+  if (!row.length || side <= 0) return Infinity;
+  const sum = row.reduce((total, value) => total + value, 0);
+  const min = Math.min(...row);
+  const max = Math.max(...row);
+  if (sum <= 0 || min <= 0) return Infinity;
+  const sideSquared = side * side;
+  return Math.max((sideSquared * max) / (sum * sum), (sum * sum) / (sideSquared * min));
+}
+
+function layoutRow<T extends { area: number }>(row: T[], rect: Rect): Array<T & Rect> {
+  const totalArea = row.reduce((sum, item) => sum + item.area, 0);
+  if (totalArea <= 0 || rect.w <= 0 || rect.h <= 0) return [];
+
+  if (rect.w >= rect.h) {
+    const rowHeight = Math.min(rect.h, totalArea / rect.w);
+    let x = rect.x;
+    return row.map((item, index) => {
+      const isLast = index === row.length - 1;
+      const width = isLast ? rect.x + rect.w - x : item.area / rowHeight;
+      const positioned = { ...item, x, y: rect.y, w: Math.max(0, width), h: rowHeight };
+      x += width;
+      return positioned;
+    });
+  }
+
+  const rowWidth = Math.min(rect.w, totalArea / rect.h);
+  let y = rect.y;
+  return row.map((item, index) => {
+    const isLast = index === row.length - 1;
+    const height = isLast ? rect.y + rect.h - y : item.area / rowWidth;
+    const positioned = { ...item, x: rect.x, y, w: rowWidth, h: Math.max(0, height) };
+    y += height;
+    return positioned;
+  });
+}
+
+function remainingRect(rowArea: number, rect: Rect): Rect {
+  if (rect.w >= rect.h) {
+    const rowHeight = Math.min(rect.h, rowArea / rect.w);
+    return { x: rect.x, y: rect.y + rowHeight, w: rect.w, h: Math.max(0, rect.h - rowHeight) };
+  }
+  const rowWidth = Math.min(rect.w, rowArea / rect.h);
+  return { x: rect.x + rowWidth, y: rect.y, w: Math.max(0, rect.w - rowWidth), h: rect.h };
+}
+
+function squarifiedLayout<T extends WeightedItem<object>>(items: T[], rect: Rect): Array<T & Rect> {
+  const sorted = [...items].filter((item) => normalizedWeight(item.weight) > 0).sort((a, b) => normalizedWeight(b.weight) - normalizedWeight(a.weight));
+  const totalWeight = sorted.reduce((sum, item) => sum + normalizedWeight(item.weight), 0);
+  const totalArea = rect.w * rect.h;
+  if (!sorted.length || totalWeight <= 0 || totalArea <= 0) return [];
+
+  const scaled = sorted.map((item) => ({ ...item, area: (normalizedWeight(item.weight) / totalWeight) * totalArea }));
+  const positioned: Array<(typeof scaled)[number] & Rect> = [];
+  let available = { ...rect };
+  let row: typeof scaled = [];
+  let rowArea = 0;
+
+  for (const item of scaled) {
+    const side = Math.min(available.w, available.h);
+    const currentWorst = worstAspect(row.map((r) => r.area), side);
+    const nextWorst = worstAspect([...row, item].map((r) => r.area), side);
+    if (row.length && nextWorst > currentWorst) {
+      positioned.push(...layoutRow(row, available));
+      available = remainingRect(rowArea, available);
+      row = [item];
+      rowArea = item.area;
+    } else {
+      row.push(item);
+      rowArea += item.area;
+    }
+  }
+  positioned.push(...layoutRow(row, available));
+  return positioned.map(({ area: _area, ...item }) => item as T & Rect);
+}
+
+function fitWithinAspect(rect: Rect, maxRatio = MAX_ASPECT_RATIO): Rect {
+  if (rect.w <= 0 || rect.h <= 0) return rect;
+  const ratio = rect.w / rect.h;
+  if (ratio > maxRatio) {
+    const w = rect.h * maxRatio;
+    return { x: rect.x + (rect.w - w) / 2, y: rect.y, w, h: rect.h };
+  }
+  if (1 / ratio > maxRatio) {
+    const h = rect.w * maxRatio;
+    return { x: rect.x, y: rect.y + (rect.h - h) / 2, w: rect.w, h };
+  }
+  return rect;
+}
+
+function paddedRect(rect: Rect, padding: number): Rect {
+  return { x: rect.x + padding, y: rect.y + padding, w: Math.max(0, rect.w - padding * 2), h: Math.max(0, rect.h - padding * 2) };
+}
+
 function TradingTile({ tile }: { tile: Positioned }) {
-  const showTicker = tile.w >= 7 && tile.h >= 8;
-  const showChange = tile.w >= 10 && tile.h >= 13;
-  const showLogo = tile.w >= 5 && tile.h >= 7 && tile.iconPath && !tile.aggregate;
+  const showTicker = tile.w >= 6 && tile.h >= 6;
+  const showChange = tile.w >= 9 && tile.h >= 10;
+  const showLogo = tile.w >= 8 && tile.h >= 9 && tile.iconPath;
   return (
     <div className="absolute overflow-hidden border p-1 shadow-[inset_0_0_24px_rgba(0,0,0,0.18)] transition hover:z-10 hover:brightness-110" style={{ left: `${tile.x}%`, top: `${tile.y}%`, width: `${tile.w}%`, height: `${tile.h}%`, ...colorStyle(tile.changePercent) }} title={`${tile.label}: ${tile.changePercent.toFixed(2)}%`}>
       <div className="flex h-full flex-col items-center justify-center gap-1 text-center">
         {showLogo ? <Image src={tile.iconPath!} alt={`${tile.symbol} logo`} width={24} height={24} className="h-6 w-6 rounded-full object-cover" onError={(e) => { e.currentTarget.style.display = "none"; }} /> : null}
-        {showTicker ? <div className="max-w-full truncate text-sm font-black text-white drop-shadow">{tile.aggregate ? tile.label : tile.symbol}</div> : null}
+        {showTicker ? <div className="max-w-full truncate text-sm font-black text-white drop-shadow">{tile.symbol}</div> : null}
         {showChange ? <div className="text-[11px] font-bold text-white/90">{tile.changePercent >= 0 ? "+" : ""}{tile.changePercent.toFixed(2)}%</div> : null}
       </div>
     </div>
@@ -77,19 +147,25 @@ function TradingTile({ tile }: { tile: Positioned }) {
 }
 
 function TradingViewHeatmap({ tiles, grouping }: { tiles: HeatmapTile[]; grouping: "none" | "sector" }) {
+  const stockTiles = [...tiles].sort((a, b) => normalizedWeight(b.weight) - normalizedWeight(a.weight));
+
   if (grouping === "sector") {
     const groups = sectorOrder.map((sector) => {
-      const rows = aggregateRemainder(tiles.filter((t) => (t.sector ?? "Other") === sector), `${sector} Others`);
-      return { sector, rows, weight: rows.reduce((s, r) => s + r.weight, 0) };
-    }).filter((g) => g.rows.length);
-    const groupRects = layout(groups.map((g) => ({ symbol: g.sector, label: g.sector, value: 0, changePercent: 0, weight: g.weight })), { x: 0, y: 0, w: 100, h: 100 });
+      const rows = stockTiles.filter((t) => (t.sector ?? "Other") === sector);
+      return { sector, rows, weight: rows.reduce((s, r) => s + normalizedWeight(r.weight), 0) };
+    }).filter((g) => g.rows.length && g.weight > 0);
+    const groupRects = squarifiedLayout(groups.map((g) => ({ symbol: g.sector, label: g.sector, value: 0, changePercent: 0, weight: g.weight })), { x: 0, y: 0, w: 100, h: 100 });
     return <div className="relative h-[32rem] overflow-hidden border border-borderStrong bg-[#0b1120] md:h-[38rem]">{groupRects.map((rect) => {
       const group = groups.find((g) => g.sector === rect.symbol)!;
-      const inner = layout(group.rows, { x: rect.x + 0.25, y: rect.y + 3.25, w: Math.max(0, rect.w - 0.5), h: Math.max(0, rect.h - 3.5) });
-      return <div key={group.sector} className="absolute border border-black/50 bg-black/20" style={{ left: `${rect.x}%`, top: `${rect.y}%`, width: `${rect.w}%`, height: `${rect.h}%` }}><div className="h-6 truncate px-2 text-[11px] font-bold uppercase tracking-wide text-white/75">{group.sector}</div>{inner.map((tile) => <TradingTile key={`${group.sector}-${tile.symbol}-${tile.label}`} tile={tile} />)}</div>;
+      const sectorRect = fitWithinAspect(paddedRect(rect, 0.2));
+      const titleHeight = Math.min(7, Math.max(4, sectorRect.h * 0.13));
+      const innerRect = { x: 1.2, y: titleHeight + 1, w: 97.6, h: Math.max(0, 98.4 - titleHeight) };
+      const inner = squarifiedLayout(group.rows, innerRect).map((tile) => ({ ...tile, ...fitWithinAspect(tile) }));
+      return <div key={group.sector} className="absolute overflow-hidden border border-black/60 bg-black/25" style={{ left: `${sectorRect.x}%`, top: `${sectorRect.y}%`, width: `${sectorRect.w}%`, height: `${sectorRect.h}%` }}><div className="flex items-center px-2 text-[11px] font-bold uppercase tracking-wide text-white/80" style={{ height: `${titleHeight}%` }}>{group.sector}</div><div className="absolute inset-0">{inner.map((tile) => <TradingTile key={`${group.sector}-${tile.symbol}-${tile.label}`} tile={tile} />)}</div></div>;
     })}</div>;
   }
-  const positioned = layout(aggregateRemainder(tiles, "Bottom 20%"), { x: 0, y: 0, w: 100, h: 100 });
+
+  const positioned = squarifiedLayout(stockTiles, { x: 0, y: 0, w: 100, h: 100 }).map((tile) => ({ ...tile, ...fitWithinAspect(tile) }));
   return <div className="relative h-[32rem] overflow-hidden border border-borderStrong bg-[#0b1120] md:h-[38rem]">{positioned.map((tile) => <TradingTile key={`${tile.symbol}-${tile.label}`} tile={tile} />)}</div>;
 }
 
