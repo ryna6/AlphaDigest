@@ -175,17 +175,25 @@ test("Toronto weekday-only Flow guard allows late hourly wakes without interval 
 
 
 test("Toronto weekday interval guard treats Monday-Friday as full Toronto days", () => {
-  const earlyMonday = shouldRunInTorontoWindow({ days: [1, 2, 3, 4, 5], intervalMinutes: 5, now: new Date("2026-06-22T04:05:00.000Z") });
+  const earlyMonday = shouldRunInTorontoWindow({ days: [1, 2, 3, 4, 5], intervalMinutes: 10, now: new Date("2026-06-22T04:01:00.000Z") });
   assert.equal(earlyMonday.shouldRun, true);
-  assert.equal(earlyMonday.torontoTime, "Mon 2026-06-22 00:05:00");
+  assert.equal(earlyMonday.torontoTime, "Mon 2026-06-22 00:01:00");
 
-  const lateFriday = shouldRunInTorontoWindow({ days: [1, 2, 3, 4, 5], intervalMinutes: 5, now: new Date("2026-06-27T03:55:00.000Z") });
+  const fridayMorning = shouldRunInTorontoWindow({ days: [1, 2, 3, 4, 5], intervalMinutes: 10, now: new Date("2026-07-03T09:09:57.000Z") });
+  assert.equal(fridayMorning.shouldRun, true);
+  assert.equal(fridayMorning.torontoTime, "Fri 2026-07-03 05:09:57");
+
+  const lateFriday = shouldRunInTorontoWindow({ days: [1, 2, 3, 4, 5], intervalMinutes: 10, now: new Date("2026-06-27T03:59:00.000Z") });
   assert.equal(lateFriday.shouldRun, true);
-  assert.equal(lateFriday.torontoTime, "Fri 2026-06-26 23:55:00");
+  assert.equal(lateFriday.torontoTime, "Fri 2026-06-26 23:59:00");
 
-  const saturday = shouldRunInTorontoWindow({ days: [1, 2, 3, 4, 5], intervalMinutes: 5, now: new Date("2026-06-27T04:00:00.000Z") });
+  const saturday = shouldRunInTorontoWindow({ days: [1, 2, 3, 4, 5], intervalMinutes: 10, now: new Date("2026-06-27T04:00:00.000Z") });
   assert.equal(saturday.shouldRun, false);
   assert.equal(saturday.reason, "outside_toronto_days");
+
+  const sunday = shouldRunInTorontoWindow({ days: [1, 2, 3, 4, 5], intervalMinutes: 10, now: new Date("2026-06-28T16:00:00.000Z") });
+  assert.equal(sunday.shouldRun, false);
+  assert.equal(sunday.reason, "outside_toronto_days");
 });
 
 test("Toronto interval guard preserves narrower explicit windows", () => {
