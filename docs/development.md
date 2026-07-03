@@ -145,7 +145,7 @@ Primary files:
 - `components/dashboard/markets/markets-view.tsx`.
 - `components/ui/heatmap.tsx`.
 - `lib/data/adapters/unusual-whales-sp500-heatmap.ts` for the persisted S&P 500 heatmap, participation/advancer breadth, and movers dataset.
-- `lib/data/adapters/market-breadth.ts` for server-side S&P 500 breadth refreshes cached in Supabase table `market_breadth` by the separate `refresh-market-breadth` function. Investing.com provides the current/main 50D and 200D index values from page HTML or embedded JSON; Yahoo Finance provides 52-week high/low screener symbols through the screener API, paginated and filtered to cached S&P 500 constituents. The pipeline fails closed when any provider response is empty, malformed, blocked, out of range, or partially unavailable so stale cache rows are preserved.
+- `lib/data/adapters/market-breadth.ts` for server-side S&P 500 breadth refreshes cached in Supabase table `market_breadth` by the separate `refresh-market-breadth` function. Investing.com provides 50D and 200D breadth OHLC rows through financial-data endpoints 1225324 and 1225364; the refresh selects the valid row with the largest Unix timestamp and displays the close. Yahoo Finance provides 52-week high/low totals through POST requests to the screener endpoint with predefined scrIds recent_52_week_highs and recent_52_week_lows; a crumb is fetched server-side only if Yahoo requires it. The pipeline fails closed when any provider response is empty, malformed, blocked, out of range, or partially unavailable so stale cache rows are preserved.
 - `lib/constants/asset-icons.ts`.
 - `public/assets/heatmap-icons/`.
 
