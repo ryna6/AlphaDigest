@@ -73,7 +73,8 @@ Route/component/data:
 The Markets page displays:
 
 - Market strip metrics: S&P 500, Nasdaq 100, Mid Cap, Small Cap, and S&P 500 Futures.
-- Four switchable heatmaps:
+- Five switchable heatmaps, with S&P 500 first and selected by default:
+  - S&P 500
   - Global Markets
   - Sectors
   - Crypto

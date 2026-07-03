@@ -9,7 +9,7 @@ import { Heatmap } from "@/components/ui/heatmap";
 import { ErrorState } from "@/components/ui/error-state";
 import { cn } from "@/lib/utils/cn";
 
-const modes = ["globalMarkets", "sectors", "crypto", "macro", "sp500"] as const;
+const modes = ["sp500", "globalMarkets", "sectors", "crypto", "macro"] as const;
 const labels = {
   globalMarkets: "Global Markets",
   sectors: "Sectors",
@@ -42,8 +42,59 @@ function signedValueClass(value?: string) {
   return "text-textSecondary";
 }
 
+function MarketMoverValue({
+  value,
+  tone: metricTone
+}: {
+  value: string;
+  tone: MarketsPayload["movers"][number]["tone"];
+}) {
+  if (value === "—") return <span className="text-textPrimary">{value}</span>;
+
+  const percentClass = metricTone === "negative" ? "text-negative" : "text-positive";
+  return (
+    <>
+      {value.split(" · ").map((part, index) => {
+        const match = part.match(/^(\S+)\s+([+-]\d+(?:\.\d+)?%)$/);
+        if (!match) {
+          return (
+            <span key={`${part}-${index}`} className="text-textPrimary">
+              {part}
+            </span>
+          );
+        }
+        const [, ticker, percent] = match;
+        return (
+          <span key={`${ticker}-${percent}-${index}`}>
+            {index > 0 ? <span className="text-textSecondary"> · </span> : null}
+            <span className="text-textPrimary">{ticker} </span>
+            <span className={percentClass}>{percent}</span>
+          </span>
+        );
+      })}
+    </>
+  );
+}
+
+function MarketMoverRow({ metric }: { metric: MarketsPayload["movers"][number] }) {
+  return (
+    <div className="flex items-center justify-between gap-3 border-b border-borderStrong/60 py-2 last:border-b-0">
+      <div className="flex min-w-0 items-center gap-2">
+        <div className="min-w-0">
+          <p className="truncate text-sm text-textMuted">{metric.label}</p>
+        </div>
+      </div>
+      <div className="text-right tabular">
+        <p className="text-base font-semibold">
+          <MarketMoverValue value={metric.value} tone={metric.tone} />
+        </p>
+      </div>
+    </div>
+  );
+}
+
 export function MarketsView({ data }: { data: MarketsPayload }) {
-  const [mode, setMode] = useState<(typeof modes)[number]>("globalMarkets");
+  const [mode, setMode] = useState<(typeof modes)[number]>("sp500");
   const [sp500Grouping, setSp500Grouping] = useState<"none" | "sector">("none");
 
   return (
@@ -100,20 +151,20 @@ export function MarketsView({ data }: { data: MarketsPayload }) {
         ) : null}
         <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
           <div className="inline-flex flex-wrap gap-1 rounded-none border border-borderStrong bg-sidebar/80 p-1 shadow-inner">
-          {modes.map((m) => (
-            <button
-              key={m}
-              onClick={() => setMode(m)}
-              className={cn(
-                "rounded-none px-4 py-2 text-xs font-semibold transition",
-                mode === m
-                  ? "bg-accentBlue text-white shadow-[0_0_18px_rgba(79,140,255,0.35)]"
-                  : "text-textSecondary hover:bg-panelHover hover:text-textPrimary"
-              )}
-            >
-              {labels[m]}
-            </button>
-          ))}
+            {modes.map((m) => (
+              <button
+                key={m}
+                onClick={() => setMode(m)}
+                className={cn(
+                  "rounded-none px-4 py-2 text-xs font-semibold transition",
+                  mode === m
+                    ? "bg-accentBlue text-white shadow-[0_0_18px_rgba(79,140,255,0.35)]"
+                    : "text-textSecondary hover:bg-panelHover hover:text-textPrimary"
+                )}
+              >
+                {labels[m]}
+              </button>
+            ))}
           </div>
           {mode === "sp500" ? (
             <div className="inline-flex gap-1 rounded-none border border-borderStrong bg-sidebar/80 p-1 shadow-inner">
@@ -137,7 +188,7 @@ export function MarketsView({ data }: { data: MarketsPayload }) {
         <Panel>
           <SectionHeader title="Market Movers" />
           {data.movers.map((m) => (
-            <MetricRow key={m.label} metric={m} density="roomy" />
+            <MarketMoverRow key={m.label} metric={m} />
           ))}
         </Panel>
       </div>
