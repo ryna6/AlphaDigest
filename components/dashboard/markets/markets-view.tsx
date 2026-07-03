@@ -106,7 +106,7 @@ export function MarketsView({ data }: { data: MarketsPayload }) {
           {data.strip.map((metric) => (
             <div
               key={metric.label}
-              className="min-h-28 rounded-none border border-borderStrong bg-sidebar p-4"
+              className="min-h-28 rounded-none border border-borderStrong bg-sidebar p-4 transition duration-200 hover:-translate-y-0.5"
             >
               <div className="flex items-center gap-2">
                 {metric.iconPath ? (

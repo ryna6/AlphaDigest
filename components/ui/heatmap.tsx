@@ -213,14 +213,36 @@ function binaryTreemapLayout(items: HeatmapTile[], rect: Rect): Positioned[] {
   return layoutRecursive(clean, rect);
 }
 
+const tradingTextTiers = [
+  { minWidth: 72, minHeight: 58, ticker: "text-[15px]", change: "text-xs", showChange: true },
+  { minWidth: 52, minHeight: 42, ticker: "text-sm", change: "text-[11px]", showChange: true },
+  { minWidth: 42, minHeight: 34, ticker: "text-xs", change: "text-[9px]", showChange: true },
+  { minWidth: 30, minHeight: 26, ticker: "text-[11px]", change: "text-[8px]", showChange: false },
+  { minWidth: 26, minHeight: 22, ticker: "text-[10px]", change: "text-[8px]", showChange: false }
+];
+
+function tradingTextTier(tile: Positioned) {
+  const baseIndex = tradingTextTiers.findIndex(
+    (tier) => tile.w >= tier.minWidth && tile.h >= tier.minHeight
+  );
+  if (baseIndex === -1) return null;
+
+  const adjustedIndex = !tile.aggregate && tile.symbol.length === 4
+    ? Math.min(baseIndex + 1, tradingTextTiers.length - 1)
+    : baseIndex;
+
+  return tradingTextTiers[adjustedIndex];
+}
+
 function TradingTile({ tile }: { tile: Positioned }) {
-  const showTicker = tile.w >= 42 && tile.h >= 34;
-  const showChange = tile.w >= 56 && tile.h >= 50;
+  const textTier = tradingTextTier(tile);
+  const showTicker = Boolean(textTier);
+  const showChange = Boolean(textTier?.showChange);
   const showLogo = tile.w >= 74 && tile.h >= 70 && tile.iconPath && !tile.aggregate;
 
   return (
     <div
-      className="absolute overflow-hidden border p-1 shadow-[inset_0_0_24px_rgba(0,0,0,0.18)] transition hover:z-10 hover:brightness-110"
+      className="absolute overflow-hidden border p-1 shadow-[inset_0_0_24px_rgba(0,0,0,0.18)] transition duration-200 hover:z-10 hover:-translate-y-0.5 hover:brightness-110"
       style={{
         left: tile.x,
         top: tile.y,
@@ -245,13 +267,13 @@ function TradingTile({ tile }: { tile: Positioned }) {
         ) : null}
 
         {showTicker ? (
-          <div className="max-w-full truncate text-sm font-black text-white drop-shadow">
+          <div className={cn("max-w-full truncate font-black leading-none text-white drop-shadow", textTier?.ticker)}>
             {tile.aggregate ? tile.label : tile.symbol}
           </div>
         ) : null}
 
         {showChange ? (
-          <div className="text-[11px] font-bold text-white/90">
+          <div className={cn("font-bold leading-none text-white/90", textTier?.change)}>
             {tile.changePercent >= 0 ? "+" : ""}
             {tile.changePercent.toFixed(2)}%
           </div>
@@ -301,7 +323,7 @@ function TradingViewHeatmap({ tiles, grouping }: { tiles: HeatmapTile[]; groupin
     return (
       <div
         ref={containerRef}
-        className="relative h-[32rem] overflow-hidden border border-borderStrong bg-[#0b1120] md:h-[38rem]"
+        className="relative h-[32rem] overflow-hidden border border-borderStrong bg-panel md:h-[38rem]"
       >
         {groupRects.map((rect) => {
           const group = groups.find((item) => item.sector === rect.symbol);
@@ -358,7 +380,7 @@ function TradingViewHeatmap({ tiles, grouping }: { tiles: HeatmapTile[]; groupin
   return (
     <div
       ref={containerRef}
-      className="relative h-[32rem] overflow-hidden border border-borderStrong bg-[#0b1120] md:h-[38rem]"
+      className="relative h-[32rem] overflow-hidden border border-borderStrong bg-panel md:h-[38rem]"
     >
       {positioned.map((tile) => (
         <TradingTile key={`${tile.symbol}-${tile.label}`} tile={tile} />
