@@ -11,6 +11,7 @@ const THIRTY_YEARS = 30;
 
 export type EconomyObservationReadResult = { ok: true; points: EconomyDataPoint[] } | { ok: false; points: EconomyDataPoint[]; error: string };
 export type RefreshEconomyObservationsResult = { ok: boolean; count: number; upserted: number; seriesFetched: number; seriesSkipped: number; seriesFailed: string[]; error?: string };
+export type LatestEconomyObservationDatesResult = { ok: true; latestDates: Map<string, string> } | { ok: false; latestDates: Map<string, string>; error: string };
 
 export function thirtyYearsAgoDate() {
   const date = new Date();
@@ -38,6 +39,32 @@ export async function readEconomyObservations(metric: EconomyMetricDefinition, o
     return typeof row.date === "string" && Number.isFinite(value) ? [{ date: row.date, value }] : [];
   });
   return { ok: true, points };
+}
+
+export async function latestEconomyObservationDates(seriesIds: string[]): Promise<LatestEconomyObservationDatesResult> {
+  const supabase = createServerSupabaseClient();
+  if (!supabase.ok) return { ok: false, latestDates: new Map(), error: supabase.message };
+  const uniqueSeriesIds = Array.from(new Set(seriesIds));
+  if (!uniqueSeriesIds.length) return { ok: true, latestDates: new Map() };
+  const results = await Promise.all(
+    uniqueSeriesIds.map(async (seriesId) => {
+      const { data, error } = await supabase.client
+        .from(ECONOMY_OBSERVATIONS_TABLE)
+        .select("date")
+        .eq("provider", ECONOMY_PROVIDER)
+        .eq("series_id", seriesId)
+        .order("date", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      return { seriesId, date: typeof data?.date === "string" ? data.date : null, error };
+    })
+  );
+  const failed = results.find((result) => result.error);
+  if (failed?.error) return { ok: false, latestDates: new Map(), error: failed.error.message };
+  return {
+    ok: true,
+    latestDates: new Map(results.flatMap((result) => result.date ? [[result.seriesId, result.date] as const] : []))
+  };
 }
 
 async function latestSavedObservationDate(client: SupabaseClient, seriesId: string) {

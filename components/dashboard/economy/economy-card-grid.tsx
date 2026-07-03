@@ -16,6 +16,7 @@ import type {
   EconomyChangeSnapshot,
   EconomyMetricSnapshot
 } from "@/lib/data/economy-config";
+import type { EconomyPayload } from "@/lib/data/schemas/dashboard";
 import { Panel } from "@/components/ui/panel";
 import { SectionHeader } from "@/components/ui/section-header";
 
@@ -246,7 +247,7 @@ function dateRangeLabel(metric: EconomyMetricSnapshot) {
   return `${first ?? "—"} to ${latest ?? "—"}`;
 }
 
-function ChartPanel({ metric }: { metric: EconomyMetricSnapshot }) {
+function ChartPanel({ metric, loading }: { metric: EconomyMetricSnapshot; loading: boolean }) {
   const data = useMemo(
     () =>
       (metric.history ?? []).map((point) => ({
@@ -285,12 +286,12 @@ function ChartPanel({ metric }: { metric: EconomyMetricSnapshot }) {
         </div>
         <div className="text-xs text-textMuted sm:text-right">
           <p>Latest observation</p>
-          <p className="font-semibold text-textSecondary">{metric.latestDate ?? "—"}</p>
+          <p className="font-semibold text-textSecondary">{metric.latestDate ?? (loading ? "Loading..." : "—")}</p>
         </div>
       </div>
       {!data.length ? (
         <div className="flex h-72 items-center justify-center rounded-none border border-dashed border-borderStrong bg-background/40 text-sm text-textMuted">
-          —
+          {loading ? "Loading..." : "—"}
         </div>
       ) : (
         <div className="h-72 sm:h-80">
@@ -439,7 +440,7 @@ function MetricDetailCards({ metric }: { metric: EconomyMetricSnapshot }) {
   );
 }
 
-function EconomyMetricCard({ card }: { card: EconomyCardSnapshot }) {
+function EconomyMetricCard({ card, loading }: { card: EconomyCardSnapshot; loading: boolean }) {
   const [selectedMetricId, setSelectedMetricId] = useState(card.metrics[0]?.id ?? "");
   const selectedMetric =
     card.metrics.find((metric) => metric.id === selectedMetricId) ?? card.metrics[0];
@@ -470,7 +471,7 @@ function EconomyMetricCard({ card }: { card: EconomyCardSnapshot }) {
                       <span className="block min-w-0 text-sm text-textMuted">{metric.label}</span>
                       <span className="mt-2 flex min-w-0 items-center gap-x-1.5">
                         <span className="shrink-0 text-xl font-semibold text-textPrimary">
-                          {formatMetricCardValue(metric, metric.latestValue)}
+                          {metric.latestValue == null && loading ? "Loading..." : formatMetricCardValue(metric, metric.latestValue)}
                         </span>
                         {metricUnitLabel(metric) ? (
                           <span className="min-w-0 max-w-[8.75rem] overflow-hidden text-[11px] leading-3 text-textMuted">
@@ -482,11 +483,11 @@ function EconomyMetricCard({ card }: { card: EconomyCardSnapshot }) {
                     <span className="grid grid-cols-2 gap-x-3 text-xs leading-5">
                       <span className="text-textMuted">QoQ</span>
                       <span className={changeTone(metric.qoqChange)}>
-                        {formatChange(metric.qoqChange)}
+                        {loading && !metric.qoqChange ? "Loading..." : formatChange(metric.qoqChange)}
                       </span>
                       <span className="text-textMuted">YoY</span>
                       <span className={changeTone(metric.yoyChange)}>
-                        {formatChange(metric.yoyChange)}
+                        {loading && !metric.yoyChange ? "Loading..." : formatChange(metric.yoyChange)}
                       </span>
                     </span>
                   </span>
@@ -498,7 +499,7 @@ function EconomyMetricCard({ card }: { card: EconomyCardSnapshot }) {
         {card.hasMiniChart && selectedMetric ? (
           <div className="grid gap-4 xl:grid-cols-[minmax(260px,320px)_minmax(0,1fr)]">
             <MetricDetailCards metric={selectedMetric} />
-            <ChartPanel metric={selectedMetric} />
+            <ChartPanel metric={selectedMetric} loading={loading} />
           </div>
         ) : null}
       </div>
@@ -513,19 +514,41 @@ export function EconomyCardGrid({
   summaryCards: EconomyCardSnapshot[];
   mainCards: EconomyCardSnapshot[];
 }) {
+  const [cards, setCards] = useState({ summaryCards, mainCards });
+  const [loading, setLoading] = useState(true);
   const [selectedCardId, setSelectedCardId] = useState(mainCards[0]?.id ?? "");
-  const selectedCard = mainCards.find((card) => card.id === selectedCardId) ?? mainCards[0];
+
+  useEffect(() => {
+    let cancelled = false;
+    fetch("/api/economy", { cache: "no-store" })
+      .then((response) => {
+        if (!response.ok) throw new Error(`Economy request failed: ${response.status}`);
+        return response.json() as Promise<{ payload: EconomyPayload }>;
+      })
+      .then(({ payload }) => {
+        if (!cancelled) setCards({ summaryCards: payload.summaryCards, mainCards: payload.mainCards });
+      })
+      .catch((error) => console.warn("economy_payload_load_failed", error))
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const selectedCard = cards.mainCards.find((card) => card.id === selectedCardId) ?? cards.mainCards[0];
 
   return (
     <>
       <div className="grid gap-4 md:grid-cols-3">
-        {summaryCards.map((card) => (
+        {cards.summaryCards.map((card) => (
           <SummaryCard key={card.id} card={card} />
         ))}
       </div>
       <div className="mt-4 overflow-x-auto border border-borderStrong bg-sidebar/50 p-2">
         <div className="flex min-w-max gap-2 sm:min-w-0 sm:flex-wrap">
-          {mainCards.map((card) => {
+          {cards.mainCards.map((card) => {
             const active = card.id === selectedCard?.id;
             return (
               <button
@@ -542,7 +565,7 @@ export function EconomyCardGrid({
         </div>
       </div>
       <div className="mt-4">
-        {selectedCard ? <EconomyMetricCard key={selectedCard.id} card={selectedCard} /> : null}
+        {selectedCard ? <EconomyMetricCard key={selectedCard.id} card={selectedCard} loading={loading} /> : null}
       </div>
     </>
   );

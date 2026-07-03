@@ -10,7 +10,7 @@ import {
 } from "./economy-config";
 import type { EconomyPayload } from "./schemas/dashboard";
 import { fetchFredSeries } from "./adapters/fred";
-import { readEconomyObservations } from "./adapters/economy-observations";
+import { latestEconomyObservationDates, readEconomyObservations } from "./adapters/economy-observations";
 import { getSnapshotOrNull, isSnapshotFresh, upsertDashboardSnapshot } from "./adapters/dashboard-snapshots";
 
 const ECONOMY_SNAPSHOT_KEY = "economy:latest";
@@ -18,6 +18,24 @@ const ECONOMY_TTL_SECONDS = 6 * 60 * 60;
 const TEN_YEAR_RANGE_LABEL = "10Y";
 const FRED_STORAGE_RANGE_LABEL = "30Y+";
 
+
+function cachedPayloadHasCurrentObservations(payload: EconomyPayload, latestDates: Map<string, string>) {
+  for (const card of payload.mainCards) {
+    for (const metric of card.metrics) {
+      const sourceLatestDate = latestDates.get(metric.seriesId);
+      const payloadLatestDate = metric.latestDate ?? metric.history?.at(-1)?.date;
+      if (sourceLatestDate && (!payloadLatestDate || sourceLatestDate > payloadLatestDate)) return false;
+    }
+  }
+  return true;
+}
+
+async function isCachedEconomyPayloadUsable(payload: EconomyPayload) {
+  if (!hasDetailedMetricPayload(payload)) return false;
+  const latestDates = await latestEconomyObservationDates(economyMainCards.flatMap((card) => card.metrics.map((metric) => metric.seriesId)));
+  if (!latestDates.ok) return true;
+  return cachedPayloadHasCurrentObservations(payload, latestDates.latestDates);
+}
 
 function hasDetailedMetricPayload(payload: EconomyPayload) {
   return payload.mainCards.every((card) =>
@@ -137,7 +155,7 @@ async function buildEconomyPayload(): Promise<EconomyPayload> {
 
 export async function getEconomyPayload(): Promise<{ payload: EconomyPayload; mode: "live" | "cached" | "unavailable"; notices: string[] }> {
   const cached = await getSnapshotOrNull<EconomyPayload>(ECONOMY_SNAPSHOT_KEY);
-  if (cached.snapshot && isSnapshotFresh(cached.snapshot) && hasDetailedMetricPayload(cached.snapshot.payload)) {
+  if (cached.snapshot && isSnapshotFresh(cached.snapshot) && await isCachedEconomyPayloadUsable(cached.snapshot.payload)) {
     return { payload: withCurrentMetricDetails(cached.snapshot.payload), mode: "cached", notices: cached.snapshot.notices };
   }
 

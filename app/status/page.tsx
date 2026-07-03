@@ -1,8 +1,8 @@
 import { Fragment } from "react";
 import { PageTitle } from "@/components/dashboard/page-title";
 import { Panel } from "@/components/ui/panel";
-import { SectionHeader } from "@/components/ui/section-header";
 import { StatusAutoRefresh } from "@/components/status/status-auto-refresh";
+import { StatusBreakdownButton } from "./status-breakdown-button";
 import { getStatusRowsWithDiagnostics, STATUS_GROUPS, type StatusValue } from "@/lib/status/jobs";
 
 export const metadata = { title: "Status" };
@@ -49,9 +49,12 @@ export default async function StatusPage() {
   return (
     <>
       <StatusAutoRefresh />
-      <PageTitle title="Status" subtitle="Job and component health for cached dashboard data." />
+      <PageTitle title="Status" />
       <Panel>
-        <SectionHeader title="Component Status" />
+        <div className="mb-3 flex items-center gap-2">
+          <h2 className="text-base font-semibold tracking-wide text-textPrimary">Component Status</h2>
+          <StatusBreakdownButton />
+        </div>
         <div className="mb-3 flex flex-wrap items-center justify-center gap-x-20 gap-y-3 text-sm text-textSecondary">
           {legend.map((status) => (
             <div key={status} className="flex items-center gap-2 whitespace-nowrap">
@@ -63,7 +66,6 @@ export default async function StatusPage() {
         </div>
         <div className="mb-3 text-right text-xs text-textSecondary">
           <p>Last updated: {formatStatusPageDateTime(lastUpdated)}</p>
-          <p>All times are shown in Eastern Standard Time.</p>
         </div>
         {supabaseReadHealth.status === "error" ? (
           <div className="mb-4 rounded-lg border border-[#facc15]/40 bg-[#facc15]/10 px-4 py-3 text-sm text-textPrimary">
