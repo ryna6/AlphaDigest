@@ -1,76 +1,101 @@
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
 import test from "node:test";
-import { parseBarchartSp500Breadth, validateBarchartBreadth, writeBarchartSp500BreadthSnapshot } from "../lib/data/adapters/barchart-sp500-breadth";
+import {
+  BARCHART_QUOTE_SOURCES,
+  createBarchartSp500BreadthSnapshot,
+  diagnoseBarchartQuoteHtml,
+  parseBarchartQuoteValueHtml,
+  validateBarchartBreadth,
+  writeBarchartSp500BreadthSnapshot
+} from "../lib/data/adapters/barchart-sp500-breadth";
 
-const renderedFixture = readFileSync("test/fixtures/barchart-sp500-rendered-minimal.html", "utf8");
-const fixture = (ma = renderedFixture.match(/<section>[\s\S]*?<\/section>/)?.[0] ?? "", header = "52-Week") => `
-  ${ma.includes("Percentage of S&P 500 Stocks Above Moving Average") ? ma : `<h4>Percentage of S&P 500 Stocks Above Moving Average</h4><div>${ma}</div>`}
-  <h4>Summary of S&P 500 Stocks With New Highs and Lows</h4>
-  <table>
-    <tr><th>(501 Total Components)</th><th>5-Day</th><th>1-Month</th><th>3-Month</th><th>6-Month</th><th>${header}</th><th>Year-to-Date</th></tr>
-    <tr><td>Today's New Highs (% of total)</td><td>247 (49%)</td><td>150 (30%)</td><td>95 (19%)</td><td>60 (12%)</td><td>50 (10%)</td><td>60 (12%)</td></tr>
-    <tr><td>Today's New Lows (% of total)</td><td>102 (20%)</td><td>41 (8%)</td><td>11 (2%)</td><td>2 (0%)</td><td>1 (0%)</td><td>2 (0%)</td></tr>
-    <tr><td>Difference</td><td>145</td><td>109</td><td>84</td><td>58</td><td>49</td><td>58</td></tr>
-  </table>`;
+const quoteFixture = (lastPrice: string, priceChange = "+10.00", percentChange = "+25.00%") => `
+<html><body>
+  <div data-ng-show="isReady &amp;&amp; item.lastPrice" class="pricechangerow">
+    <span class="last-change" data-ng-class="highlightValue('lastPrice')">
+      ${lastPrice}
+    </span>
+    <span data-ng-class="setColor(item.priceChange)" class="up">
+      <span class="last-change" data-ng-class="highlightValue('priceChange')">${priceChange}</span>
+      <span class="last-change" data-ng-show="item.percentChange">(<span data-ng-class="highlightValue('percentChange')">${percentChange}</span>)</span>
+    </span>
+    <span class="symbol-trade-time" data-ng-class="highlightValue('tradeTime')">07/02/26</span>
+    <span class="symbol-trade-time">[INDEX]</span>
+  </div>
+</body></html>`;
 
-test("parses rendered Angular chart-block moving-average values and 52-week counts", () => {
-  const parsed = parseBarchartSp500Breadth(renderedFixture, "2026-07-03T18:00:00.000Z");
-  assert.equal(parsed.above50dPercent, 67.06);
-  assert.equal(parsed.above200dPercent, 66.07);
-  assert.equal(parsed.highs52w, 50);
-  assert.equal(parsed.lows52w, 1);
+test("parses successful .pricechangerow lastPrice value", () => {
+  assert.equal(parseBarchartQuoteValueHtml(quoteFixture("50.00"), "$MAHP"), 50);
 });
 
-test("parses chart-block headings case-insensitively", () => {
-  const html = renderedFixture.replace("50-Day Average", "50-day average").replace("200-Day Average", "200 DAY AVERAGE");
-  const parsed = parseBarchartSp500Breadth(html);
-  assert.equal(parsed.above50dPercent, 67.06);
-  assert.equal(parsed.above200dPercent, 66.07);
+test("uses the direct-child lastPrice span instead of other .last-change values", () => {
+  assert.equal(parseBarchartQuoteValueHtml(quoteFixture("50.00", "+999.00", "+888.00%"), "$MMFI"), 50);
 });
 
-test("normalizes non-breaking hyphens in chart-block headings", () => {
-  const html = renderedFixture.replace("50-Day Average", "50‑Day Average").replace("200-Day Average", "200‑Day Average");
-  const parsed = parseBarchartSp500Breadth(html);
-  assert.equal(parsed.above50dPercent, 67.06);
-  assert.equal(parsed.above200dPercent, 66.07);
+test("does not select price change when multiple .last-change elements exist", () => {
+  assert.notEqual(parseBarchartQuoteValueHtml(quoteFixture("67.06", "+10.00", "+25.00%"), "$MMFI"), 10);
 });
 
-test("extracts percentage from span text before the literal percent sign", () => {
-  assert.equal(parseBarchartSp500Breadth(renderedFixture).above50dPercent, 67.06);
+test("does not select percent change when multiple .last-change elements exist", () => {
+  assert.notEqual(parseBarchartQuoteValueHtml(quoteFixture("67.06", "+10.00", "+25.00%"), "$MMFI"), 25);
 });
 
-test("fails for unrendered Angular chart blocks with empty bound spans", () => {
-  const html = renderedFixture.replace(/>67\.06<|>66\.07</g, "><");
-  assert.throws(() => parseBarchartSp500Breadth(html), /50-day|200-day/);
+test("parses decimal quote values", () => {
+  assert.equal(parseBarchartQuoteValueHtml(quoteFixture("67.06"), "$MMFI"), 67.06);
 });
 
-test("extracts the first numeric count from the 52-week column only", () => {
-  const parsed = parseBarchartSp500Breadth(renderedFixture);
-  assert.equal(parsed.highs52w, 50);
-  assert.equal(parsed.lows52w, 1);
+test("parses integer quote values", () => {
+  assert.equal(parseBarchartQuoteValueHtml(quoteFixture("50"), "$MAHP"), 50);
 });
 
-test("fails when 50D chart block is missing", () => {
-  assert.throws(() => parseBarchartSp500Breadth(fixture("200-DAY AVERAGE 66.07%")), /50-day/);
+test("trims surrounding whitespace and tolerates commas", () => {
+  assert.equal(parseBarchartQuoteValueHtml(quoteFixture(" \n 1,234 \t "), "$MAHP"), 1234);
 });
 
-test("fails when 200D chart block is missing", () => {
-  assert.throws(() => parseBarchartSp500Breadth(fixture("50-DAY AVERAGE 67.06%")), /200-day/);
+test("fails when .pricechangerow is missing", () => {
+  assert.throws(() => parseBarchartQuoteValueHtml("<span class='last-change' data-ng-class=\"highlightValue('lastPrice')\">50</span>", "$MAHP"), /missing \.pricechangerow/);
 });
 
-test("fails when 52-Week column is missing", () => {
-  assert.throws(() => parseBarchartSp500Breadth(fixture(undefined, "Year")), /52-week|52-Week/i);
+test("fails when the direct lastPrice span is missing", () => {
+  assert.throws(() => parseBarchartQuoteValueHtml(`<div class="pricechangerow"><span class="last-change" data-ng-class="highlightValue('priceChange')">+10</span></div>`, "$MAHP"), /missing .*lastPrice/);
+});
+
+test("fails for empty Angular-bound lastPrice span", () => {
+  assert.throws(() => parseBarchartQuoteValueHtml(quoteFixture("   "), "$MMFI"), /lastPrice is not numeric/);
 });
 
 test("detects blocked or challenge HTML", () => {
-  assert.throws(() => parseBarchartSp500Breadth("<html><title>Cloudflare</title>verify you are human captcha</html>"), /block\/challenge/);
+  assert.throws(() => parseBarchartQuoteValueHtml("<html><title>Cloudflare</title>verify you are human captcha</html>", "$MMFI"), /block\/challenge/);
+});
+
+test("rejects malformed numeric value", () => {
+  assert.throws(() => parseBarchartQuoteValueHtml(quoteFixture("50.00 points"), "$MMFI"), /not numeric/);
+});
+
+test("diagnostics report raw HTML parser facts without storing HTML", () => {
+  const diagnostics = diagnoseBarchartQuoteHtml(quoteFixture("50.00"), BARCHART_QUOTE_SOURCES.MAHP.url, "$MAHP");
+  assert.equal(diagnostics.hasPriceChangeRow, true);
+  assert.equal(diagnostics.hasLastPriceSpan, true);
+  assert.equal(diagnostics.hasNumericLastPrice, true);
+  assert.equal(diagnostics.responseLength! > 0, true);
+});
+
+test("validation rejects out-of-range percentage values", () => {
+  assert.throws(() => validateBarchartBreadth({ above50dPercent: 101, above200dPercent: 66, highs52w: 50, lows52w: 1, sourceUpdatedAt: null }), /outside 0-100/);
+});
+
+test("validation rejects non-integer 52-week counts", () => {
+  assert.throws(() => validateBarchartBreadth({ above50dPercent: 50, above200dPercent: 66, highs52w: 50.5, lows52w: 1, sourceUpdatedAt: null }), /highs count is invalid/);
+});
+
+test("one failing symbol prevents a complete snapshot and therefore preserves the cached row", () => {
+  assert.throws(() => createBarchartSp500BreadthSnapshot({ above50dPercent: 67.06, above200dPercent: 66.07, highs52w: 50, lows52w: Number.NaN, sourceUpdatedAt: null }), /lows count is invalid/);
 });
 
 test("validation prevents incomplete or bad Supabase writes before Supabase is called", async () => {
   let called = false;
   const client = { from: () => ({ upsert: async () => { called = true; return { error: null }; } }) } as never;
-  await assert.rejects(() => writeBarchartSp500BreadthSnapshot(client, { id: "sp500", above50dPercent: 101, above200dPercent: 66, highs52w: 50, lows52w: 1, sourceUpdatedAt: null, sourceUrl: "https://www.barchart.com/stocks/indices/sp/sp500", fetchedAt: "2026-07-03T18:00:00.000Z", contentHash: "x" }), /outside 0-100/);
+  await assert.rejects(() => writeBarchartSp500BreadthSnapshot(client, { id: "sp500", above50dPercent: 101, above200dPercent: 66, highs52w: 50, lows52w: 1, sourceUpdatedAt: null, sourceUrl: "https://www.barchart.com/stocks/quotes/$MMFI", fetchedAt: "2026-07-03T18:00:00.000Z", contentHash: "x" }), /outside 0-100/);
   assert.equal(called, false);
 });
 
