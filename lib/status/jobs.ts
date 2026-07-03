@@ -253,9 +253,9 @@ export const STATUS_JOBS: StatusJob[] = [
     functionName: "refresh-institutional-summary",
     source: "Unusual Whales",
     frequency: "Daily",
-    schedule: "0 8 * * *",
-    scheduleDescription: "Daily at 08:00 UTC.",
-    nextRunUtcRule: { hours: [8], minutes: [0] },
+    schedule: "0 10 * * *",
+    scheduleDescription: "Daily at 10:00 UTC (6:00 AM America/Toronto during daylight time).",
+    nextRunUtcRule: { hours: [10], minutes: [0] },
     staleAfterMinutes: 2160
   },
   {
@@ -411,7 +411,7 @@ export async function getStatusRowsWithDiagnostics(): Promise<StatusRowsResult> 
     )
     .in("function_name", functionNames)
     .order("started_at", { ascending: false })
-    .limit(200);
+    .limit(2000);
 
   const supabaseReadHealth: SupabaseReadHealth = {
     status: error ? "error" : "healthy",

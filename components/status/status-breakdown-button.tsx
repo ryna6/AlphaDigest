@@ -61,11 +61,11 @@ function StatusBreakdownModal({ onClose }: { onClose: () => void }) {
         </div>
         <div className="space-y-3 text-sm leading-6 text-textSecondary">
           {statusRows.map((row) => (
-            <div key={row.status} className="flex items-start gap-3">
-              <span className={cn("mt-2 h-2.5 w-2.5 shrink-0 rounded-full", statusDot[row.status])} aria-hidden="true" />
-              <p>
-                <span className="font-semibold text-textPrimary">{row.label}</span> — {row.description}
-              </p>
+            <div key={row.status} className="grid grid-cols-[0.625rem_minmax(4.75rem,auto)_auto_1fr] items-start gap-x-3 gap-y-1 sm:grid-cols-[0.625rem_5.25rem_auto_1fr]">
+              <span className={cn("mt-2 h-2.5 w-2.5 rounded-full", statusDot[row.status])} aria-hidden="true" />
+              <span className="font-semibold text-textPrimary">{row.label}</span>
+              <span className="text-textMuted" aria-hidden="true">—</span>
+              <span>{row.description}</span>
             </div>
           ))}
         </div>

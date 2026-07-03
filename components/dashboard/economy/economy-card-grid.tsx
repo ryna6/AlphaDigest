@@ -170,7 +170,7 @@ function formatPeriod(value: string, metric: EconomyMetricSnapshot) {
     return new Intl.DateTimeFormat("en-US", {
       month: "short",
       day: "numeric",
-      year: "2-digit",
+      year: "numeric",
       timeZone: "UTC"
     }).format(date);
   return new Intl.DateTimeFormat("en-US", {
