@@ -213,14 +213,22 @@ function binaryTreemapLayout(items: HeatmapTile[], rect: Rect): Positioned[] {
   return layoutRecursive(clean, rect);
 }
 
+function tradingTextTier(tile: Positioned) {
+  if (tile.w >= 72 && tile.h >= 58) return { ticker: "text-sm", change: "text-[11px]" };
+  if (tile.w >= 52 && tile.h >= 42) return { ticker: "text-[13px]", change: "text-[10px]" };
+  if (tile.w >= 36 && tile.h >= 30) return { ticker: "text-xs", change: "text-[9px]" };
+  return null;
+}
+
 function TradingTile({ tile }: { tile: Positioned }) {
-  const showTicker = tile.w >= 42 && tile.h >= 34;
-  const showChange = tile.w >= 56 && tile.h >= 50;
+  const textTier = tradingTextTier(tile);
+  const showTicker = Boolean(textTier);
+  const showChange = Boolean(textTier) && tile.w >= 48 && tile.h >= 40;
   const showLogo = tile.w >= 74 && tile.h >= 70 && tile.iconPath && !tile.aggregate;
 
   return (
     <div
-      className="absolute overflow-hidden border p-1 shadow-[inset_0_0_24px_rgba(0,0,0,0.18)] transition hover:z-10 hover:brightness-110"
+      className="absolute overflow-hidden border p-1 shadow-[inset_0_0_24px_rgba(0,0,0,0.18)] transition duration-200 hover:z-10 hover:-translate-y-0.5 hover:brightness-110"
       style={{
         left: tile.x,
         top: tile.y,
@@ -245,13 +253,13 @@ function TradingTile({ tile }: { tile: Positioned }) {
         ) : null}
 
         {showTicker ? (
-          <div className="max-w-full truncate text-sm font-black text-white drop-shadow">
+          <div className={cn("max-w-full truncate font-black leading-none text-white drop-shadow", textTier?.ticker)}>
             {tile.aggregate ? tile.label : tile.symbol}
           </div>
         ) : null}
 
         {showChange ? (
-          <div className="text-[11px] font-bold text-white/90">
+          <div className={cn("font-bold leading-none text-white/90", textTier?.change)}>
             {tile.changePercent >= 0 ? "+" : ""}
             {tile.changePercent.toFixed(2)}%
           </div>
