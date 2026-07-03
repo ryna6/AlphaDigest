@@ -145,7 +145,7 @@ Primary files:
 - `components/dashboard/markets/markets-view.tsx`.
 - `components/ui/heatmap.tsx`.
 - `lib/data/adapters/unusual-whales-sp500-heatmap.ts` for the persisted S&P 500 heatmap, participation/advancer breadth, and movers dataset.
-- `lib/data/adapters/barchart-sp500-breadth.ts` for server-side Barchart S&P 500 breadth scraping (`% Above 50D MA`, `% Above 200D MA`, and `52W Highs and Lows`) cached in Supabase table `barchart_market_breadth` by the separate `refresh-market-breadth` function.
+- `lib/data/adapters/barchart-sp500-breadth.ts` for server-side Barchart S&P 500 breadth scraping from four dedicated quote pages (`$MMFI`, `$MMTH`, `$MAHP`, `$MALP`) cached in Supabase table `barchart_market_breadth` by the separate `refresh-market-breadth` function. The shared parser targets `.pricechangerow > span.last-change[data-ng-class*="lastPrice"]` and fails closed when raw HTML is empty, malformed, blocked, or partially unavailable so stale cache rows are preserved.
 - `lib/constants/asset-icons.ts`.
 - `public/assets/heatmap-icons/`.
 

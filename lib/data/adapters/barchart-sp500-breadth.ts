@@ -4,10 +4,19 @@ import type { Metric } from "../schemas/common";
 import { stableHash } from "./unusual-whales-earnings";
 import { payloadContentHash, sourceResult, updateRefreshMetadata } from "./supabase-refresh";
 
-export const BARCHART_SP500_URL = "https://www.barchart.com/stocks/indices/sp/sp500";
 const TABLE = "barchart_market_breadth";
 const SOURCE = "barchart_sp500_breadth";
 const FETCH_TIMEOUT_MS = 15_000;
+
+export const BARCHART_QUOTE_SOURCES = {
+  MMFI: { symbol: "$MMFI", metric: "% Above 50D MA", url: "https://www.barchart.com/stocks/quotes/$MMFI" },
+  MMTH: { symbol: "$MMTH", metric: "% Above 200D MA", url: "https://www.barchart.com/stocks/quotes/$MMTH" },
+  MAHP: { symbol: "$MAHP", metric: "52W Highs", url: "https://www.barchart.com/stocks/quotes/$MAHP" },
+  MALP: { symbol: "$MALP", metric: "52W Lows", url: "https://www.barchart.com/stocks/quotes/$MALP" }
+} as const;
+
+export const BARCHART_BREADTH_SOURCE_URL = Object.values(BARCHART_QUOTE_SOURCES).map((source) => source.url).join(",");
+export const BARCHART_LAST_PRICE_SELECTOR = `.pricechangerow > span.last-change[data-ng-class*="lastPrice"]`;
 
 const BROWSER_HEADERS = {
   "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0 Safari/537.36",
@@ -35,6 +44,20 @@ export type Sp500BreadthSnapshot = ParsedBarchartBreadth & {
   contentHash: string;
 };
 
+export type BarchartQuoteDiagnostics = {
+  url: string;
+  symbol: string;
+  status?: number;
+  contentType?: string;
+  finalUrl?: string;
+  responseLength?: number;
+  hasPriceChangeRow?: boolean;
+  hasLastPriceSpan?: boolean;
+  hasNumericLastPrice?: boolean;
+  appearsBlocked?: boolean;
+  method: "quote-page-html";
+};
+
 function decodeHtml(value: string) {
   return value
     .replace(/&nbsp;|&#160;/g, " ")
@@ -57,121 +80,82 @@ function normalizeText(value: string) {
   return cleanText(value).toLowerCase().replace(/[‐‑‒–—]/g, "-").replace(/\s+/g, " ").trim();
 }
 
-function escapeRegExp(value: string) {
-  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-}
-
-
-function tagText(html: string, className: string) {
-  const classPattern = `(?=[^>]*class=["'][^"']*\\b${escapeRegExp(className)}\\b[^"']*["'])`;
-  const match = html.match(new RegExp(`<[^>]+${classPattern}[^>]*>([\\s\\S]*?)<\\/[^>]+>`, "i"));
-  return match ? cleanText(match[1]) : "";
-}
-
-function normalizeHeading(value: string) {
-  return cleanText(value)
-    .replace(/[‐‑‒–—]/g, "-")
-    .replace(/\s*-\s*/g, "-")
-    .replace(/\s+/g, " ")
-    .trim()
-    .toLowerCase();
-}
-
-function parseNumber(value: string | undefined) {
-  if (!value) return null;
-  const match = cleanText(value).match(/(-?\d+(?:\.\d+)?)/);
-  if (!match) return null;
-  const parsed = Number(match[1]);
-  return Number.isFinite(parsed) ? parsed : null;
-}
-
-function chartBlocks(html: string) {
-  return [...html.matchAll(/<div\b(?=[^>]*class=["'][^"']*\bchart-block\b[^"']*["'])[^>]*>[\s\S]*?<\/div>\s*<\/div>/gi)].map((m) => m[0]);
-}
-
-function parseMovingAverageFromChartBlocks(html: string, day: 50 | 200) {
-  const wanted = `${day}-day average`;
-  for (const block of chartBlocks(html)) {
-    if (normalizeHeading(tagText(block, "chart-header")) !== wanted) continue;
-    const quota = block.match(/<div\b(?=[^>]*class=["'][^"']*\bquota-data\b[^"']*["'])[^>]*>([\s\S]*?)<\/div>/i)?.[1] ?? block;
-    const spanValue = quota.match(/<span\b[^>]*>([\s\S]*?)<\/span>/i)?.[1];
-    const parsed = parseNumber(spanValue ?? quota);
-    return parsed != null && parsed >= 0 && parsed <= 100 ? parsed : null;
-  }
-  return null;
-}
-
-function parsePercent(value: string | undefined) {
-  if (!value) return null;
-  const match = value.match(/(-?\d+(?:\.\d+)?)\s*%/);
-  if (!match) return null;
-  const parsed = Number(match[1]);
-  return Number.isFinite(parsed) && parsed >= 0 && parsed <= 100 ? parsed : null;
-}
-
-function parseCount(value: string | undefined) {
-  if (!value) return null;
-  const match = value.match(/(-?\d[\d,]*)/);
-  if (!match) return null;
-  const parsed = Number(match[1].replace(/,/g, ""));
-  return Number.isInteger(parsed) && parsed >= 0 ? parsed : null;
-}
-
-function sectionAfter(html: string, title: string, maxLength = 35_000) {
-  const index = normalizeText(html).indexOf(normalizeText(title));
-  if (index < 0) return null;
-  // Use the raw substring from a raw lowercase search where possible; clean parsing below tolerates extra prefix.
-  const rawIndex = html.toLowerCase().indexOf(title.toLowerCase().slice(0, 20));
-  const start = rawIndex >= 0 ? rawIndex : Math.max(0, index - 2000);
-  return html.slice(start, start + maxLength);
-}
-
-function parseMovingAveragePercent(section: string, day: 50 | 200) {
-  const text = cleanText(section).replace(/[‐‑‒–—]/g, "-");
-  const labelPattern = `${day}\\s*-?\\s*day\\s+average`;
-  const afterLabel = text.match(new RegExp(`${labelPattern}[^%]{0,240}?(-?\\d+(?:\\.\\d+)?)\\s*%`, "i"));
-  if (afterLabel) return parsePercent(`${afterLabel[1]}%`);
-  const beforeLabel = text.match(new RegExp(`(-?\\d+(?:\\.\\d+)?)\\s*%[^%]{0,240}?${labelPattern}`, "i"));
-  return parsePercent(beforeLabel?.[0]);
-}
-
-function tableRows(tableHtml: string) {
-  return [...tableHtml.matchAll(/<tr[\s\S]*?<\/tr>/gi)]
-    .map((row) => [...row[0].matchAll(/<t[dh][^>]*>([\s\S]*?)<\/t[dh]>/gi)].map((cell) => cleanText(cell[1])))
-    .filter((row) => row.length);
-}
-
-function parse52WeekHighLow(section: string) {
-  const tables = [...section.matchAll(/<table[\s\S]*?<\/table>/gi)].map((m) => m[0]);
-  for (const table of tables) {
-    const rows = tableRows(table);
-    const header = rows.find((row) => row.some((cell) => /52\s*-?\s*week/i.test(cell)));
-    const columnIndex = header?.findIndex((cell) => /52\s*-?\s*week/i.test(cell)) ?? -1;
-    if (columnIndex < 0) continue;
-    const highRow = rows.find((row) => /today'?s\s+new\s+highs/i.test(row[0] ?? ""));
-    const lowRow = rows.find((row) => /today'?s\s+new\s+lows/i.test(row[0] ?? ""));
-    const highs = parseCount(highRow?.[columnIndex]);
-    const lows = parseCount(lowRow?.[columnIndex]);
-    if (highs != null && lows != null) return { highs52w: highs, lows52w: lows };
-  }
-
-  const text = cleanText(section).replace(/[‐‑‒–—]/g, "-");
-  const compact = text.match(/\(\d+\s+Total Components\)\s+(.+?)\s+Today's New Highs \(% of total\)\s+(.+?)\s+Today's New Lows \(% of total\)\s+(.+?)\s+Difference/i);
-  if (!compact) throw new Error("Barchart 52-week highs/lows table rows not found.");
-  const columns = compact[1].match(/5-Day|1-Month|3-Month|6-Month|52-Week|Year-to-Date/gi) ?? [];
-  const columnIndex = columns.findIndex((column) => /52\s*-?\s*week/i.test(column));
-  if (columnIndex < 0) throw new Error("Barchart 52-week highs/lows table is missing the 52-Week column.");
-  const cellPattern = /\d[\d,]*\s*\([^)]*\)/g;
-  const highCells = compact[2].match(cellPattern) ?? [];
-  const lowCells = compact[3].match(cellPattern) ?? [];
-  const highs = parseCount(highCells[columnIndex]);
-  const lows = parseCount(lowCells[columnIndex]);
-  return highs != null && lows != null ? { highs52w: highs, lows52w: lows } : null;
-}
 
 export function looksLikeBarchartBlockPage(html: string) {
   const text = normalizeText(html);
-  return /captcha|cloudflare|access denied|temporarily blocked|verify you are human|checking your browser|akamai|datadome/.test(text);
+  return /captcha|cloudflare|access denied|temporarily blocked|verify you are human|checking your browser|akamai|datadome|enable javascript and cookies/.test(text);
+}
+
+function parseStrictNumber(value: string) {
+  const text = cleanText(value).replace(/,/g, "");
+  if (!text || !/^[+-]?\d+(?:\.\d+)?$/.test(text)) return null;
+  const parsed = Number(text);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+function findPriceChangeRow(html: string) {
+  return html.match(/<div\b(?=[^>]*class=["'][^"']*\bpricechangerow\b[^"']*["'])[^>]*>[\s\S]*?<\/div>/i)?.[0] ?? null;
+}
+
+function findDirectLastPriceSpan(rowHtml: string) {
+  const spanPattern = /<span\b(?=[^>]*class=["'][^"']*\blast-change\b[^"']*["'])(?=[^>]*data-ng-class=[^>]*lastPrice)[^>]*>([\s\S]*?)<\/span>/i;
+  const match = rowHtml.match(spanPattern);
+  return match ? { html: match[0], text: cleanText(match[1]) } : null;
+}
+
+export function diagnoseBarchartQuoteHtml(html: string, url: string, symbol: string, response?: Response): BarchartQuoteDiagnostics {
+  const row = findPriceChangeRow(html);
+  const lastPrice = row ? findDirectLastPriceSpan(row) : null;
+  return {
+    url,
+    symbol,
+    status: response?.status,
+    contentType: response?.headers.get("content-type") ?? undefined,
+    finalUrl: response?.url,
+    responseLength: html.length,
+    hasPriceChangeRow: !!row,
+    hasLastPriceSpan: !!lastPrice,
+    hasNumericLastPrice: lastPrice ? parseStrictNumber(lastPrice.text) != null : false,
+    appearsBlocked: looksLikeBarchartBlockPage(html),
+    method: "quote-page-html"
+  };
+}
+
+export function parseBarchartQuoteValueHtml(html: string, expectedSymbol: string, url = `https://www.barchart.com/stocks/quotes/${expectedSymbol}`) {
+  const diagnostic = diagnoseBarchartQuoteHtml(html, url, expectedSymbol);
+  if (diagnostic.appearsBlocked) throw new Error(`Barchart ${expectedSymbol} quote page appears to be a block/challenge page: ${JSON.stringify(diagnostic)}`);
+  const row = findPriceChangeRow(html);
+  if (!row) throw new Error(`Barchart ${expectedSymbol} quote page is missing .pricechangerow: ${JSON.stringify(diagnostic)}`);
+  const lastPrice = findDirectLastPriceSpan(row);
+  if (!lastPrice) throw new Error(`Barchart ${expectedSymbol} quote page is missing ${BARCHART_LAST_PRICE_SELECTOR}: ${JSON.stringify(diagnostic)}`);
+  const value = parseStrictNumber(lastPrice.text);
+  if (value == null) throw new Error(`Barchart ${expectedSymbol} quote page lastPrice is not numeric: ${JSON.stringify(diagnostic)}`);
+  return value;
+}
+
+async function fetchWithTimeout(url: string, expectedSymbol: string, attempt = 1): Promise<{ html: string; response: Response }> {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
+  try {
+    const response = await fetch(url, { cache: "no-store", headers: BROWSER_HEADERS, signal: controller.signal });
+    const html = await response.text();
+    return { html, response };
+  } catch (error) {
+    if (attempt < 2) return fetchWithTimeout(url, expectedSymbol, attempt + 1);
+    if (error instanceof Error && error.name === "AbortError") throw new Error(`Barchart ${expectedSymbol} quote fetch timed out after ${FETCH_TIMEOUT_MS}ms.`);
+    throw error;
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+export async function fetchBarchartQuoteValue(url: string, expectedSymbol: string): Promise<number> {
+  const { html, response } = await fetchWithTimeout(url, expectedSymbol);
+  const diagnostic = diagnoseBarchartQuoteHtml(html, url, expectedSymbol, response);
+  if (!response.ok) throw new Error(`Barchart ${expectedSymbol} quote fetch failed: ${JSON.stringify(diagnostic)}`);
+  if (!/html/i.test(diagnostic.contentType ?? "")) throw new Error(`Barchart ${expectedSymbol} quote fetch returned unexpected content type: ${JSON.stringify(diagnostic)}`);
+  if (diagnostic.appearsBlocked) throw new Error(`Barchart ${expectedSymbol} quote fetch returned a block/challenge page: ${JSON.stringify(diagnostic)}`);
+  return parseBarchartQuoteValueHtml(html, expectedSymbol, url);
 }
 
 export function validateBarchartBreadth(snapshot: ParsedBarchartBreadth) {
@@ -183,46 +167,21 @@ export function validateBarchartBreadth(snapshot: ParsedBarchartBreadth) {
   if (maxObserved > 750) throw new Error("Barchart 52-week highs/lows count is unreasonable for S&P 500 components.");
 }
 
-export function parseBarchartSp500Breadth(html: string, fetchedAt = new Date().toISOString()): Sp500BreadthSnapshot {
-  if (looksLikeBarchartBlockPage(html)) throw new Error("Barchart response appears to be a block/challenge page.");
-  const maSection = sectionAfter(html, "Percentage of S&P 500 Stocks Above Moving Average");
-  if (!maSection) throw new Error("Barchart moving-average breadth section not found.");
-  const above50dPercent = parseMovingAverageFromChartBlocks(maSection, 50) ?? parseMovingAveragePercent(maSection, 50);
-  const above200dPercent = parseMovingAverageFromChartBlocks(maSection, 200) ?? parseMovingAveragePercent(maSection, 200);
-  if (above50dPercent == null) throw new Error("Barchart 50-day average percentage not found or invalid.");
-  if (above200dPercent == null) throw new Error("Barchart 200-day average percentage not found or invalid.");
-
-  const highLowSection = sectionAfter(html, "Summary of S&P 500 Stocks With New Highs and Lows");
-  if (!highLowSection) throw new Error("Barchart highs/lows summary table not found.");
-  const highLow = parse52WeekHighLow(highLowSection);
-  if (!highLow) throw new Error("Barchart 52-week highs/lows values not found or invalid.");
-
-  const parsed = { above50dPercent, above200dPercent, ...highLow, sourceUpdatedAt: null };
-  validateBarchartBreadth(parsed);
-  const values = { ...parsed, sourceUrl: BARCHART_SP500_URL };
-  return { id: "sp500", ...values, fetchedAt, contentHash: stableHash(values) };
+export function createBarchartSp500BreadthSnapshot(values: ParsedBarchartBreadth, fetchedAt = new Date().toISOString()): Sp500BreadthSnapshot {
+  validateBarchartBreadth(values);
+  const sourceUrl = BARCHART_BREADTH_SOURCE_URL;
+  const hashValues = { ...values, sourceUrl };
+  return { id: "sp500", ...values, sourceUrl, fetchedAt, contentHash: stableHash(hashValues) };
 }
 
 export async function fetchBarchartSp500Breadth() {
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
-  let response: Response;
-  try {
-    response = await fetch(BARCHART_SP500_URL, { cache: "no-store", headers: BROWSER_HEADERS, signal: controller.signal });
-  } catch (error) {
-    if (error instanceof Error && error.name === "AbortError") throw new Error(`Barchart S&P 500 breadth fetch timed out after ${FETCH_TIMEOUT_MS}ms.`);
-    throw error;
-  } finally {
-    clearTimeout(timeout);
-  }
-  const contentType = response.headers.get("content-type") ?? "unknown";
-  const html = await response.text();
-  const diagnostic = { status: response.status, contentType, finalUrl: response.url, length: html.length, hasMovingAverageHeading: /Percentage of S&P 500 Stocks Above Moving Average/i.test(html), hasHighLowHeading: /Summary of S&P 500 Stocks With New Highs and Lows/i.test(html), has50DayLabel: /50\s*[-‐‑‒–—]?\s*DAY\s+AVERAGE/i.test(html), has200DayLabel: /200\s*[-‐‑‒–—]?\s*DAY\s+AVERAGE/i.test(html), hasRenderedAngularLastPrice: /data-ng-bind=["']::quotesItem\.lastPrice["']>\s*-?\d+(?:\.\d+)?\s*</i.test(html), hasEmptyAngularLastPrice: /data-ng-bind=["']::quotesItem\.lastPrice["']>\s*</i.test(html), appearsBlocked: looksLikeBarchartBlockPage(html) };
-  if (!response.ok) throw new Error(`Barchart S&P 500 breadth fetch failed: ${JSON.stringify(diagnostic)}`);
-  if (!/html/i.test(contentType)) throw new Error(`Barchart S&P 500 breadth fetch returned unexpected content type: ${JSON.stringify(diagnostic)}`);
-  if (looksLikeBarchartBlockPage(html)) throw new Error(`Barchart S&P 500 breadth fetch returned a block/challenge page: ${JSON.stringify(diagnostic)}`);
-  if (!diagnostic.hasMovingAverageHeading || !diagnostic.hasHighLowHeading) throw new Error(`Barchart S&P 500 breadth response missing expected page sections: ${JSON.stringify(diagnostic)}`);
-  return parseBarchartSp500Breadth(html);
+  const [above50dPercent, above200dPercent, highs52w, lows52w] = await Promise.all([
+    fetchBarchartQuoteValue(BARCHART_QUOTE_SOURCES.MMFI.url, BARCHART_QUOTE_SOURCES.MMFI.symbol),
+    fetchBarchartQuoteValue(BARCHART_QUOTE_SOURCES.MMTH.url, BARCHART_QUOTE_SOURCES.MMTH.symbol),
+    fetchBarchartQuoteValue(BARCHART_QUOTE_SOURCES.MAHP.url, BARCHART_QUOTE_SOURCES.MAHP.symbol),
+    fetchBarchartQuoteValue(BARCHART_QUOTE_SOURCES.MALP.url, BARCHART_QUOTE_SOURCES.MALP.symbol)
+  ]);
+  return createBarchartSp500BreadthSnapshot({ above50dPercent, above200dPercent, highs52w, lows52w, sourceUpdatedAt: null });
 }
 
 function toDb(snapshot: Sp500BreadthSnapshot) {
@@ -247,7 +206,7 @@ function fromDb(row: Rec): Sp500BreadthSnapshot | null {
   const highs52w = Number(row.highs_52w);
   const lows52w = Number(row.lows_52w);
   const fetchedAt = typeof row.fetched_at === "string" ? row.fetched_at : new Date().toISOString();
-  const sourceUrl = typeof row.source_url === "string" ? row.source_url : BARCHART_SP500_URL;
+  const sourceUrl = typeof row.source_url === "string" ? row.source_url : BARCHART_BREADTH_SOURCE_URL;
   const sourceUpdatedAt = typeof row.source_updated_at === "string" ? row.source_updated_at : null;
   const parsed = { above50dPercent, above200dPercent, highs52w, lows52w, sourceUpdatedAt };
   try { validateBarchartBreadth(parsed); } catch { return null; }
@@ -265,12 +224,13 @@ export async function refreshBarchartSp500Breadth() {
   try {
     const snapshot = await fetchBarchartSp500Breadth();
     await writeBarchartSp500BreadthSnapshot(supabase.client, snapshot);
-    await updateRefreshMetadata(supabase.client, SOURCE, { ok: true, changed: true, rowCount: 1, contentHash: payloadContentHash([snapshot]), meta: { sourceUrl: snapshot.sourceUrl, fetchedAt: snapshot.fetchedAt, sourceUpdatedAt: snapshot.sourceUpdatedAt } });
-    return sourceResult({ ok: true, count: 1, changed: true, contentHash: snapshot.contentHash, upserted: 1, persisted: true, meta: { sourceUrl: snapshot.sourceUrl, fetchedAt: snapshot.fetchedAt, sourceUpdatedAt: snapshot.sourceUpdatedAt } });
+    const meta = { sourceUrl: snapshot.sourceUrl, fetchedAt: snapshot.fetchedAt, sourceUpdatedAt: snapshot.sourceUpdatedAt, method: "quote-page-html", selector: BARCHART_LAST_PRICE_SELECTOR, symbols: BARCHART_QUOTE_SOURCES };
+    await updateRefreshMetadata(supabase.client, SOURCE, { ok: true, changed: true, rowCount: 1, contentHash: payloadContentHash([snapshot]), meta });
+    return sourceResult({ ok: true, count: 1, changed: true, contentHash: snapshot.contentHash, upserted: 1, persisted: true, meta });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Unknown Barchart S&P 500 breadth refresh error";
-    try { await updateRefreshMetadata(supabase.client, SOURCE, { ok: false, changed: false, rowCount: 0, error: message }); } catch {}
-    return sourceResult({ ok: false, count: 0, error: message, persisted: false, meta: { preservedCache: true } });
+    try { await updateRefreshMetadata(supabase.client, SOURCE, { ok: false, changed: false, rowCount: 0, error: message, meta: { preservedCache: true, method: "quote-page-html", selector: BARCHART_LAST_PRICE_SELECTOR } }); } catch {}
+    return sourceResult({ ok: false, count: 0, error: message, persisted: false, meta: { preservedCache: true, method: "quote-page-html" } });
   }
 }
 
@@ -285,8 +245,8 @@ export async function readCachedSp500Breadth(client?: SupabaseClient) {
 export function barchartBreadthMetrics(snapshot: Sp500BreadthSnapshot | null): Metric[] {
   const unavailable = { value: "—", subtext: "Barchart cache unavailable", tone: "neutral" as const };
   return [
-    { label: "% Above 50D MA", ...(snapshot ? { value: `${snapshot.above50dPercent.toFixed(1)}%`, subtext: "Barchart 50-day average", tone: "neutral" as const } : unavailable) },
-    { label: "% Above 200D MA", ...(snapshot ? { value: `${snapshot.above200dPercent.toFixed(1)}%`, subtext: "Barchart 200-day average", tone: "neutral" as const } : unavailable) },
-    { label: "52W Highs and Lows", ...(snapshot ? { value: `${snapshot.highs52w.toLocaleString()} / ${snapshot.lows52w.toLocaleString()}`, subtext: "Barchart 52-week highs / lows", tone: snapshot.highs52w >= snapshot.lows52w ? "positive" as const : "negative" as const } : unavailable) }
+    { label: "% Above 50D MA", ...(snapshot ? { value: `${snapshot.above50dPercent.toFixed(1)}%`, subtext: "Barchart $MMFI", tone: "neutral" as const } : unavailable) },
+    { label: "% Above 200D MA", ...(snapshot ? { value: `${snapshot.above200dPercent.toFixed(1)}%`, subtext: "Barchart $MMTH", tone: "neutral" as const } : unavailable) },
+    { label: "52W Highs and Lows", ...(snapshot ? { value: `${snapshot.highs52w.toLocaleString()} / ${snapshot.lows52w.toLocaleString()}`, subtext: "Barchart $MAHP / $MALP", tone: snapshot.highs52w >= snapshot.lows52w ? "positive" as const : "negative" as const } : unavailable) }
   ];
 }
