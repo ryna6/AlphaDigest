@@ -1,9 +1,11 @@
-"use client";
-
-import { useEffect, useRef, useState } from "react";
-import Image from "next/image";
-import type { HeatmapTile } from "@/lib/data/schemas/common";
-import { cn } from "@/lib/utils/cn";
+import { useState } from "react";
+import type { MarketsPayload } from "@/lib/data/schemas/dashboard";
+import { PageTitle } from "@/components/dashboard/page-title";
+import { Panel } from "@/components/ui/panel";
+import { SectionHeader } from "@/components/ui/section-header";
+import { MetricRow } from "@/components/ui/metric-row";
+import { Heatmap } from "@/components/ui/heatmap";
+import { ErrorState } from "@/components/ui/error-state";
 
 function colorStyle(change: number) {
   const clamped = Math.max(-5, Math.min(5, change));
