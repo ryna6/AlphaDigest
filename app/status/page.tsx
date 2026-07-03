@@ -17,6 +17,13 @@ const statusDot: Record<StatusValue, string> = {
   Unknown: "bg-[#9ca3af]"
 };
 
+const statusLabel: Record<StatusValue, string> = {
+  Healthy: "Good",
+  Warning: "Warning",
+  Error: "Critical",
+  Unknown: "Offline"
+};
+
 
 const STATUS_PAGE_TIME_FORMATTER = new Intl.DateTimeFormat("en-US", {
   month: "short",
@@ -85,8 +92,9 @@ export default async function StatusPage() {
                           <span className="block text-xs text-textSecondary">{row.functionName}</span>
                         </td>
                         <td className="py-3 px-4 text-center">
-                          <span className="inline-flex items-center justify-center text-textPrimary" aria-label={`Status: ${row.status}`}>
+                          <span className="inline-flex min-w-[6.5rem] items-center justify-center gap-2 text-textPrimary" aria-label={`Status: ${statusLabel[row.status]}`}>
                             <span className={`h-2.5 w-2.5 rounded-full ${statusDot[row.status]}`} aria-hidden="true" />
+                            <span>{statusLabel[row.status]}</span>
                           </span>
                         </td>
                         <td className="py-3 pr-4 text-textSecondary">{row.source}</td>
