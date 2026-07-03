@@ -5,8 +5,11 @@ import {
   marketBreadthMetrics,
   parseLatestInvestingBreadthRow,
   parseYahooScreenerTotal,
+  readCachedSp500Breadth,
   validateMarketBreadth,
+  writeInvestingBreadthSnapshot,
   writeMarketBreadthSnapshot,
+  writeYahooBreadthSnapshot,
   yahooScreenerRequest,
   YAHOO_52_WEEK_SOURCES
 } from "../lib/data/adapters/market-breadth";
@@ -209,32 +212,37 @@ test("one incomplete source prevents database write", async () => {
   assert.equal(called, false);
 });
 
-test("complete snapshots target market_breadth and store OHLC fields", async () => {
+test("provider snapshots target split tables and store correct fields", async () => {
   const snapshot = createMarketBreadthSnapshot(parsed, "2026-07-03T00:00:00.000Z");
-  let table = "";
-  let row: Record<string, unknown> = {};
+  const calls: Array<{ table: string; row: Record<string, unknown> }> = [];
   const client = {
-    from: (name: string) => {
-      table = name;
-      return {
-        upsert: (payload: Record<string, unknown>) => {
-          row = payload;
-          return {
-            select: () => ({
-              single: async () => ({
-                data: { id: "sp500", fetched_at: "2026-07-03T00:00:00.000Z" },
-                error: null
-              })
+    from: (name: string) => ({
+      upsert: (payload: Record<string, unknown>) => {
+        calls.push({ table: name, row: payload });
+        return {
+          select: () => ({
+            single: async () => ({
+              data: { id: "sp500", fetched_at: "2026-07-03T00:00:00.000Z" },
+              error: null
             })
-          };
-        }
-      };
-    }
+          })
+        };
+      }
+    })
   } as never;
   await writeMarketBreadthSnapshot(client, snapshot);
-  assert.equal(table, "market_breadth");
-  assert.equal(row.above_50d_close, 67.06);
-  assert.equal(row.above_200d_open, 50);
+  assert.deepEqual(
+    calls.map((call) => call.table),
+    ["%_above_ma", "52w_high_low"]
+  );
+  assert.equal(calls[0].row.above_50d_close, 67.06);
+  assert.equal(calls[0].row.above_200d_open, 50);
+  assert.equal(calls[1].row.highs_52w, 3);
+  assert.equal(calls[1].row.lows_52w, 1);
+  assert.equal(
+    calls.some((call) => call.table === "market_breadth"),
+    false
+  );
 });
 
 test("Supabase write errors are thrown and no success is inferred from empty data", async () => {
@@ -253,4 +261,107 @@ test("Supabase write errors are thrown and no success is inferred from empty dat
     })
   } as never;
   await assert.rejects(() => writeMarketBreadthSnapshot(emptyClient, snapshot), /returned no row/);
+});
+
+test("malformed Investing snapshot prevents only Investing write", async () => {
+  let called = false;
+  const client = {
+    from: () => ({
+      upsert: () => {
+        called = true;
+        return { select: () => ({ single: async () => ({ data: {}, error: null }) }) };
+      }
+    })
+  } as never;
+  await assert.rejects(
+    () =>
+      writeInvestingBreadthSnapshot(client, {
+        id: "sp500",
+        above50d: { ...ohlc, close: Number.NaN },
+        above200d: parsed.above200d,
+        sourceUrl: "u",
+        fetchedAt: "now",
+        contentHash: "h"
+      }),
+    /not finite/
+  );
+  assert.equal(called, false);
+});
+
+test("Yahoo and Investing writes are independently callable for partial success", async () => {
+  const calls: string[] = [];
+  const client = {
+    from: (name: string) => ({
+      upsert: () => ({
+        select: () => ({
+          single: async () => {
+            calls.push(name);
+            return { data: { id: "sp500" }, error: null };
+          }
+        })
+      })
+    })
+  } as never;
+  await writeInvestingBreadthSnapshot(client, {
+    id: "sp500",
+    above50d: parsed.above50d,
+    above200d: parsed.above200d,
+    sourceUrl: "u",
+    fetchedAt: "now",
+    contentHash: "h"
+  });
+  await writeYahooBreadthSnapshot(client, {
+    id: "sp500",
+    highs52w: 3,
+    lows52w: 1,
+    sourceUrl: "u",
+    fetchedAt: "now",
+    contentHash: "h"
+  });
+  assert.deepEqual(calls, ["%_above_ma", "52w_high_low"]);
+});
+
+test("latest-row reader queries split tables ordered by fetched_at", async () => {
+  const tables: string[] = [];
+  const orders: string[] = [];
+  const client = {
+    from: (name: string) => {
+      tables.push(name);
+      return {
+        select: () => ({
+          order: (column: string) => {
+            orders.push(`${name}:${column}`);
+            return {
+              limit: () => ({
+                maybeSingle: async () => ({
+                  data:
+                    name === "%_above_ma"
+                      ? {
+                          above_50d_timestamp: 1782950400000,
+                          above_50d_open: 66.46,
+                          above_50d_high: 67.26,
+                          above_50d_low: 64.88,
+                          above_50d_close: 67.06,
+                          above_200d_timestamp: 1782950400000,
+                          above_200d_open: 50,
+                          above_200d_high: 60,
+                          above_200d_low: 45,
+                          above_200d_close: 55,
+                          fetched_at: "now"
+                        }
+                      : { highs_52w: 3, lows_52w: 1, fetched_at: "now" },
+                  error: null
+                })
+              })
+            };
+          }
+        })
+      };
+    }
+  } as never;
+  const result = await readCachedSp500Breadth(client);
+  assert.equal(result.snapshot?.above50d.close, 67.06);
+  assert.equal(result.snapshot?.highs52w, 3);
+  assert.deepEqual(tables, ["%_above_ma", "52w_high_low"]);
+  assert.deepEqual(orders, ["%_above_ma:fetched_at", "52w_high_low:fetched_at"]);
 });
