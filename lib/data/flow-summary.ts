@@ -1,9 +1,9 @@
 import type { DarkPoolFlowRow, InsiderTradeRow, WhaleFeedRow } from "./schemas/dashboard";
-import { DARK_POOL_RETENTION_DAYS } from "./adapters/unusual-whales-dark-pool";
 import type { Metric } from "./schemas/common";
 // Keep a small neutral band around 50% so rounding noise does not overstate direction.
 const NEUTRAL_LOW = 0.495;
 const NEUTRAL_HIGH = 0.505;
+export const DARK_POOL_SUMMARY_WINDOW_DAYS = 14;
 export const WHALE_FEED_SUMMARY_WINDOW_DAYS = 14;
 
 export type FlowSummaryMetric = Metric & {
@@ -99,8 +99,13 @@ export function deriveFlowSummary({
   insiderRows: InsiderTradeRow[];
   whaleTrades: WhaleFeedRow[];
 }): FlowSummaryMetric[] {
-  const largest = [...darkPool].sort((a, b) => (b.premium ?? 0) - (a.premium ?? 0))[0];
-  const whaleRows = whaleTrades.filter((row) => isWithinDays(row.executedAt, WHALE_FEED_SUMMARY_WINDOW_DAYS));
+  const darkPoolRows = darkPool.filter((row) =>
+    isWithinDays(row.executedAt, DARK_POOL_SUMMARY_WINDOW_DAYS)
+  );
+  const largest = [...darkPoolRows].sort((a, b) => (b.premium ?? 0) - (a.premium ?? 0))[0];
+  const whaleRows = whaleTrades.filter((row) =>
+    isWithinDays(row.executedAt, WHALE_FEED_SUMMARY_WINDOW_DAYS)
+  );
   const whale = [...whaleRows].sort((a, b) => (b.premium ?? 0) - (a.premium ?? 0))[0];
   const sentiment = deriveInsiderSentiment(insiderRows);
   return [
@@ -116,7 +121,7 @@ export function deriveFlowSummary({
       ratio: sentiment.ratio
     },
     {
-      label: `Largest Dark Pool Print (${DARK_POOL_RETENTION_DAYS}D)`,
+      label: `Largest Dark Pool Print (${DARK_POOL_SUMMARY_WINDOW_DAYS}D)`,
       value: largest ? largest.ticker : "—",
       subtext: largest ? format30dVolumeSubtext(largest.size, largest.avg30Volume) : undefined,
       change: largest ? money(largest.premium) : undefined,
@@ -132,7 +137,11 @@ export function deriveFlowSummary({
       value: whale ? whale.ticker : "—",
       subtext: whale ? capitalizeSentiment(whale.sentiment) : undefined,
       change: whale ? money(whale.premium) : undefined,
-      href: whale?.ticker ? `/flow/whale-feed/${whale.ticker}` : whale ? "/flow/whale-feed" : undefined,
+      href: whale?.ticker
+        ? `/flow/whale-feed/${whale.ticker}`
+        : whale
+          ? "/flow/whale-feed"
+          : undefined,
       tone: sentimentTone(whale?.sentiment)
     }
   ];

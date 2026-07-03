@@ -128,9 +128,9 @@ Important behavior:
 - Page route: `app/flow/page.tsx`; API route: `/api/flow`.
 - Contains Flow Summary, Dark Pool, Whale Feed, and Insider Trades.
 - Flow Summary replaces Big Money Flow Summary and no longer includes Top 13F accumulation because 13F data moved to Ownership.
-- Dark Pool is Supabase-backed from the provided Unusual Whales dark-pool endpoint, refreshed once daily, expected to be delayed by roughly two days, and retained for 14 days.
+- Dark Pool is Supabase-backed from the provided Unusual Whales dark-pool endpoint, refreshed once daily, expected to be delayed by roughly two days, and retained for 30 days.
 - Insider Trades is Supabase-backed from up to four server-side pages of the provided Unusual Whales insider endpoint, filtered and pruned to the past 6 months by `transaction_date`, aggregated by ticker, with top 5 on the main Flow tab, initial top 25 and View more up to top 50 at `/flow/insider-trades`, and detail rows at `/flow/insider-trades/[ticker]`.
-- Whale Feed is Supabase-backed from the server-side Unusual Whales lit-trades whale endpoint, retains rows for 14 days, and uses fixture fallback only when cached rows are unavailable.
+- Whale Feed is Supabase-backed from the server-side Unusual Whales lit-trades whale endpoint, retains rows for 30 days, and uses fixture fallback only when cached rows are unavailable.
 
 ## Ownership tab
 
@@ -141,7 +141,7 @@ Important behavior:
 
 #### Flow cache behavior
 
-The Flow tab reads cached Supabase rows/snapshots first and never calls Unusual Whales from browser components. Dark Pool keeps up to 14 days of normalized large-print rows and may show zero fresh rows when the provider is delayed, the plan returns an empty/paywalled response, filters match nothing, or the response shape changes; `/api/cache/status` and Supabase job telemetry expose a safe `emptyReason` instead of treating unexplained zero rows as a silent success. Insider Trades are filtered to the past 6 months, deduped before Supabase upsert, pruned by `transaction_date` after refresh, and keyed with stable deterministic IDs. `flow:latest` can be written with notices when one Flow source succeeds and another fails, but refresh logs identify partial snapshots versus fully fresh snapshots.
+The Flow tab reads cached Supabase rows/snapshots first and never calls Unusual Whales from browser components. Dark Pool keeps up to 30 days of normalized large-print rows and may show zero fresh rows when the provider is delayed, the plan returns an empty/paywalled response, filters match nothing, or the response shape changes; `/api/cache/status` and Supabase job telemetry expose a safe `emptyReason` instead of treating unexplained zero rows as a silent success. Insider Trades are filtered to the past 6 months, deduped before Supabase upsert, pruned by `transaction_date` after refresh, and keyed with stable deterministic IDs. `flow:latest` can be written with notices when one Flow source succeeds and another fails, but refresh logs identify partial snapshots versus fully fresh snapshots.
 
 ### Flow revision details
 
@@ -169,7 +169,7 @@ The Flow tab reads cached Supabase rows/snapshots first and never calls Unusual 
 
 ### Flow Whale Feed and Dark Pool size fields
 
-Whale Feed replaces the former Whale Trades label in the Flow UI. Netlify wakes `refresh-whale-feed` on weekdays; a Toronto runtime guard runs provider work every hour Monday-Friday and calls the Unusual Whales `lit-trades?tab=whale` endpoint server-side only; browser components never call Unusual Whales and never receive `SUPABASE_SERVICE_ROLE_KEY`. Rows are upserted into `unusual_whales_whale_feed` without replacing recent history, pruned only when `executed_at` is older than 14 days, and normalized with only `size`, `ticker`, `price`, `nbbo_ask`, `nbbo_bid`, `executed_at`, `premium`, `sector`, `volume`, `avg30_volume`, and internal `external_id`, `side`, `sentiment`, `fetched_at`, `created_at`, `updated_at` fields. The expanded Whale Feed page initially shows 15 server-loaded rows and supports client-side View more in batches of 15 after the server has loaded cached rows.
+Whale Feed replaces the former Whale Trades label in the Flow UI. Netlify wakes `refresh-whale-feed` on weekdays; a Toronto runtime guard runs provider work every hour Monday-Friday and calls the Unusual Whales `lit-trades?tab=whale` endpoint server-side only; browser components never call Unusual Whales and never receive `SUPABASE_SERVICE_ROLE_KEY`. Rows are upserted into `unusual_whales_whale_feed` without replacing recent history, pruned only when `executed_at` is older than 30 days, and normalized with only `size`, `ticker`, `price`, `nbbo_ask`, `nbbo_bid`, `executed_at`, `premium`, `sector`, `volume`, `avg30_volume`, and internal `external_id`, `side`, `sentiment`, `fetched_at`, `created_at`, `updated_at` fields. The expanded Whale Feed page initially shows 15 server-loaded rows and supports client-side View more in batches of 15 after the server has loaded cached rows.
 
 Dark Pool ingestion stores `size` and `avg30_volume` in addition to existing normalized fields, but does not store NBBO, side, or sentiment. Flow displays Dark Pool individual trade size from `size`; `volume` is retained as total same-day ticker volume for `% Vol = size / volume`, and `avg30_volume` powers `% 30D Vol = size / avg30_volume`.
 
@@ -226,3 +226,6 @@ The current Economy tab does not yet compute active card scores for Economy Regi
 ### Economy chart refinements
 
 The Economy tab stores FRED observations in `fred_economy`, refreshes them daily and incrementally after each series' latest saved observation date, and keeps FRED API access server-side only. Selected-card metrics use a six-card single-row desktop layout with responsive horizontal overflow on smaller screens, y-axis ticks are whole-number compact labels, chart domains include padding above and below the data, the y-axis label is vertically centered and offset with balanced left margin/axis width so it does not overlap tick values, tooltips show only date and formatted value, chart titles include the selected FRED ID, the x-axis title is removed while year-only tick labels remain, metric tiles show smaller muted units beside values, Economy info icons are removed, and detail text uses spaced `Range: start to end | Frequency: ... | ...` metadata without `Unit` or `Source: FRED`.
+
+- Markets `Market Movers` presents Leaders and Laggards as compact structured sections with neutral ticker text and color applied only to signed percentage changes.
+- Institution Detail Stock Holdings calculates `% Change` from current units and `units_change`: `(units_change / abs(current units - units_change)) * 100`. Sold-out positions show `-100.00%`, new positions or missing previous units show `—`, and positive absolute Change values include a leading `+`.

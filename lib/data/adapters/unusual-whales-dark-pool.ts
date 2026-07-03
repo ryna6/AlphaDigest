@@ -6,7 +6,7 @@ import { payloadContentHash, sourceResult, updateRefreshMetadata } from "./supab
 
 export const UW_DARK_POOL_URL =
   "https://phx.unusualwhales.com/api/flow/dark-pool?tab=dark-pool&limit=250&min_premium=10000000&min_marketcap=5000000000&min_size_avg30d_vol_perc=0.05&min_size_daily_perc=0.15&min_size=250000&min_price=5&order=Prem&hide_index_etf=true&max_marketcap=100000000000&max_size_daily_perc=0.5&max_size_avg30d_vol_perc=0.25";
-export const DARK_POOL_RETENTION_DAYS = 14;
+export const DARK_POOL_RETENTION_DAYS = 30;
 const SOURCE = "unusual_whales_dark_pool_flows";
 
 type Rec = Record<string, unknown>;

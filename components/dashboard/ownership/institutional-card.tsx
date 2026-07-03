@@ -11,6 +11,10 @@ import {
 } from "@/components/dashboard/ownership/return-value";
 import { cn } from "@/lib/utils/cn";
 import { formatCompactNumber, formatMarketCap } from "@/lib/utils/formatters";
+import {
+  signedPositionChange,
+  positionChangePercentFromUnits
+} from "@/lib/data/institution-position-change";
 
 type Institution = {
   name: string;
@@ -520,15 +524,15 @@ function DetailTable({
                       deltaClass(r.unitsChange)
                     )}
                   >
-                    {num(r.unitsChange)}
+                    {signedPositionChange(r.unitsChange)}
                   </td>
                   <td
                     className={cn(
                       "border-b border-borderStrong/50 px-3 py-2",
-                      deltaClass(r.changePerc)
+                      deltaClass(positionChangePercentFromUnits(r.units, r.unitsChange))
                     )}
                   >
-                    {pct(r.changePerc)}
+                    {pct(positionChangePercentFromUnits(r.units, r.unitsChange))}
                   </td>
                   <td className="border-b border-borderStrong/50 px-3 py-2">{price(r.avgPrice)}</td>
                   <td className="border-b border-borderStrong/50 px-3 py-2">

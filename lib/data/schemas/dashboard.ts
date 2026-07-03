@@ -193,6 +193,7 @@ export const flowPayloadSchema = z.object({
       insiderCompaniesAggregated: z.number().optional(),
       insiderSource: z.string().optional(),
       darkPoolWindowDays: z.number().optional(),
+      darkPoolSummaryWindowDays: z.number().optional(),
       darkPoolRowsUsed: z.number().optional(),
       whaleFeedRowsUsed: z.number().optional(),
       whaleFeedSource: z.string().optional()
@@ -246,17 +247,25 @@ const economyMetricDefinitionSchema = z.object({
   frequency: z.enum(["Daily", "Weekly", "Monthly", "Quarterly"]),
   seasonalAdjustment: z.string(),
   preferredChangeMode: economyChangeModeSchema,
-  valueFormat: z.enum(["number", "percent", "currency-billions", "currency-trillions", "persons-thousands"]),
+  valueFormat: z.enum([
+    "number",
+    "percent",
+    "currency-billions",
+    "currency-trillions",
+    "persons-thousands"
+  ]),
   chartAxisLabel: z.string(),
   signalLabel: z.string(),
   whatItMeasures: z.string(),
   whyInvestorsCare: z.string(),
   howToReadIt: z.string(),
   currentTakeaway: z.string(),
-  fredOptions: z.object({
-    units: z.string().optional(),
-    frequency: z.string().optional()
-  }).optional(),
+  fredOptions: z
+    .object({
+      units: z.string().optional(),
+      frequency: z.string().optional()
+    })
+    .optional(),
   latestDate: z.string().optional(),
   latestValue: z.number().nullable().optional(),
   history: z.array(economyDataPointSchema).optional(),
