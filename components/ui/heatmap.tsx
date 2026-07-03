@@ -4,6 +4,9 @@ import Image from "next/image";
 import type { HeatmapTile } from "@/lib/data/schemas/common";
 import { cn } from "@/lib/utils/cn";
 
+const MAX_TARGET_ASPECT_RATIO = 1.5;
+const MIN_TREEMAP_WEIGHT = 0.000001;
+
 function colorStyle(change: number) {
   const clamped = Math.max(-5, Math.min(5, change));
   const intensity = Math.min(1, Math.abs(clamped) / 3);
@@ -28,43 +31,98 @@ function changeTextColor(change: number) {
 
 type Rect = { x: number; y: number; w: number; h: number };
 type Positioned = HeatmapTile & Rect;
+type TreemapItem = HeatmapTile & { scaledWeight: number };
 
-function aggregateRemainder(rows: HeatmapTile[], label: string) {
-  if (!rows.length) return [];
-  const total = rows.reduce((sum, r) => sum + Math.max(0, r.weight), 0);
-  let running = 0;
-  const visible: HeatmapTile[] = [];
-  const remainder: HeatmapTile[] = [];
-  for (const row of [...rows].sort((a, b) => b.weight - a.weight)) {
-    if (running / total < 0.8) { visible.push(row); running += Math.max(0, row.weight); }
-    else remainder.push(row);
-  }
-  if (remainder.length) {
-    visible.push({ symbol: "OTHER", label, value: 0, weight: remainder.reduce((s, r) => s + r.weight, 0), changePercent: remainder.reduce((s, r) => s + r.changePercent, 0) / remainder.length, aggregate: true });
-  }
-  return visible;
+function weightedAverageChange(rows: HeatmapTile[]) {
+  const total = rows.reduce((sum, row) => sum + Math.max(0, row.weight), 0);
+  if (!total) return 0;
+  return rows.reduce((sum, row) => sum + row.changePercent * Math.max(0, row.weight), 0) / total;
 }
 
-function layout(items: HeatmapTile[], rect: Rect, vertical = true): Positioned[] {
-  if (!items.length) return [];
-  const [first, ...rest] = items;
-  const total = items.reduce((sum, item) => sum + Math.max(0, item.weight), 0) || 1;
-  const share = Math.max(0.03, Math.min(0.97, first.weight / total));
-  if (!rest.length) return [{ ...first, ...rect }];
-  if (vertical) {
-    const w = rect.w * share;
-    return [{ ...first, x: rect.x + rect.w - w, y: rect.y, w, h: rect.h }, ...layout(rest, { x: rect.x, y: rect.y, w: rect.w - w, h: rect.h }, false)];
+function sortedWeightedTiles(items: HeatmapTile[]) {
+  return [...items]
+    .filter((item) => Number.isFinite(item.weight) && item.weight > 0)
+    .sort((a, b) => b.weight - a.weight || a.symbol.localeCompare(b.symbol));
+}
+
+function worstAspect(row: TreemapItem[], side: number) {
+  if (!row.length || side <= 0) return Number.POSITIVE_INFINITY;
+  const sum = row.reduce((total, item) => total + item.scaledWeight, 0);
+  const min = Math.min(...row.map((item) => item.scaledWeight));
+  const max = Math.max(...row.map((item) => item.scaledWeight));
+  if (min <= 0 || sum <= 0) return Number.POSITIVE_INFINITY;
+  const sideSquared = side * side;
+  return Math.max((sideSquared * max) / (sum * sum), (sum * sum) / (sideSquared * min));
+}
+
+function layoutRow(row: TreemapItem[], rect: Rect): { positioned: (Positioned & { scaledWeight: number })[]; remaining: Rect } {
+  const rowArea = row.reduce((sum, item) => sum + item.scaledWeight, 0);
+  if (rowArea <= 0 || rect.w <= 0 || rect.h <= 0) return { positioned: [], remaining: rect };
+
+  if (rect.w >= rect.h) {
+    const rowHeight = Math.min(rect.h, rowArea / rect.w);
+    let cursorX = rect.x;
+    const positioned = row.map((item, index) => {
+      const width = index === row.length - 1 ? rect.x + rect.w - cursorX : item.scaledWeight / rowHeight;
+      const tile = { ...item, x: cursorX, y: rect.y, w: Math.max(0, width), h: rowHeight };
+      cursorX += width;
+      return tile;
+    });
+    return { positioned, remaining: { x: rect.x, y: rect.y + rowHeight, w: rect.w, h: Math.max(0, rect.h - rowHeight) } };
   }
-  const h = rect.h * share;
-  return [{ ...first, x: rect.x, y: rect.y, w: rect.w, h }, ...layout(rest, { x: rect.x, y: rect.y + h, w: rect.w, h: rect.h - h }, true)];
+
+  const rowWidth = Math.min(rect.w, rowArea / rect.h);
+  let cursorY = rect.y;
+  const positioned = row.map((item, index) => {
+    const height = index === row.length - 1 ? rect.y + rect.h - cursorY : item.scaledWeight / rowWidth;
+    const tile = { ...item, x: rect.x, y: cursorY, w: rowWidth, h: Math.max(0, height) };
+    cursorY += height;
+    return tile;
+  });
+  return { positioned, remaining: { x: rect.x + rowWidth, y: rect.y, w: Math.max(0, rect.w - rowWidth), h: rect.h } };
+}
+
+function squarifiedLayout(items: HeatmapTile[], rect: Rect, targetAspectRatio = MAX_TARGET_ASPECT_RATIO): Positioned[] {
+  const sorted = sortedWeightedTiles(items);
+  const totalWeight = sorted.reduce((sum, item) => sum + Math.max(MIN_TREEMAP_WEIGHT, item.weight), 0);
+  const totalArea = rect.w * rect.h;
+  if (!sorted.length || totalWeight <= 0 || totalArea <= 0) return [];
+
+  const queue: TreemapItem[] = sorted.map((item) => ({
+    ...item,
+    scaledWeight: (Math.max(MIN_TREEMAP_WEIGHT, item.weight) / totalWeight) * totalArea
+  }));
+  const positioned: (Positioned & { scaledWeight: number })[] = [];
+  let remaining = rect;
+  let row: TreemapItem[] = [];
+
+  while (queue.length) {
+    const next = queue[0];
+    const side = Math.min(remaining.w, remaining.h);
+    const currentWorst = worstAspect(row, side);
+    const nextWorst = worstAspect([...row, next], side);
+
+    if (!row.length || nextWorst <= Math.max(currentWorst, targetAspectRatio)) {
+      row.push(queue.shift()!);
+    } else {
+      const laidOut = layoutRow(row, remaining);
+      positioned.push(...laidOut.positioned);
+      remaining = laidOut.remaining;
+      row = [];
+    }
+  }
+
+  if (row.length) positioned.push(...layoutRow(row, remaining).positioned);
+  return positioned.map(({ scaledWeight: _scaledWeight, ...tile }) => tile);
 }
 
 const sectorOrder = ["Technology", "Utilities", "Financials", "Health Care", "Energy", "Consumer Discretionary", "Consumer Staples", "Industrials", "Materials", "Communication Services", "Real Estate", "Other"];
 
 function TradingTile({ tile }: { tile: Positioned }) {
-  const showTicker = tile.w >= 7 && tile.h >= 8;
-  const showChange = tile.w >= 10 && tile.h >= 13;
-  const showLogo = tile.w >= 5 && tile.h >= 7 && tile.iconPath && !tile.aggregate;
+  const area = tile.w * tile.h;
+  const showTicker = tile.w >= 4.5 && tile.h >= 5 && area >= 28;
+  const showChange = tile.w >= 6 && tile.h >= 8 && area >= 60;
+  const showLogo = tile.w >= 5 && tile.h >= 7 && area >= 55 && tile.iconPath && !tile.aggregate;
   return (
     <div className="absolute overflow-hidden border p-1 shadow-[inset_0_0_24px_rgba(0,0,0,0.18)] transition hover:z-10 hover:brightness-110" style={{ left: `${tile.x}%`, top: `${tile.y}%`, width: `${tile.w}%`, height: `${tile.h}%`, ...colorStyle(tile.changePercent) }} title={`${tile.label}: ${tile.changePercent.toFixed(2)}%`}>
       <div className="flex h-full flex-col items-center justify-center gap-1 text-center">
@@ -79,17 +137,18 @@ function TradingTile({ tile }: { tile: Positioned }) {
 function TradingViewHeatmap({ tiles, grouping }: { tiles: HeatmapTile[]; grouping: "none" | "sector" }) {
   if (grouping === "sector") {
     const groups = sectorOrder.map((sector) => {
-      const rows = aggregateRemainder(tiles.filter((t) => (t.sector ?? "Other") === sector), `${sector} Others`);
-      return { sector, rows, weight: rows.reduce((s, r) => s + r.weight, 0) };
+      const rows = sortedWeightedTiles(tiles.filter((t) => (t.sector ?? "Other") === sector));
+      return { sector, rows, weight: rows.reduce((s, r) => s + r.weight, 0), changePercent: weightedAverageChange(rows) };
     }).filter((g) => g.rows.length);
-    const groupRects = layout(groups.map((g) => ({ symbol: g.sector, label: g.sector, value: 0, changePercent: 0, weight: g.weight })), { x: 0, y: 0, w: 100, h: 100 });
+    const groupRects = squarifiedLayout(groups.map((g) => ({ symbol: g.sector, label: g.sector, value: 0, changePercent: g.changePercent, weight: g.weight })), { x: 0, y: 0, w: 100, h: 100 });
     return <div className="relative h-[32rem] overflow-hidden border border-borderStrong bg-[#0b1120] md:h-[38rem]">{groupRects.map((rect) => {
       const group = groups.find((g) => g.sector === rect.symbol)!;
-      const inner = layout(group.rows, { x: rect.x + 0.25, y: rect.y + 3.25, w: Math.max(0, rect.w - 0.5), h: Math.max(0, rect.h - 3.5) });
-      return <div key={group.sector} className="absolute border border-black/50 bg-black/20" style={{ left: `${rect.x}%`, top: `${rect.y}%`, width: `${rect.w}%`, height: `${rect.h}%` }}><div className="h-6 truncate px-2 text-[11px] font-bold uppercase tracking-wide text-white/75">{group.sector}</div>{inner.map((tile) => <TradingTile key={`${group.sector}-${tile.symbol}-${tile.label}`} tile={tile} />)}</div>;
+      const titleHeight = rect.h >= 10 ? 4.25 : 0;
+      const inner = squarifiedLayout(group.rows, { x: 0.25, y: titleHeight + 0.25, w: Math.max(0, 99.5), h: Math.max(0, 100 - titleHeight - 0.5) });
+      return <div key={group.sector} className="absolute overflow-hidden border border-black/60 bg-black/20" style={{ left: `${rect.x}%`, top: `${rect.y}%`, width: `${rect.w}%`, height: `${rect.h}%` }}>{titleHeight ? <div className="absolute left-0 top-0 z-10 h-[4.25%] w-full truncate bg-black/35 px-2 py-1 text-[11px] font-bold uppercase tracking-wide text-white/80">{group.sector}</div> : null}{inner.map((tile) => <TradingTile key={`${group.sector}-${tile.symbol}-${tile.label}`} tile={tile} />)}</div>;
     })}</div>;
   }
-  const positioned = layout(aggregateRemainder(tiles, "Bottom 20%"), { x: 0, y: 0, w: 100, h: 100 });
+  const positioned = squarifiedLayout(tiles, { x: 0, y: 0, w: 100, h: 100 });
   return <div className="relative h-[32rem] overflow-hidden border border-borderStrong bg-[#0b1120] md:h-[38rem]">{positioned.map((tile) => <TradingTile key={`${tile.symbol}-${tile.label}`} tile={tile} />)}</div>;
 }
 

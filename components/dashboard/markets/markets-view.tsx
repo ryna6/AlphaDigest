@@ -9,7 +9,7 @@ import { Heatmap } from "@/components/ui/heatmap";
 import { ErrorState } from "@/components/ui/error-state";
 import { cn } from "@/lib/utils/cn";
 
-const modes = ["sp500", "globalMarkets", "sectors", "crypto", "macro"] as const;
+const modes = ["globalMarkets", "sectors", "sp500", "crypto", "macro"] as const;
 const labels = {
   globalMarkets: "Global Markets",
   sectors: "Sectors",
@@ -94,7 +94,7 @@ function MarketMoverRow({ metric }: { metric: MarketsPayload["movers"][number] }
 }
 
 export function MarketsView({ data }: { data: MarketsPayload }) {
-  const [mode, setMode] = useState<(typeof modes)[number]>("sp500");
+  const [mode, setMode] = useState<(typeof modes)[number]>("globalMarkets");
   const [sp500Grouping, setSp500Grouping] = useState<"none" | "sector">("none");
 
   return (
