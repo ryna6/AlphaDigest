@@ -73,11 +73,15 @@ Route/component/data:
 The Markets page displays:
 
 - Market strip metrics: S&P 500, Nasdaq 100, Mid Cap, Small Cap, and S&P 500 Futures.
-- Four switchable heatmaps:
+- Switchable heatmaps, with S&P 500 selected first by default:
+  - S&P 500
   - Global Markets
   - Sectors
   - Crypto
   - Macro
+- The S&P 500 heatmap uses cached Supabase rows from the server-side `refresh-markets-heatmap` flow. No Group mode lays all constituents into one continuous squarified treemap sorted by market cap. Sector mode sizes State Street-normalized sector containers by total market cap and lays each sector's stocks out by market cap. Daily close-vs-previous-close percent change controls red/green color.
+- Market Breadth Participation is equal-weighted: valid S&P 500 rows with `close > prev_close` divided by valid rows with numeric, non-zero `close` and `prev_close`; invalid close pairs are ignored rather than filled.
+- The Market Movers card lists S&P 500 Leaders and Laggards by daily percent change without displaying the underlying close price.
 - Fallback breadth and movers cards from `marketsMock()`.
 
 Important behavior:

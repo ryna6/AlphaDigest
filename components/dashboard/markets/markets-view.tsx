@@ -9,7 +9,7 @@ import { Heatmap } from "@/components/ui/heatmap";
 import { ErrorState } from "@/components/ui/error-state";
 import { cn } from "@/lib/utils/cn";
 
-const modes = ["globalMarkets", "sectors", "crypto", "macro", "sp500"] as const;
+const modes = ["sp500", "globalMarkets", "sectors", "crypto", "macro"] as const;
 const labels = {
   globalMarkets: "Global Markets",
   sectors: "Sectors",
@@ -43,7 +43,7 @@ function signedValueClass(value?: string) {
 }
 
 export function MarketsView({ data }: { data: MarketsPayload }) {
-  const [mode, setMode] = useState<(typeof modes)[number]>("globalMarkets");
+  const [mode, setMode] = useState<(typeof modes)[number]>("sp500");
   const [sp500Grouping, setSp500Grouping] = useState<"none" | "sector">("none");
 
   return (
@@ -135,7 +135,7 @@ export function MarketsView({ data }: { data: MarketsPayload }) {
           ))}
         </Panel>
         <Panel>
-          <SectionHeader title="Movers / Leaders / Laggards" />
+          <SectionHeader title="Market Movers" />
           {data.movers.map((m) => (
             <MetricRow key={m.label} metric={m} density="roomy" />
           ))}

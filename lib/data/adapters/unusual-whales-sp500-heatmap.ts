@@ -93,7 +93,7 @@ export function normalizeSp500HeatmapPayload(payload: unknown, fetchedAt = new D
     const prevClose = num(v.prev_close ?? v.prevClose);
     const marketcap = num(v.marketcap ?? v.market_cap);
     const tapeTime = str(v.tape_time ?? v.tapeTime) ?? fetchedAt;
-    if (!ticker || close == null || prevClose == null || prevClose <= 0 || marketcap == null || marketcap <= 0) return null;
+    if (!ticker || close == null || close <= 0 || prevClose == null || prevClose <= 0 || marketcap == null || marketcap <= 0) return null;
     const sector = str(v.sector);
     return {
       ticker,
@@ -173,7 +173,7 @@ function fromDb(row: Rec): Sp500HeatmapRow | null {
   const close = num(row.close); const prevClose = num(row.prev_close); const marketcap = num(row.marketcap);
   const tapeTime = str(row.tape_time) ?? str(row.fetched_at) ?? new Date().toISOString();
   const asOfDate = str(row.as_of_date) ?? dateKey(tapeTime, new Date().toISOString());
-  if (!ticker || close == null || prevClose == null || prevClose <= 0 || marketcap == null || marketcap <= 0) return null;
+  if (!ticker || close == null || close <= 0 || prevClose == null || prevClose <= 0 || marketcap == null || marketcap <= 0) return null;
   const sector = str(row.sector);
   return { ticker, sector, normalizedSector: str(row.normalized_sector) ?? normalizeSp500Sector(sector), marketcap, open: num(row.open), high: num(row.high), low: num(row.low), close, prevClose, tapeTime, asOfDate, fetchedAt: str(row.fetched_at) ?? new Date().toISOString() };
 }
@@ -190,22 +190,27 @@ export function sp500RowsToTiles(rows: Sp500HeatmapRow[]): HeatmapTile[] {
   return rows.map((row) => ({ symbol: row.ticker, label: row.ticker, value: row.close, changePercent: ((row.close - row.prevClose) / row.prevClose) * 100, weight: row.marketcap, sector: row.normalizedSector, iconPath: getHeatmapIconPath(row.ticker) }));
 }
 
+function hasValidClosePair(row: Sp500HeatmapRow) {
+  return Number.isFinite(row.close) && row.close > 0 && Number.isFinite(row.prevClose) && row.prevClose > 0;
+}
+
 export function sp500Breadth(rows: Sp500HeatmapRow[]): Metric[] {
-  const adv = rows.filter((r) => r.close > r.prevClose).length;
-  const dec = rows.filter((r) => r.close < r.prevClose).length;
-  const unchanged = rows.length - adv - dec;
-  const participation = rows.length ? ((adv + dec) / rows.length) * 100 : null;
+  const validRows = rows.filter(hasValidClosePair);
+  const positiveStocks = validRows.filter((r) => r.close > r.prevClose).length;
+  const decliners = validRows.filter((r) => r.close < r.prevClose).length;
+  const unchanged = validRows.length - positiveStocks - decliners;
+  const participation = validRows.length ? (positiveStocks / validRows.length) * 100 : null;
   return [
-    { label: "Participation", value: participation == null ? "—" : `${(adv + dec).toLocaleString()}/${rows.length.toLocaleString()} (${participation.toFixed(1)}%)`, subtext: unchanged ? `${unchanged} unchanged` : "Equal-weight S&P 500 constituents", tone: "neutral" },
-    { label: "Advancers / Decliners", value: rows.length ? `${adv.toLocaleString()} / ${dec.toLocaleString()}` : "—", subtext: "Close vs previous close", tone: adv >= dec ? "positive" : "negative" },
+    { label: "Participation", value: participation == null ? "—" : `${positiveStocks.toLocaleString()}/${validRows.length.toLocaleString()} (${participation.toFixed(1)}%)`, subtext: unchanged ? `${unchanged} unchanged; invalid rows ignored` : "Equal-weight S&P 500 close > previous close", tone: "neutral" },
+    { label: "Advancers / Decliners", value: validRows.length ? `${positiveStocks.toLocaleString()} / ${decliners.toLocaleString()}` : "—", subtext: "Close vs previous close; invalid rows ignored", tone: positiveStocks >= decliners ? "positive" : "negative" },
     { label: "% Above 50D MA", value: "—", subtext: "Not yet available", tone: "neutral" },
     { label: "New Highs / Lows", value: "—", subtext: "Not yet available", tone: "neutral" }
   ];
 }
 
 export function sp500Movers(rows: Sp500HeatmapRow[]): Metric[] {
-  const movers = rows.map((r) => ({ r, pct: ((r.close - r.prevClose) / r.prevClose) * 100 })).filter((m) => Number.isFinite(m.pct));
-  const fmt = (m: typeof movers[number]) => `${m.r.ticker} ${m.pct >= 0 ? "+" : ""}${m.pct.toFixed(2)}% @ $${m.r.close.toFixed(2)}`;
+  const movers = rows.filter(hasValidClosePair).map((r) => ({ r, pct: ((r.close - r.prevClose) / r.prevClose) * 100 })).filter((m) => Number.isFinite(m.pct));
+  const fmt = (m: typeof movers[number]) => `${m.r.ticker} ${m.pct >= 0 ? "+" : ""}${m.pct.toFixed(2)}%`;
   const leaders = [...movers].sort((a, b) => b.pct - a.pct).slice(0, 3).map(fmt).join(" · ");
   const laggards = [...movers].sort((a, b) => a.pct - b.pct).slice(0, 3).map(fmt).join(" · ");
   return [

@@ -154,7 +154,7 @@ When adding symbols:
 2. Add an icon file in `public/assets/heatmap-icons/` if needed.
 3. Add/update mappings in `lib/constants/asset-icons.ts`.
 4. Update `docs/data-sources.md` if the symbol universe changes materially.
-5. For S&P 500 constituent heatmaps, keep provider fetching server-side in `refresh-markets-heatmap`; the UI must read from the Supabase-backed Markets payload.
+5. For S&P 500 constituent heatmaps, keep provider fetching server-side in `refresh-markets-heatmap`; the UI must read from the Supabase-backed Markets payload. Keep S&P 500 as the first/default Heatmap selector option, use a proportional market-cap treemap for No Group and Sector modes, and keep Market Breadth Participation equal-weighted from valid `close > prev_close` constituent counts.
 
 ### Change News & Calendar data
 
