@@ -3,6 +3,7 @@ import { PageTitle } from "@/components/dashboard/page-title";
 import { Panel } from "@/components/ui/panel";
 import { SectionHeader } from "@/components/ui/section-header";
 import { StatusAutoRefresh } from "@/components/status/status-auto-refresh";
+import { StatusBreakdownButton } from "@/components/status/status-breakdown-button";
 import { getStatusRowsWithDiagnostics, STATUS_GROUPS, type StatusValue } from "@/lib/status/jobs";
 
 export const metadata = { title: "Status" };
@@ -33,15 +34,6 @@ function formatStatusPageDateTime(timestamp: string) {
   return STATUS_PAGE_TIME_FORMATTER.format(date).replace("a.m.", "AM").replace("p.m.", "PM");
 }
 
-const statusDisplay: Record<StatusValue, { label: string; description: string }> = {
-  Healthy: { label: "Good", description: "Healthy" },
-  Warning: { label: "Warning", description: "Stale or delayed" },
-  Error: { label: "Critical", description: "Action required" },
-  Unknown: { label: "Offline", description: "No status available" }
-};
-
-const legend: StatusValue[] = ["Healthy", "Warning", "Error", "Unknown"];
-
 export default async function StatusPage() {
   const { rows, supabaseReadHealth } = await getStatusRowsWithDiagnostics();
   const lastUpdated = supabaseReadHealth.checkedAt;
@@ -49,21 +41,14 @@ export default async function StatusPage() {
   return (
     <>
       <StatusAutoRefresh />
-      <PageTitle title="Status" subtitle="Job and component health for cached dashboard data." />
+      <PageTitle title="Status" />
       <Panel>
-        <SectionHeader title="Component Status" />
-        <div className="mb-3 flex flex-wrap items-center justify-center gap-x-20 gap-y-3 text-sm text-textSecondary">
-          {legend.map((status) => (
-            <div key={status} className="flex items-center gap-2 whitespace-nowrap">
-              <span className={`h-2.5 w-2.5 rounded-full ${statusDot[status]}`} aria-hidden="true" />
-              <span className="font-medium text-textPrimary">{statusDisplay[status].label}</span>
-              <span className="ml-1 text-xs text-textSecondary">{statusDisplay[status].description}</span>
-            </div>
-          ))}
+        <div className="mb-4 flex items-center gap-2">
+          <SectionHeader title="Component Status" />
+          <StatusBreakdownButton />
         </div>
         <div className="mb-3 text-right text-xs text-textSecondary">
           <p>Last updated: {formatStatusPageDateTime(lastUpdated)}</p>
-          <p>All times are shown in Eastern Standard Time.</p>
         </div>
         {supabaseReadHealth.status === "error" ? (
           <div className="mb-4 rounded-lg border border-[#facc15]/40 bg-[#facc15]/10 px-4 py-3 text-sm text-textPrimary">
@@ -101,9 +86,8 @@ export default async function StatusPage() {
                           <span className="block text-xs text-textSecondary">{row.functionName}</span>
                         </td>
                         <td className="py-3 px-4 text-center">
-                          <span className="inline-flex items-center justify-center gap-2 text-textPrimary">
+                          <span className="inline-flex items-center justify-center text-textPrimary" aria-label={`Status: ${row.status}`}>
                             <span className={`h-2.5 w-2.5 rounded-full ${statusDot[row.status]}`} aria-hidden="true" />
-                            {statusDisplay[row.status].label}
                           </span>
                         </td>
                         <td className="py-3 pr-4 text-textSecondary">{row.source}</td>
