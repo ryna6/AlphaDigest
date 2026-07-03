@@ -144,7 +144,8 @@ Primary files:
 - `lib/data/adapters/finnhub-key-router.ts`.
 - `components/dashboard/markets/markets-view.tsx`.
 - `components/ui/heatmap.tsx`.
-- `lib/data/adapters/unusual-whales-sp500-heatmap.ts` for the persisted S&P 500 heatmap/breadth/movers dataset.
+- `lib/data/adapters/unusual-whales-sp500-heatmap.ts` for the persisted S&P 500 heatmap, participation/advancer breadth, and movers dataset.
+- `lib/data/adapters/barchart-sp500-breadth.ts` for server-side Barchart S&P 500 breadth scraping (`% Above 50D MA`, `% Above 200D MA`, and `52W Highs and Lows`) cached in Supabase.
 - `lib/constants/asset-icons.ts`.
 - `public/assets/heatmap-icons/`.
 

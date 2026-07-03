@@ -190,7 +190,7 @@ export function sp500RowsToTiles(rows: Sp500HeatmapRow[]): HeatmapTile[] {
   return rows.map((row) => ({ symbol: row.ticker, label: row.ticker, value: row.close, changePercent: ((row.close - row.prevClose) / row.prevClose) * 100, weight: row.marketcap, sector: row.normalizedSector, iconPath: getHeatmapIconPath(row.ticker) }));
 }
 
-export function sp500Breadth(rows: Sp500HeatmapRow[]): Metric[] {
+export function sp500Breadth(rows: Sp500HeatmapRow[], extraMetrics: Metric[] = []): Metric[] {
   const validRows = rows.filter((r) => Number.isFinite(r.close) && Number.isFinite(r.prevClose) && r.close > 0 && r.prevClose > 0);
   const adv = validRows.filter((r) => r.close > r.prevClose).length;
   const dec = validRows.filter((r) => r.close < r.prevClose).length;
@@ -199,8 +199,7 @@ export function sp500Breadth(rows: Sp500HeatmapRow[]): Metric[] {
   return [
     { label: "Participation", value: participation == null ? "—" : `${participation.toFixed(1)}%`, subtext: validRows.length ? `${adv.toLocaleString()}/${validRows.length.toLocaleString()} positive${unchanged ? ` · ${unchanged.toLocaleString()} unchanged` : ""}` : "Equal-weight close > previous close", tone: "neutral" },
     { label: "Advancers / Decliners", value: validRows.length ? `${adv.toLocaleString()} / ${dec.toLocaleString()}` : "—", subtext: "Close vs previous close", tone: adv >= dec ? "positive" : "negative" },
-    { label: "% Above 50D MA", value: "—", subtext: "Not yet available", tone: "neutral" },
-    { label: "New Highs / Lows", value: "—", subtext: "Not yet available", tone: "neutral" }
+    ...extraMetrics
   ];
 }
 

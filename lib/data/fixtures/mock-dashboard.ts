@@ -282,8 +282,8 @@ export const marketsMock = (): MarketsPayload => ({
   breadth: [
     { label: "Participation", value: "Neutral", tone: "neutral" },
     { label: "Advancers / Decliners", value: "276 / 224", tone: "positive" },
-    { label: "% above 50D MA", value: "54%", tone: "neutral" },
-    { label: "New highs / lows", value: "42 / 19", tone: "positive" }
+    { label: "% Above 50D MA", value: "54%", tone: "neutral" },
+    { label: "52W Highs and Lows", value: "42 / 19", tone: "positive" }
   ],
   movers: [
     { label: "Leader", value: "NVDA +2.4%", tone: "positive" },
