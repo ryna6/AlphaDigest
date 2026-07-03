@@ -214,8 +214,8 @@ function binaryTreemapLayout(items: HeatmapTile[], rect: Rect): Positioned[] {
 }
 
 const tradingTextTiers = [
-  { minWidth: 72, minHeight: 58, ticker: "text-[15px]", change: "text-xs", showChange: true },
-  { minWidth: 52, minHeight: 42, ticker: "text-sm", change: "text-[11px]", showChange: true },
+  { minWidth: 72, minHeight: 58, ticker: "text-[18px]", change: "text-[13px]", showChange: true },
+  { minWidth: 52, minHeight: 42, ticker: "text-[16px]", change: "text-[11px]", showChange: true },
   { minWidth: 42, minHeight: 34, ticker: "text-xs", change: "text-[9px]", showChange: true },
   { minWidth: 30, minHeight: 26, ticker: "text-[11px]", change: "text-[8px]", showChange: false },
   { minWidth: 26, minHeight: 22, ticker: "text-[10px]", change: "text-[8px]", showChange: false }
