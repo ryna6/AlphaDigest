@@ -145,7 +145,7 @@ Primary files:
 - `components/dashboard/markets/markets-view.tsx`.
 - `components/ui/heatmap.tsx`.
 - `lib/data/adapters/unusual-whales-sp500-heatmap.ts` for the persisted S&P 500 heatmap, participation/advancer breadth, and movers dataset.
-- `lib/data/adapters/barchart-sp500-breadth.ts` for server-side Barchart S&P 500 breadth scraping from four dedicated quote pages (`$MMFI`, `$MMTH`, `$MAHP`, `$MALP`) cached in Supabase table `barchart_market_breadth` by the separate `refresh-market-breadth` function. The shared parser targets `.pricechangerow > span.last-change[data-ng-class*="lastPrice"]` and fails closed when raw HTML is empty, malformed, blocked, or partially unavailable so stale cache rows are preserved.
+- `lib/data/adapters/market-breadth.ts` for server-side S&P 500 breadth refreshes cached in Supabase table `market_breadth` by the separate `refresh-market-breadth` function. Investing.com provides the current/main 50D and 200D index values from page HTML or embedded JSON; Yahoo Finance provides 52-week high/low screener symbols through the screener API, paginated and filtered to cached S&P 500 constituents. The pipeline fails closed when any provider response is empty, malformed, blocked, out of range, or partially unavailable so stale cache rows are preserved.
 - `lib/constants/asset-icons.ts`.
 - `public/assets/heatmap-icons/`.
 
@@ -155,7 +155,7 @@ When adding symbols:
 2. Add an icon file in `public/assets/heatmap-icons/` if needed.
 3. Add/update mappings in `lib/constants/asset-icons.ts`.
 4. Update `docs/data-sources.md` if the symbol universe changes materially.
-5. For S&P 500 constituent heatmaps, keep S&P 500 heatmap provider fetching server-side in `refresh-markets-heatmap`; keep Barchart breadth fetching server-side in `refresh-market-breadth`; the UI must read from the Supabase-backed Markets payload.
+5. For S&P 500 constituent heatmaps, keep S&P 500 heatmap provider fetching server-side in `refresh-markets-heatmap`; keep Investing.com/Yahoo Finance breadth fetching server-side in `refresh-market-breadth`; the UI must read from the Supabase-backed Markets payload.
 
 ### Change News & Calendar data
 
