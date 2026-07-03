@@ -108,36 +108,41 @@ function rowsFromInvestingPayload(payload: unknown): unknown[] {
 }
 
 function validateOhlc(row: BreadthOhlc) {
-  for (const [key, value] of Object.entries(row))
+  if (!Number.isFinite(row.timestamp) || row.timestamp <= 0)
+    throw new Error("Investing.com timestamp is not finite and positive.");
+  for (const key of ["open", "high", "low", "close"] as const) {
+    const value = row[key];
     if (!Number.isFinite(value)) throw new Error(`Investing.com ${key} is not finite.`);
-  for (const key of ["open", "high", "low", "close"] as const)
-    if (row[key] < 0 || row[key] > 100) throw new Error(`Investing.com ${key} is outside 0-100.`);
-  if (
-    row.high < row.open ||
-    row.high < row.close ||
-    row.low > row.open ||
-    row.low > row.close ||
-    row.high < row.low
-  )
-    throw new Error("Investing.com OHLC row violates basic high/low consistency.");
+    if (value < 0 || value > 100) throw new Error(`Investing.com ${key} is outside 0-100.`);
+  }
 }
 
 export function parseLatestInvestingBreadthRow(payload: unknown): BreadthOhlc {
-  let latest: BreadthOhlc | null = null;
-  for (const raw of rowsFromInvestingPayload(payload)) {
-    if (!Array.isArray(raw) || raw.length < 5) continue;
-    const [timestamp, open, high, low, close] = raw.map(finiteNumber);
-    if (timestamp == null || open == null || high == null || low == null || close == null) continue;
-    const row = { timestamp, open, high, low, close };
-    try {
-      validateOhlc(row);
-    } catch {
-      continue;
-    }
-    if (!latest || row.timestamp > latest.timestamp) latest = row;
-  }
-  if (!latest) throw new Error("Investing.com breadth response contained no valid OHLC rows.");
-  return latest;
+  const validRows = rowsFromInvestingPayload(payload).filter(
+    (row): row is number[] =>
+      Array.isArray(row) &&
+      row.length >= 5 &&
+      row
+        .slice(0, 5)
+        .every((value) => typeof value === "number" && Number.isFinite(value))
+  );
+
+  if (!validRows.length)
+    throw new Error("Investing.com breadth response contained no valid OHLC rows.");
+
+  const latest = validRows.reduce((currentLatest, row) =>
+    row[0] > currentLatest[0] ? row : currentLatest
+  );
+
+  const parsed = {
+    timestamp: latest[0],
+    open: latest[1],
+    high: latest[2],
+    low: latest[3],
+    close: latest[4]
+  };
+  validateOhlc(parsed);
+  return parsed;
 }
 
 export function parseYahooScreenerTotal(payload: unknown): number {
@@ -154,8 +159,13 @@ export function parseYahooScreenerTotal(payload: unknown): number {
   const first = payload.finance.result[0];
   if (!isRec(first) || !("total" in first))
     throw new Error("Yahoo Finance screener result is missing total.");
-  const total = finiteNumber(first.total);
-  if (total == null || !Number.isInteger(total) || total < 0)
+  const total = first.total;
+  if (
+    typeof total !== "number" ||
+    !Number.isFinite(total) ||
+    !Number.isInteger(total) ||
+    total < 0
+  )
     throw new Error("Yahoo Finance screener total must be a finite non-negative integer.");
   return total;
 }
@@ -320,48 +330,64 @@ export function createMarketBreadthSnapshot(
 }
 
 export async function buildMarketBreadthSnapshot() {
-  const above50dResult = await fetchInvestingBreadthOhlc(INVESTING_BREADTH_SOURCES.above50d);
-  console.info("refresh-market-breadth", {
-    stage: "investing_50d_parsed",
-    timestamp: above50dResult.row.timestamp
-  });
-  const above200dResult = await fetchInvestingBreadthOhlc(INVESTING_BREADTH_SOURCES.above200d);
-  console.info("refresh-market-breadth", {
-    stage: "investing_200d_parsed",
-    timestamp: above200dResult.row.timestamp
-  });
-  const highs52wResult = await fetchYahooScreenerTotal(YAHOO_52_WEEK_SOURCES.highs.scrId);
-  console.info("refresh-market-breadth", {
-    stage: "yahoo_highs_parsed",
-    screenerId: YAHOO_52_WEEK_SOURCES.highs.scrId,
-    total: highs52wResult.total
-  });
-  const lows52wResult = await fetchYahooScreenerTotal(YAHOO_52_WEEK_SOURCES.lows.scrId);
-  console.info("refresh-market-breadth", {
-    stage: "yahoo_lows_parsed",
-    screenerId: YAHOO_52_WEEK_SOURCES.lows.scrId,
-    total: lows52wResult.total
-  });
-  const snapshot = createMarketBreadthSnapshot({
-    above50d: above50dResult.row,
-    above200d: above200dResult.row,
-    highs52w: highs52wResult.total,
-    lows52w: lows52wResult.total,
-    sourceUpdatedAt: null,
-    movingAverageSource: "Investing.com financialdata latest close",
-    highLowSource:
-      "Yahoo Finance predefined screeners (reported total; universe not verified as S&P 500-only)"
-  });
-  console.info("refresh-market-breadth", {
-    stage: "snapshot_validated",
-    snapshot: {
-      above50d: snapshot.above50d,
-      above200d: snapshot.above200d,
-      highs52w: snapshot.highs52w,
-      lows52w: snapshot.lows52w
-    }
-  });
-  return snapshot;
+  let stage = "investing_50d_fetch";
+  try {
+    const above50dResult = await fetchInvestingBreadthOhlc(INVESTING_BREADTH_SOURCES.above50d);
+    console.info("refresh-market-breadth", {
+      stage: "investing_50d_parsed",
+      timestamp: above50dResult.row.timestamp
+    });
+
+    stage = "investing_200d_fetch";
+    const above200dResult = await fetchInvestingBreadthOhlc(INVESTING_BREADTH_SOURCES.above200d);
+    console.info("refresh-market-breadth", {
+      stage: "investing_200d_parsed",
+      timestamp: above200dResult.row.timestamp
+    });
+
+    stage = "yahoo_highs_fetch";
+    const highs52wResult = await fetchYahooScreenerTotal(YAHOO_52_WEEK_SOURCES.highs.scrId);
+    console.info("refresh-market-breadth", {
+      stage: "yahoo_highs_parsed",
+      screenerId: YAHOO_52_WEEK_SOURCES.highs.scrId,
+      total: highs52wResult.total
+    });
+
+    stage = "yahoo_lows_fetch";
+    const lows52wResult = await fetchYahooScreenerTotal(YAHOO_52_WEEK_SOURCES.lows.scrId);
+    console.info("refresh-market-breadth", {
+      stage: "yahoo_lows_parsed",
+      screenerId: YAHOO_52_WEEK_SOURCES.lows.scrId,
+      total: lows52wResult.total
+    });
+
+    stage = "snapshot_built";
+    const snapshot = createMarketBreadthSnapshot({
+      above50d: above50dResult.row,
+      above200d: above200dResult.row,
+      highs52w: highs52wResult.total,
+      lows52w: lows52wResult.total,
+      sourceUpdatedAt: null,
+      movingAverageSource: "Investing.com financialdata latest close",
+      highLowSource:
+        "Yahoo Finance predefined screeners (reported total; universe not verified as S&P 500-only)"
+    });
+    console.info("refresh-market-breadth", {
+      stage: "snapshot_built",
+      snapshot: {
+        above50dTimestamp: snapshot.above50d.timestamp,
+        above50dClose: snapshot.above50d.close,
+        above200dTimestamp: snapshot.above200d.timestamp,
+        above200dClose: snapshot.above200d.close,
+        highs52w: snapshot.highs52w,
+        lows52w: snapshot.lows52w
+      }
+    });
+    return snapshot;
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Unknown Market Breadth build error";
+    throw new Error(`Market Breadth failed at ${stage}: ${message}`);
+  }
 }
 
 function toDb(snapshot: MarketBreadthSnapshot) {
@@ -455,7 +481,7 @@ export async function writeMarketBreadthSnapshot(
     .single();
   if (error)
     throw new Error(
-      `Supabase market_breadth write failed: ${error.message ?? JSON.stringify(error)}`
+      `market_breadth upsert failed: ${(error as { code?: string }).code ?? "unknown"} ${error.message ?? JSON.stringify(error)}`
     );
   if (!data) throw new Error("Supabase market_breadth upsert returned no row.");
   console.info("refresh-market-breadth", {
