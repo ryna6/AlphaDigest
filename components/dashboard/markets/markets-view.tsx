@@ -1,420 +1,235 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
-import Image from "next/image";
-import type { HeatmapTile } from "@/lib/data/schemas/common";
+import { useState } from "react";
+import type { MarketsPayload } from "@/lib/data/schemas/dashboard";
+import { PageTitle } from "@/components/dashboard/page-title";
+import { Panel } from "@/components/ui/panel";
+import { SectionHeader } from "@/components/ui/section-header";
+import { MetricRow } from "@/components/ui/metric-row";
+import { Heatmap } from "@/components/ui/heatmap";
+import { ErrorState } from "@/components/ui/error-state";
 import { cn } from "@/lib/utils/cn";
 
-function colorStyle(change: number) {
-  const clamped = Math.max(-5, Math.min(5, change));
-  const intensity = Math.min(1, Math.abs(clamped) / 3);
+const modes = ["globalMarkets", "sectors", "sp500", "crypto", "macro"] as const;
 
-  if (clamped > 0) {
-    return {
-      backgroundColor: `rgb(${18 - intensity * 10}, ${74 + intensity * 88}, ${50 + intensity * 26})`,
-      borderColor: `rgba(34,197,94,${0.35 + intensity * 0.45})`
-    };
-  }
-
-  if (clamped < 0) {
-    return {
-      backgroundColor: `rgb(${74 + intensity * 66}, ${32 - intensity * 6}, ${37 - intensity * 8})`,
-      borderColor: `rgba(239,68,68,${0.35 + intensity * 0.45})`
-    };
-  }
-
-  return {
-    backgroundColor: "rgba(51,65,85,0.75)",
-    borderColor: "rgba(100,116,139,0.55)"
-  };
-}
-
-function tileColor(change: number) {
-  if (change >= 1) return "border-[#16A34A]/70 bg-[#116C3A] shadow-[inset_0_0_28px_rgba(34,197,94,0.16)]";
-  if (change > 0) return "border-[#22C55E]/45 bg-[#174B32] shadow-[inset_0_0_24px_rgba(34,197,94,0.10)]";
-  if (change <= -1) return "border-[#DC2626]/70 bg-[#6F1D1D] shadow-[inset_0_0_28px_rgba(239,68,68,0.16)]";
-  if (change < 0) return "border-[#EF4444]/45 bg-[#4A2025] shadow-[inset_0_0_24px_rgba(239,68,68,0.10)]";
-  return "border-slate-500/50 bg-slate-700/55";
-}
-
-function changeTextColor(change: number) {
-  if (change > 0) return "text-emerald-100";
-  if (change < 0) return "text-red-100";
-  return "text-slate-100";
-}
-
-type Rect = {
-  x: number;
-  y: number;
-  w: number;
-  h: number;
+const labels = {
+  globalMarkets: "Global Markets",
+  sectors: "Sectors",
+  crypto: "Crypto",
+  macro: "Macro",
+  sp500: "S&P 500"
 };
 
-type Positioned = HeatmapTile & Rect;
+function MarketMetricIcon({ src, label }: { src: string; label: string }) {
+  const [hidden, setHidden] = useState(false);
 
-type Size = {
-  width: number;
-  height: number;
-};
-
-const SECTOR_TITLE_HEIGHT = 28;
-const MIN_RENDERABLE_SIZE = 1;
-
-const sectorOrder = [
-  "Technology",
-  "Utilities",
-  "Financials",
-  "Health Care",
-  "Energy",
-  "Consumer Discretionary",
-  "Consumer Staples",
-  "Industrials",
-  "Materials",
-  "Communication Services",
-  "Real Estate",
-  "Other"
-];
-
-function useElementSize<T extends HTMLElement>() {
-  const ref = useRef<T | null>(null);
-  const [size, setSize] = useState<Size>({ width: 0, height: 0 });
-
-  useEffect(() => {
-    const element = ref.current;
-    if (!element) return;
-
-    const observer = new ResizeObserver((entries) => {
-      const entry = entries[0];
-      if (!entry) return;
-
-      const width = Math.round(entry.contentRect.width);
-      const height = Math.round(entry.contentRect.height);
-
-      setSize((previous) => {
-        if (previous.width === width && previous.height === height) return previous;
-        return { width, height };
-      });
-    });
-
-    observer.observe(element);
-
-    return () => {
-      observer.disconnect();
-    };
-  }, []);
-
-  return [ref, size] as const;
-}
-
-function totalWeight(items: HeatmapTile[]) {
-  return items.reduce((sum, item) => sum + Math.max(0, item.weight), 0);
-}
-
-function findBalancedSplit(items: HeatmapTile[]) {
-  const total = totalWeight(items);
-  const half = total / 2;
-
-  let running = 0;
-  let bestIndex = 1;
-  let bestDistance = Number.POSITIVE_INFINITY;
-
-  for (let i = 1; i < items.length; i += 1) {
-    running += Math.max(0, items[i - 1].weight);
-    const distance = Math.abs(half - running);
-
-    if (distance < bestDistance) {
-      bestDistance = distance;
-      bestIndex = i;
-    }
-  }
-
-  return bestIndex;
-}
-
-function binaryTreemapLayout(items: HeatmapTile[], rect: Rect): Positioned[] {
-  const clean = items
-    .filter((item) => Number.isFinite(item.weight) && item.weight > 0)
-    .sort((a, b) => b.weight - a.weight);
-
-  if (!clean.length || rect.w <= 0 || rect.h <= 0) return [];
-
-  function layoutRecursive(nodes: HeatmapTile[], area: Rect): Positioned[] {
-    if (!nodes.length || area.w <= 0 || area.h <= 0) return [];
-
-    if (nodes.length === 1) {
-      return [
-        {
-          ...nodes[0],
-          x: area.x,
-          y: area.y,
-          w: Math.max(MIN_RENDERABLE_SIZE, area.w),
-          h: Math.max(MIN_RENDERABLE_SIZE, area.h)
-        }
-      ];
-    }
-
-    const splitIndex = findBalancedSplit(nodes);
-    const first = nodes.slice(0, splitIndex);
-    const second = nodes.slice(splitIndex);
-
-    const firstWeight = totalWeight(first);
-    const secondWeight = totalWeight(second);
-    const combinedWeight = firstWeight + secondWeight;
-
-    if (combinedWeight <= 0 || !first.length || !second.length) {
-      return nodes.map((node) => ({
-        ...node,
-        x: area.x,
-        y: area.y,
-        w: area.w,
-        h: area.h
-      }));
-    }
-
-    if (area.w >= area.h) {
-      const firstWidth = area.w * (firstWeight / combinedWeight);
-      const secondWidth = area.w - firstWidth;
-
-      return [
-        ...layoutRecursive(first, {
-          x: area.x,
-          y: area.y,
-          w: firstWidth,
-          h: area.h
-        }),
-        ...layoutRecursive(second, {
-          x: area.x + firstWidth,
-          y: area.y,
-          w: secondWidth,
-          h: area.h
-        })
-      ];
-    }
-
-    const firstHeight = area.h * (firstWeight / combinedWeight);
-    const secondHeight = area.h - firstHeight;
-
-    return [
-      ...layoutRecursive(first, {
-        x: area.x,
-        y: area.y,
-        w: area.w,
-        h: firstHeight
-      }),
-      ...layoutRecursive(second, {
-        x: area.x,
-        y: area.y + firstHeight,
-        w: area.w,
-        h: secondHeight
-      })
-    ];
-  }
-
-  return layoutRecursive(clean, rect);
-}
-
-function TradingTile({ tile }: { tile: Positioned }) {
-  const showTicker = tile.w >= 42 && tile.h >= 34;
-  const showChange = tile.w >= 56 && tile.h >= 50;
-  const showLogo = tile.w >= 74 && tile.h >= 70 && tile.iconPath && !tile.aggregate;
+  if (hidden) return null;
 
   return (
-    <div
-      className="absolute overflow-hidden border p-1 shadow-[inset_0_0_24px_rgba(0,0,0,0.18)] transition hover:z-10 hover:brightness-110"
-      style={{
-        left: tile.x,
-        top: tile.y,
-        width: tile.w,
-        height: tile.h,
-        ...colorStyle(tile.changePercent)
-      }}
-      title={`${tile.label}: ${tile.changePercent.toFixed(2)}%`}
-    >
-      <div className="flex h-full flex-col items-center justify-center gap-1 text-center">
-        {showLogo ? (
-          <Image
-            src={tile.iconPath!}
-            alt={`${tile.symbol} logo`}
-            width={24}
-            height={24}
-            className="h-6 w-6 rounded-full object-cover"
-            onError={(event) => {
-              event.currentTarget.style.display = "none";
-            }}
-          />
-        ) : null}
-
-        {showTicker ? (
-          <div className="max-w-full truncate text-sm font-black text-white drop-shadow">
-            {tile.aggregate ? tile.label : tile.symbol}
-          </div>
-        ) : null}
-
-        {showChange ? (
-          <div className="text-[11px] font-bold text-white/90">
-            {tile.changePercent >= 0 ? "+" : ""}
-            {tile.changePercent.toFixed(2)}%
-          </div>
-        ) : null}
-      </div>
-    </div>
+    <span className="flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden rounded-full bg-transparent">
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img
+        src={src}
+        alt={`${label} icon`}
+        className="h-full w-full rounded-full object-cover"
+        onError={() => setHidden(true)}
+      />
+    </span>
   );
 }
 
-function TradingViewHeatmap({ tiles, grouping }: { tiles: HeatmapTile[]; grouping: "none" | "sector" }) {
-  const [containerRef, size] = useElementSize<HTMLDivElement>();
-  const hasSize = size.width > 0 && size.height > 0;
-
-  if (grouping === "sector") {
-    const groups = sectorOrder
-      .map((sector) => {
-        const rows = tiles
-          .filter((tile) => (tile.sector ?? "Other") === sector)
-          .sort((a, b) => b.weight - a.weight);
-
-        return {
-          sector,
-          rows,
-          weight: rows.reduce((sum, row) => sum + Math.max(0, row.weight), 0)
-        };
-      })
-      .filter((group) => group.rows.length && group.weight > 0);
-
-    const groupRects = hasSize
-      ? binaryTreemapLayout(
-          groups.map((group) => ({
-            symbol: group.sector,
-            label: group.sector,
-            value: 0,
-            changePercent: 0,
-            weight: group.weight
-          })),
-          {
-            x: 0,
-            y: 0,
-            w: size.width,
-            h: size.height
-          }
-        )
-      : [];
-
-    return (
-      <div
-        ref={containerRef}
-        className="relative h-[32rem] overflow-hidden border border-borderStrong bg-[#0b1120] md:h-[38rem]"
-      >
-        {groupRects.map((rect) => {
-          const group = groups.find((item) => item.sector === rect.symbol);
-          if (!group) return null;
-
-          const innerHeight = Math.max(0, rect.h - SECTOR_TITLE_HEIGHT);
-
-          const inner = binaryTreemapLayout(group.rows, {
-            x: 0,
-            y: 0,
-            w: rect.w,
-            h: innerHeight
-          });
-
-          return (
-            <div
-              key={group.sector}
-              className="absolute flex flex-col overflow-hidden border border-black/70 bg-black/25"
-              style={{
-                left: rect.x,
-                top: rect.y,
-                width: rect.w,
-                height: rect.h
-              }}
-            >
-              <div className="relative z-20 flex h-7 shrink-0 items-center border-b border-black/60 bg-black/55 px-2 text-[11px] font-bold uppercase tracking-wide text-white/90">
-                <span className="truncate">{group.sector}</span>
-              </div>
-
-              <div className="relative min-h-0 flex-1 overflow-hidden">
-                {inner.map((tile) => (
-                  <TradingTile
-                    key={`${group.sector}-${tile.symbol}-${tile.label}`}
-                    tile={tile}
-                  />
-                ))}
-              </div>
-            </div>
-          );
-        })}
-      </div>
-    );
-  }
-
-  const positioned = hasSize
-    ? binaryTreemapLayout(tiles, {
-        x: 0,
-        y: 0,
-        w: size.width,
-        h: size.height
-      })
-    : [];
-
-  return (
-    <div
-      ref={containerRef}
-      className="relative h-[32rem] overflow-hidden border border-borderStrong bg-[#0b1120] md:h-[38rem]"
-    >
-      {positioned.map((tile) => (
-        <TradingTile key={`${tile.symbol}-${tile.label}`} tile={tile} />
-      ))}
-    </div>
-  );
+function signedValueClass(value?: string) {
+  if (!value) return "text-textSecondary";
+  if (/^-|\s-/.test(value)) return "text-negative";
+  if (/^\+|\s\+/.test(value)) return "text-positive";
+  return "text-textSecondary";
 }
 
-export function Heatmap({
-  tiles,
-  variant = "grid",
-  grouping = "none"
+function MarketMoverValue({
+  value,
+  tone: metricTone
 }: {
-  tiles: HeatmapTile[];
-  variant?: "grid" | "trading";
-  grouping?: "none" | "sector";
+  value: string;
+  tone: MarketsPayload["movers"][number]["tone"];
 }) {
-  if (variant === "trading") return <TradingViewHeatmap tiles={tiles} grouping={grouping} />;
+  if (value === "—") return <span className="text-textPrimary">{value}</span>;
+
+  const percentClass = metricTone === "negative" ? "text-negative" : "text-positive";
 
   return (
-    <div className="grid grid-cols-2 gap-2 md:grid-cols-3 xl:grid-cols-4">
-      {tiles.map((tile) => (
-        <div
-          key={`${tile.symbol}-${tile.label}`}
-          className={`min-h-28 border p-3 transition duration-200 hover:-translate-y-0.5 hover:brightness-110 ${tileColor(tile.changePercent)}`}
-          title={`${tile.label}: ${tile.changePercent.toFixed(2)}%`}
-        >
-          <div className="flex h-full items-center justify-between gap-3">
-            <div className="flex min-w-0 items-center gap-2">
-              {tile.iconPath ? (
-                <span className="flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden rounded-full bg-transparent">
-                  <Image
-                    src={tile.iconPath}
-                    alt={`${tile.label} icon`}
-                    width={32}
-                    height={32}
-                    className="h-full w-full rounded-full object-cover"
-                    onError={(event) => {
-                      event.currentTarget.style.display = "none";
-                    }}
-                  />
-                </span>
-              ) : null}
+    <>
+      {value.split(" · ").map((part, index) => {
+        const match = part.match(/^(\S+)\s+([+-]\d+(?:\.\d+)?%)$/);
 
-              <div className="min-w-0">
-                <p className="truncate text-base font-semibold text-textPrimary">{tile.label}</p>
-                <p className="text-xs uppercase tracking-wide text-white/65">{tile.symbol}</p>
+        if (!match) {
+          return (
+            <span key={`${part}-${index}`} className="text-textPrimary">
+              {part}
+            </span>
+          );
+        }
+
+        const [, ticker, percent] = match;
+
+        return (
+          <span key={`${ticker}-${percent}-${index}`}>
+            {index > 0 ? <span className="text-textSecondary"> · </span> : null}
+            <span className="text-textPrimary">{ticker} </span>
+            <span className={percentClass}>{percent}</span>
+          </span>
+        );
+      })}
+    </>
+  );
+}
+
+function MarketMoverRow({ metric }: { metric: MarketsPayload["movers"][number] }) {
+  return (
+    <div className="flex items-center justify-between gap-3 border-b border-borderStrong/60 py-2 last:border-b-0">
+      <div className="flex min-w-0 items-center gap-2">
+        <div className="min-w-0">
+          <p className="truncate text-sm text-textMuted">{metric.label}</p>
+        </div>
+      </div>
+
+      <div className="text-right tabular">
+        <p className="text-base font-semibold">
+          <MarketMoverValue value={metric.value} tone={metric.tone} />
+        </p>
+      </div>
+    </div>
+  );
+}
+
+export function MarketsView({ data }: { data: MarketsPayload }) {
+  const [mode, setMode] = useState<(typeof modes)[number]>("globalMarkets");
+  const [sp500Grouping, setSp500Grouping] = useState<"none" | "sector">("none");
+
+  return (
+    <>
+      <PageTitle title="Markets" />
+
+      <Panel>
+        <SectionHeader title="Indices" />
+
+        <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
+          {data.strip.map((metric) => (
+            <div
+              key={metric.label}
+              className="min-h-28 rounded-none border border-borderStrong bg-sidebar p-4"
+            >
+              <div className="flex items-center gap-2">
+                {metric.iconPath ? (
+                  <MarketMetricIcon src={metric.iconPath} label={metric.label} />
+                ) : null}
+
+                <p className="text-sm font-semibold uppercase tracking-[0.18em] text-textMuted">
+                  {metric.label}
+                </p>
+              </div>
+
+              <div className="mt-4">
+                <div className="flex items-baseline justify-between gap-3">
+                  <p className="min-w-0 text-2xl font-semibold text-textPrimary">
+                    {metric.value}
+                  </p>
+
+                  {metric.changePercent ? (
+                    <p
+                      className={cn(
+                        "shrink-0 text-right text-sm font-semibold",
+                        signedValueClass(metric.changePercent)
+                      )}
+                    >
+                      {metric.changePercent}
+                    </p>
+                  ) : null}
+                </div>
+
+                {metric.change ? (
+                  <p className={cn("mt-2 text-sm", signedValueClass(metric.change))}>
+                    {metric.change}
+                  </p>
+                ) : null}
               </div>
             </div>
-
-            <p className={cn("shrink-0 text-right tabular text-xl font-bold leading-none", changeTextColor(tile.changePercent))}>
-              {tile.changePercent.toFixed(2)}%
-            </p>
-          </div>
+          ))}
         </div>
-      ))}
-    </div>
+      </Panel>
+
+      <Panel className="mt-4">
+        <SectionHeader title="Heatmap" />
+
+        {data.heatmapKeyMessages.length ? (
+          <div className="mb-3 grid gap-2">
+            {data.heatmapKeyMessages.map((message) => (
+              <ErrorState key={message} message={message} />
+            ))}
+          </div>
+        ) : null}
+
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+          <div className="inline-flex flex-wrap gap-1 rounded-none border border-borderStrong bg-sidebar/80 p-1 shadow-inner">
+            {modes.map((selectedMode) => (
+              <button
+                key={selectedMode}
+                onClick={() => setMode(selectedMode)}
+                className={cn(
+                  "rounded-none px-4 py-2 text-xs font-semibold transition",
+                  mode === selectedMode
+                    ? "bg-accentBlue text-white shadow-[0_0_18px_rgba(79,140,255,0.35)]"
+                    : "text-textSecondary hover:bg-panelHover hover:text-textPrimary"
+                )}
+              >
+                {labels[selectedMode]}
+              </button>
+            ))}
+          </div>
+
+          {mode === "sp500" ? (
+            <div className="inline-flex gap-1 rounded-none border border-borderStrong bg-sidebar/80 p-1 shadow-inner">
+              {(["none", "sector"] as const).map((grouping) => (
+                <button
+                  key={grouping}
+                  onClick={() => setSp500Grouping(grouping)}
+                  className={cn(
+                    "rounded-none px-4 py-2 text-xs font-semibold transition",
+                    sp500Grouping === grouping
+                      ? "bg-accentBlue text-white shadow-[0_0_18px_rgba(79,140,255,0.35)]"
+                      : "text-textSecondary hover:bg-panelHover hover:text-textPrimary"
+                  )}
+                >
+                  {grouping === "none" ? "No Group" : "Sector"}
+                </button>
+              ))}
+            </div>
+          ) : null}
+        </div>
+
+        <Heatmap
+          tiles={data.heatmaps[mode]}
+          variant={mode === "sp500" ? "trading" : "grid"}
+          grouping={sp500Grouping}
+        />
+      </Panel>
+
+      <div className="mt-4 grid gap-4 xl:grid-cols-2">
+        <Panel>
+          <SectionHeader title="Market Breadth" />
+
+          {data.breadth.map((metric) => (
+            <MetricRow key={metric.label} metric={metric} density="roomy" />
+          ))}
+        </Panel>
+
+        <Panel>
+          <SectionHeader title="Market Movers" />
+
+          {data.movers.map((metric) => (
+            <MarketMoverRow key={metric.label} metric={metric} />
+          ))}
+        </Panel>
+      </div>
+    </>
   );
 }
