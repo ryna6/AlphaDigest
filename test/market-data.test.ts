@@ -21,6 +21,59 @@ import {
 import { WHALE_FEED_RETENTION_DAYS } from "../lib/data/adapters/unusual-whales-whale-feed";
 import { INSIDER_TRADES_LOOKBACK_MONTHS } from "../lib/data/insider-window";
 import { selectTopCongressionalPortfolioRows } from "../lib/data/adapters/unusual-whales-congressional";
+import {
+  sp500Breadth,
+  sp500Movers,
+  type Sp500HeatmapRow
+} from "../lib/data/adapters/unusual-whales-sp500-heatmap";
+
+const sp500Row = (ticker: string, close: number, prevClose: number, marketcap = 100): Sp500HeatmapRow => ({
+  ticker,
+  sector: "Technology",
+  normalizedSector: "Technology",
+  marketcap,
+  open: null,
+  high: null,
+  low: null,
+  close,
+  prevClose,
+  tapeTime: "2026-07-02T20:00:00.000Z",
+  asOfDate: "2026-07-02",
+  fetchedAt: "2026-07-02T20:01:00.000Z"
+});
+
+test("S&P 500 breadth participation is equal-weighted and ignores invalid close rows", () => {
+  const rows = [
+    sp500Row("BIG", 90, 100, 1_000_000),
+    sp500Row("UP1", 11, 10, 10),
+    sp500Row("UP2", 22, 20, 10),
+    sp500Row("FLAT", 30, 30, 10),
+    sp500Row("ZERO_CLOSE", 0, 10, 10),
+    sp500Row("ZERO_PREV", 10, 0, 10),
+    { ...sp500Row("NAN_CLOSE", 10, 9, 10), close: Number.NaN },
+    { ...sp500Row("NAN_PREV", 10, 9, 10), prevClose: Number.NaN }
+  ];
+
+  const [participation, advancersDecliners] = sp500Breadth(rows);
+
+  assert.equal(participation.label, "Participation");
+  assert.equal(participation.value, "50.0%");
+  assert.equal(participation.subtext, "2/4 positive · 1 unchanged");
+  assert.equal(advancersDecliners.value, "2 / 1");
+});
+
+test("S&P 500 movers display ticker and percent change without stock price", () => {
+  const [leaders, laggards] = sp500Movers([
+    sp500Row("GPC", 132.56, 117.40),
+    sp500Row("LOW", 90, 100),
+    sp500Row("MID", 101, 100)
+  ]);
+
+  assert.match(String(leaders.value), /GPC \+12\.91%/);
+  assert.doesNotMatch(String(leaders.value), /@ \$/);
+  assert.match(String(laggards.value), /LOW -10\.00%/);
+  assert.doesNotMatch(String(laggards.value), /@ \$/);
+});
 
 test("Unusual Whales ad stripper removes known promo text across tag boundaries", () => {
   const html = `<p>Lead section.</p>

@@ -197,7 +197,7 @@ export function sp500Breadth(rows: Sp500HeatmapRow[]): Metric[] {
   const unchanged = validRows.length - adv - dec;
   const participation = validRows.length ? (adv / validRows.length) * 100 : null;
   return [
-    { label: "Participation", value: participation == null ? "—" : `${adv.toLocaleString()}/${validRows.length.toLocaleString()} (${participation.toFixed(1)}%)`, subtext: unchanged ? `${unchanged} unchanged` : "Equal-weight close > previous close", tone: "neutral" },
+    { label: "Participation", value: participation == null ? "—" : `${participation.toFixed(1)}%`, subtext: validRows.length ? `${adv.toLocaleString()}/${validRows.length.toLocaleString()} positive${unchanged ? ` · ${unchanged.toLocaleString()} unchanged` : ""}` : "Equal-weight close > previous close", tone: "neutral" },
     { label: "Advancers / Decliners", value: validRows.length ? `${adv.toLocaleString()} / ${dec.toLocaleString()}` : "—", subtext: "Close vs previous close", tone: adv >= dec ? "positive" : "negative" },
     { label: "% Above 50D MA", value: "—", subtext: "Not yet available", tone: "neutral" },
     { label: "New Highs / Lows", value: "—", subtext: "Not yet available", tone: "neutral" }
