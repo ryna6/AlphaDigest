@@ -4,7 +4,8 @@ import type { Metric } from "../schemas/common";
 import { stableHash } from "./unusual-whales-earnings";
 import { payloadContentHash, sourceResult, updateRefreshMetadata } from "./supabase-refresh";
 
-const TABLE = "market_breadth";
+const INVESTING_TABLE = "%_above_ma";
+const YAHOO_TABLE = "52w_high_low";
 const SOURCE = "market_breadth";
 const FETCH_TIMEOUT_MS = 15_000;
 
@@ -70,12 +71,32 @@ export type ParsedMarketBreadth = {
   highLowSource: string;
 };
 
+export type InvestingBreadthSnapshot = {
+  id: string;
+  above50d: BreadthOhlc;
+  above200d: BreadthOhlc;
+  sourceUrl: string;
+  fetchedAt: string;
+  contentHash: string;
+};
+
+export type YahooBreadthSnapshot = {
+  id: string;
+  highs52w: number;
+  lows52w: number;
+  sourceUrl: string;
+  fetchedAt: string;
+  contentHash: string;
+};
+
 export type MarketBreadthSnapshot = ParsedMarketBreadth & {
   id: string;
   sourceUrl: string;
   fetchedAt: string;
   contentHash: string;
 };
+
+export type ProviderStatus = "success" | "failed";
 
 export type ProviderDiagnostics = {
   url: string;
@@ -122,9 +143,7 @@ export function parseLatestInvestingBreadthRow(payload: unknown): BreadthOhlc {
     (row): row is number[] =>
       Array.isArray(row) &&
       row.length >= 5 &&
-      row
-        .slice(0, 5)
-        .every((value) => typeof value === "number" && Number.isFinite(value))
+      row.slice(0, 5).every((value) => typeof value === "number" && Number.isFinite(value))
   );
 
   if (!validRows.length)
@@ -160,12 +179,7 @@ export function parseYahooScreenerTotal(payload: unknown): number {
   if (!isRec(first) || !("total" in first))
     throw new Error("Yahoo Finance screener result is missing total.");
   const total = first.total;
-  if (
-    typeof total !== "number" ||
-    !Number.isFinite(total) ||
-    !Number.isInteger(total) ||
-    total < 0
-  )
+  if (typeof total !== "number" || !Number.isFinite(total) || !Number.isInteger(total) || total < 0)
     throw new Error("Yahoo Finance screener total must be a finite non-negative integer.");
   return total;
 }
@@ -238,7 +252,8 @@ export async function fetchInvestingBreadthOhlc(
     status: diagnostic.status,
     responseLength: diagnostic.responseLength
   });
-  return { row: parseLatestInvestingBreadthRow(json), diagnostic };
+  const row = parseLatestInvestingBreadthRow(json);
+  return { row, diagnostic };
 }
 
 async function fetchYahooCrumb() {
@@ -290,8 +305,9 @@ export async function fetchYahooScreenerTotal(scrId: string) {
         screenerId: scrId,
         crumbRefreshed: Boolean(crumb)
       });
+      const total = parseYahooScreenerTotal(json);
       return {
-        total: parseYahooScreenerTotal(json),
+        total,
         diagnostic: { ...diagnostic, screenerId: scrId, crumbRefreshed: Boolean(crumb) }
       };
     } catch (error) {
@@ -329,7 +345,9 @@ export function createMarketBreadthSnapshot(
   };
 }
 
-export async function buildMarketBreadthSnapshot() {
+export async function buildInvestingBreadthSnapshot(
+  fetchedAt = new Date().toISOString()
+): Promise<InvestingBreadthSnapshot> {
   let stage = "investing_50d_fetch";
   try {
     const above50dResult = await fetchInvestingBreadthOhlc(INVESTING_BREADTH_SOURCES.above50d);
@@ -345,7 +363,28 @@ export async function buildMarketBreadthSnapshot() {
       timestamp: above200dResult.row.timestamp
     });
 
-    stage = "yahoo_highs_fetch";
+    const values = { above50d: above50dResult.row, above200d: above200dResult.row };
+    validateOhlc(values.above50d);
+    validateOhlc(values.above200d);
+    return {
+      id: "sp500",
+      ...values,
+      sourceUrl:
+        INVESTING_BREADTH_SOURCES.above50d.url + "," + INVESTING_BREADTH_SOURCES.above200d.url,
+      fetchedAt,
+      contentHash: stableHash(values)
+    };
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Unknown Investing.com breadth error";
+    throw new Error(`Investing.com Market Breadth failed at ${stage}: ${message}`);
+  }
+}
+
+export async function buildYahooBreadthSnapshot(
+  fetchedAt = new Date().toISOString()
+): Promise<YahooBreadthSnapshot> {
+  let stage = "yahoo_highs_fetch";
+  try {
     const highs52wResult = await fetchYahooScreenerTotal(YAHOO_52_WEEK_SOURCES.highs.scrId);
     console.info("refresh-market-breadth", {
       stage: "yahoo_highs_parsed",
@@ -361,41 +400,48 @@ export async function buildMarketBreadthSnapshot() {
       total: lows52wResult.total
     });
 
-    stage = "snapshot_built";
-    const snapshot = createMarketBreadthSnapshot({
-      above50d: above50dResult.row,
-      above200d: above200dResult.row,
-      highs52w: highs52wResult.total,
-      lows52w: lows52wResult.total,
+    if (!Number.isInteger(highs52wResult.total) || highs52wResult.total < 0)
+      throw new Error("Yahoo highs total is invalid.");
+    if (!Number.isInteger(lows52wResult.total) || lows52wResult.total < 0)
+      throw new Error("Yahoo lows total is invalid.");
+    const values = { highs52w: highs52wResult.total, lows52w: lows52wResult.total };
+    return {
+      id: "sp500",
+      ...values,
+      sourceUrl: YAHOO_52_WEEK_SOURCES.highs.url + "," + YAHOO_52_WEEK_SOURCES.lows.url,
+      fetchedAt,
+      contentHash: stableHash(values)
+    };
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Unknown Yahoo breadth error";
+    throw new Error(`Yahoo Market Breadth failed at ${stage}: ${message}`);
+  }
+}
+
+export async function buildMarketBreadthSnapshot() {
+  const fetchedAt = new Date().toISOString();
+  const investing = await buildInvestingBreadthSnapshot(fetchedAt);
+  const yahoo = await buildYahooBreadthSnapshot(fetchedAt);
+  return createMarketBreadthSnapshot(
+    {
+      above50d: investing.above50d,
+      above200d: investing.above200d,
+      highs52w: yahoo.highs52w,
+      lows52w: yahoo.lows52w,
       sourceUpdatedAt: null,
       movingAverageSource: "Investing.com financialdata latest close",
       highLowSource:
         "Yahoo Finance predefined screeners (reported total; universe not verified as S&P 500-only)"
-    });
-    console.info("refresh-market-breadth", {
-      stage: "snapshot_built",
-      snapshot: {
-        above50dTimestamp: snapshot.above50d.timestamp,
-        above50dClose: snapshot.above50d.close,
-        above200dTimestamp: snapshot.above200d.timestamp,
-        above200dClose: snapshot.above200d.close,
-        highs52w: snapshot.highs52w,
-        lows52w: snapshot.lows52w
-      }
-    });
-    return snapshot;
-  } catch (error) {
-    const message = error instanceof Error ? error.message : "Unknown Market Breadth build error";
-    throw new Error(`Market Breadth failed at ${stage}: ${message}`);
-  }
+    },
+    fetchedAt
+  );
 }
 
-function toDb(snapshot: MarketBreadthSnapshot) {
-  validateMarketBreadth(snapshot);
+function investingToDb(snapshot: InvestingBreadthSnapshot) {
+  validateOhlc(snapshot.above50d);
+  validateOhlc(snapshot.above200d);
   return {
     id: snapshot.id,
-    above_50d_percent: snapshot.above50d.close,
-    above_200d_percent: snapshot.above200d.close,
     above_50d_timestamp: snapshot.above50d.timestamp,
     above_50d_open: snapshot.above50d.open,
     above_50d_high: snapshot.above50d.high,
@@ -406,89 +452,104 @@ function toDb(snapshot: MarketBreadthSnapshot) {
     above_200d_high: snapshot.above200d.high,
     above_200d_low: snapshot.above200d.low,
     above_200d_close: snapshot.above200d.close,
-    highs_52w: snapshot.highs52w,
-    lows_52w: snapshot.lows52w,
     source_url: snapshot.sourceUrl,
-    source_updated_at: snapshot.sourceUpdatedAt,
-    moving_average_source: snapshot.movingAverageSource,
-    high_low_source: snapshot.highLowSource,
     fetched_at: snapshot.fetchedAt,
     content_hash: snapshot.contentHash,
     updated_at: new Date().toISOString()
   };
 }
 
-function fromDb(row: Rec): MarketBreadthSnapshot | null {
-  const above50d = {
-    timestamp: Number(row.above_50d_timestamp ?? 0),
-    open: Number(row.above_50d_open ?? row.above_50d_percent),
-    high: Number(row.above_50d_high ?? row.above_50d_percent),
-    low: Number(row.above_50d_low ?? row.above_50d_percent),
-    close: Number(row.above_50d_close ?? row.above_50d_percent)
-  };
-  const above200d = {
-    timestamp: Number(row.above_200d_timestamp ?? 0),
-    open: Number(row.above_200d_open ?? row.above_200d_percent),
-    high: Number(row.above_200d_high ?? row.above_200d_percent),
-    low: Number(row.above_200d_low ?? row.above_200d_percent),
-    close: Number(row.above_200d_close ?? row.above_200d_percent)
-  };
-  const parsed = {
-    above50d,
-    above200d,
-    highs52w: Number(row.highs_52w),
-    lows52w: Number(row.lows_52w),
-    sourceUpdatedAt: typeof row.source_updated_at === "string" ? row.source_updated_at : null,
-    movingAverageSource:
-      typeof row.moving_average_source === "string"
-        ? row.moving_average_source
-        : "Investing.com financialdata latest close",
-    highLowSource:
-      typeof row.high_low_source === "string"
-        ? row.high_low_source
-        : "Yahoo Finance predefined screeners"
-  };
-  try {
-    validateMarketBreadth(parsed);
-  } catch {
-    return null;
-  }
-  const sourceUrl = typeof row.source_url === "string" ? row.source_url : MARKET_BREADTH_SOURCE_URL;
+function yahooToDb(snapshot: YahooBreadthSnapshot) {
+  if (!Number.isInteger(snapshot.highs52w) || snapshot.highs52w < 0)
+    throw new Error("Yahoo highs total is invalid.");
+  if (!Number.isInteger(snapshot.lows52w) || snapshot.lows52w < 0)
+    throw new Error("Yahoo lows total is invalid.");
   return {
-    id: "sp500",
-    ...parsed,
-    sourceUrl,
-    fetchedAt: typeof row.fetched_at === "string" ? row.fetched_at : new Date().toISOString(),
-    contentHash:
-      typeof row.content_hash === "string" ? row.content_hash : stableHash({ ...parsed, sourceUrl })
+    id: snapshot.id,
+    highs_52w: snapshot.highs52w,
+    lows_52w: snapshot.lows52w,
+    source_url: snapshot.sourceUrl,
+    fetched_at: snapshot.fetchedAt,
+    content_hash: snapshot.contentHash,
+    updated_at: new Date().toISOString()
   };
+}
+
+export async function writeInvestingBreadthSnapshot(
+  client: SupabaseClient,
+  snapshot: InvestingBreadthSnapshot
+) {
+  console.info("refresh-market-breadth", {
+    stage: "investing_write_started",
+    table: INVESTING_TABLE,
+    mode: "upsert",
+    onConflict: "id"
+  });
+  const { data, error } = await client
+    .from(INVESTING_TABLE)
+    .upsert(investingToDb(snapshot), { onConflict: "id" })
+    .select("id,fetched_at,above_50d_close,above_200d_close")
+    .single();
+  if (error)
+    throw new Error(
+      `%_above_ma upsert failed: ${(error as { code?: string }).code ?? "unknown"} ${error.message ?? JSON.stringify(error)}`
+    );
+  if (!data) throw new Error("Supabase %_above_ma upsert returned no row.");
+  console.info("refresh-market-breadth", {
+    stage: "investing_write_succeeded",
+    table: INVESTING_TABLE,
+    id: (data as Rec).id,
+    fetchedAt: (data as Rec).fetched_at
+  });
+}
+
+export async function writeYahooBreadthSnapshot(
+  client: SupabaseClient,
+  snapshot: YahooBreadthSnapshot
+) {
+  console.info("refresh-market-breadth", {
+    stage: "yahoo_write_started",
+    table: YAHOO_TABLE,
+    mode: "upsert",
+    onConflict: "id"
+  });
+  const { data, error } = await client
+    .from(YAHOO_TABLE)
+    .upsert(yahooToDb(snapshot), { onConflict: "id" })
+    .select("id,fetched_at,highs_52w,lows_52w")
+    .single();
+  if (error)
+    throw new Error(
+      `52w_high_low upsert failed: ${(error as { code?: string }).code ?? "unknown"} ${error.message ?? JSON.stringify(error)}`
+    );
+  if (!data) throw new Error("Supabase 52w_high_low upsert returned no row.");
+  console.info("refresh-market-breadth", {
+    stage: "yahoo_write_succeeded",
+    table: YAHOO_TABLE,
+    id: (data as Rec).id,
+    fetchedAt: (data as Rec).fetched_at
+  });
 }
 
 export async function writeMarketBreadthSnapshot(
   client: SupabaseClient,
   snapshot: MarketBreadthSnapshot
 ) {
-  console.info("refresh-market-breadth", {
-    stage: "supabase_write_started",
-    table: TABLE,
-    mode: "upsert",
-    onConflict: "id"
+  await writeInvestingBreadthSnapshot(client, {
+    id: snapshot.id,
+    above50d: snapshot.above50d,
+    above200d: snapshot.above200d,
+    sourceUrl: snapshot.sourceUrl,
+    fetchedAt: snapshot.fetchedAt,
+    contentHash: snapshot.contentHash
   });
-  const { data, error } = await client
-    .from(TABLE)
-    .upsert(toDb(snapshot), { onConflict: "id" })
-    .select("id,fetched_at,above_50d_close,above_200d_close,highs_52w,lows_52w")
-    .single();
-  if (error)
-    throw new Error(
-      `market_breadth upsert failed: ${(error as { code?: string }).code ?? "unknown"} ${error.message ?? JSON.stringify(error)}`
-    );
-  if (!data) throw new Error("Supabase market_breadth upsert returned no row.");
-  console.info("refresh-market-breadth", {
-    stage: "supabase_write_succeeded",
-    table: TABLE,
-    id: (data as Rec).id,
-    fetchedAt: (data as Rec).fetched_at
+  await writeYahooBreadthSnapshot(client, {
+    id: snapshot.id,
+    highs52w: snapshot.highs52w,
+    lows52w: snapshot.lows52w,
+    sourceUrl: snapshot.sourceUrl,
+    fetchedAt: snapshot.fetchedAt,
+    contentHash: snapshot.contentHash
   });
 }
 
@@ -496,66 +557,138 @@ export async function refreshMarketBreadth() {
   const supabase = createServerSupabaseClient();
   if (!supabase.ok)
     return sourceResult({ ok: false, count: 0, error: supabase.message, persisted: false });
+  const fetchedAt = new Date().toISOString();
+  const providerStatuses: Record<"investing" | "yahoo", ProviderStatus> = {
+    investing: "failed",
+    yahoo: "failed"
+  };
+  const errors: Record<string, string> = {};
+  let upserted = 0;
+  let investingSnapshot: InvestingBreadthSnapshot | null = null;
+  let yahooSnapshot: YahooBreadthSnapshot | null = null;
+
   try {
-    const snapshot = await buildMarketBreadthSnapshot();
-    await writeMarketBreadthSnapshot(supabase.client, snapshot);
-    const meta = {
-      sourceUrl: snapshot.sourceUrl,
-      fetchedAt: snapshot.fetchedAt,
-      movingAverageSource: snapshot.movingAverageSource,
-      highLowSource: snapshot.highLowSource,
-      method: "investing-financialdata-latest-timestamp-ohlc + yahoo-screener-total",
-      table: TABLE
-    };
-    await updateRefreshMetadata(supabase.client, SOURCE, {
-      ok: true,
-      changed: true,
-      rowCount: 1,
-      contentHash: payloadContentHash([snapshot]),
-      meta
-    });
-    return sourceResult({
-      ok: true,
-      count: 1,
-      changed: true,
-      contentHash: snapshot.contentHash,
-      upserted: 1,
-      persisted: true,
-      meta
-    });
+    investingSnapshot = await buildInvestingBreadthSnapshot(fetchedAt);
+    await writeInvestingBreadthSnapshot(supabase.client, investingSnapshot);
+    providerStatuses.investing = "success";
+    upserted += 1;
   } catch (error) {
-    const message = error instanceof Error ? error.message : "Unknown Market Breadth refresh error";
-    try {
-      await updateRefreshMetadata(supabase.client, SOURCE, {
-        ok: false,
-        changed: false,
-        rowCount: 0,
-        error: message,
-        meta: { preservedCache: true, table: TABLE }
-      });
-    } catch {}
-    return sourceResult({
-      ok: false,
-      count: 0,
-      error: message,
-      persisted: false,
-      meta: { preservedCache: true, table: TABLE }
-    });
+    errors.investing =
+      error instanceof Error ? error.message : "Unknown Investing.com Market Breadth error";
   }
+
+  try {
+    yahooSnapshot = await buildYahooBreadthSnapshot(fetchedAt);
+    await writeYahooBreadthSnapshot(supabase.client, yahooSnapshot);
+    providerStatuses.yahoo = "success";
+    upserted += 1;
+  } catch (error) {
+    errors.yahoo = error instanceof Error ? error.message : "Unknown Yahoo Market Breadth error";
+  }
+
+  const ok = providerStatuses.investing === "success" && providerStatuses.yahoo === "success";
+  const meta = {
+    method: "investing-financialdata-latest-timestamp-ohlc + yahoo-screener-total",
+    tables: { investing: INVESTING_TABLE, yahoo: YAHOO_TABLE },
+    providerStatuses,
+    errors,
+    preservedCache: !ok,
+    fetchedAt
+  };
+  try {
+    await updateRefreshMetadata(supabase.client, SOURCE, {
+      ok,
+      changed: upserted > 0,
+      rowCount: upserted,
+      contentHash: payloadContentHash([investingSnapshot, yahooSnapshot].filter(Boolean)),
+      error: ok ? undefined : Object.values(errors).join("; "),
+      meta
+    });
+  } catch {}
+  return sourceResult({
+    ok,
+    count: upserted,
+    changed: upserted > 0,
+    contentHash:
+      ok && investingSnapshot && yahooSnapshot
+        ? stableHash({ investingSnapshot, yahooSnapshot })
+        : undefined,
+    upserted,
+    persisted: upserted > 0,
+    error: ok ? undefined : Object.values(errors).join("; "),
+    meta
+  });
+}
+
+function fromSplitDb(investingRow: Rec | null, yahooRow: Rec | null): MarketBreadthSnapshot | null {
+  if (!investingRow || !yahooRow) return null;
+  const parsed = {
+    above50d: {
+      timestamp: Number(investingRow.above_50d_timestamp ?? 0),
+      open: Number(investingRow.above_50d_open),
+      high: Number(investingRow.above_50d_high),
+      low: Number(investingRow.above_50d_low),
+      close: Number(investingRow.above_50d_close)
+    },
+    above200d: {
+      timestamp: Number(investingRow.above_200d_timestamp ?? 0),
+      open: Number(investingRow.above_200d_open),
+      high: Number(investingRow.above_200d_high),
+      low: Number(investingRow.above_200d_low),
+      close: Number(investingRow.above_200d_close)
+    },
+    highs52w: Number(yahooRow.highs_52w),
+    lows52w: Number(yahooRow.lows_52w),
+    sourceUpdatedAt: null,
+    movingAverageSource: "Investing.com financialdata latest close",
+    highLowSource:
+      "Yahoo Finance predefined screeners (reported total; universe not verified as S&P 500-only)"
+  };
+  try {
+    validateMarketBreadth(parsed);
+  } catch {
+    return null;
+  }
+  const fetchedAt = String(
+    investingRow.fetched_at ?? yahooRow.fetched_at ?? new Date().toISOString()
+  );
+  return {
+    id: "sp500",
+    ...parsed,
+    sourceUrl: MARKET_BREADTH_SOURCE_URL,
+    fetchedAt,
+    contentHash: stableHash(parsed)
+  };
 }
 
 export async function readCachedSp500Breadth(client?: SupabaseClient) {
   const supabase = client ? { ok: true as const, client } : createServerSupabaseClient();
   if (!supabase.ok) return { snapshot: null, message: supabase.message };
-  const select =
-    "above_50d_percent,above_200d_percent,above_50d_timestamp,above_50d_open,above_50d_high,above_50d_low,above_50d_close,above_200d_timestamp,above_200d_open,above_200d_high,above_200d_low,above_200d_close,highs_52w,lows_52w,source_url,source_updated_at,moving_average_source,high_low_source,fetched_at,content_hash";
-  const { data, error } = await supabase.client
-    .from(TABLE)
-    .select(select)
-    .eq("id", "sp500")
-    .maybeSingle();
-  if (error) return { snapshot: null, message: error.message };
-  return { snapshot: isRec(data) ? fromDb(data) : null };
+  const investingSelect =
+    "above_50d_timestamp,above_50d_open,above_50d_high,above_50d_low,above_50d_close,above_200d_timestamp,above_200d_open,above_200d_high,above_200d_low,above_200d_close,fetched_at";
+  const yahooSelect = "highs_52w,lows_52w,fetched_at";
+  const [investing, yahoo] = await Promise.all([
+    supabase.client
+      .from(INVESTING_TABLE)
+      .select(investingSelect)
+      .order("fetched_at", { ascending: false })
+      .limit(1)
+      .maybeSingle(),
+    supabase.client
+      .from(YAHOO_TABLE)
+      .select(yahooSelect)
+      .order("fetched_at", { ascending: false })
+      .limit(1)
+      .maybeSingle()
+  ]);
+  if (investing.error || yahoo.error)
+    return { snapshot: null, message: investing.error?.message ?? yahoo.error?.message };
+  return {
+    snapshot: fromSplitDb(
+      isRec(investing.data) ? investing.data : null,
+      isRec(yahoo.data) ? yahoo.data : null
+    )
+  };
 }
 
 export function marketBreadthMetrics(snapshot: MarketBreadthSnapshot | null): Metric[] {

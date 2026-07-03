@@ -25,7 +25,8 @@ export default async function handler() {
   const runWindow = shouldRunInTorontoWindow({
     days: [1, 2, 3, 4, 5],
     intervalMinutes: 15,
-    minuteOffset: 0
+    minuteOffset: 0,
+    enforceInterval: true
   });
   if (!runWindow.shouldRun) {
     console.info("refresh-market-breadth", {
