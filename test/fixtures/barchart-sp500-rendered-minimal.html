@@ -1,0 +1,22 @@
+<section>
+  <h4>Percentage of S&P 500 Stocks Above Moving Average</h4>
+  <div class="chart-block" data-ng-repeat="quotesItem in quotesData track by $index" data-ng-if="quotesData.description[quotesItem.symbol]">
+    <p class="chart-header" data-ng-bind="::quotesData.description[quotesItem.symbol]">50-Day Average</p>
+    <a href="/stocks/quotes/$S5FI/interactive-chart">chart</a>
+    <div class="quota-data"><h3 class="up"><span data-ng-bind="::quotesItem.lastPrice">67.06</span>%</h3></div>
+  </div>
+  <div class="chart-block" data-ng-repeat="quotesItem in quotesData track by $index" data-ng-if="quotesData.description[quotesItem.symbol]">
+    <p class="chart-header" data-ng-bind="::quotesData.description[quotesItem.symbol]">200-Day Average</p>
+    <a href="/stocks/quotes/$S5TH/interactive-chart">chart</a>
+    <div class="quota-data"><h3 class="up"><span data-ng-bind="::quotesItem.lastPrice">66.07</span>%</h3></div>
+  </div>
+</section>
+<section>
+  <h4>Summary of S&P 500 Stocks With New Highs and Lows</h4>
+  <table>
+    <tr><th>(501 Total Components)</th><th>5-Day</th><th>1-Month</th><th>3-Month</th><th>6-Month</th><th>52-Week</th><th>Year-to-Date</th></tr>
+    <tr><td>Today's New Highs (% of total)</td><td>247 (49%)</td><td>150 (30%)</td><td>95 (19%)</td><td>60 (12%)</td><td>50 (10%)</td><td>60 (12%)</td></tr>
+    <tr><td>Today's New Lows (% of total)</td><td>102 (20%)</td><td>41 (8%)</td><td>11 (2%)</td><td>2 (0%)</td><td>1 (0%)</td><td>2 (0%)</td></tr>
+    <tr><td>Difference</td><td>145</td><td>109</td><td>84</td><td>58</td><td>49</td><td>58</td></tr>
+  </table>
+</section>

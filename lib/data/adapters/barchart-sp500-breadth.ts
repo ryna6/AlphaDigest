@@ -61,6 +61,46 @@ function escapeRegExp(value: string) {
   return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
+
+function tagText(html: string, className: string) {
+  const classPattern = `(?=[^>]*class=["'][^"']*\\b${escapeRegExp(className)}\\b[^"']*["'])`;
+  const match = html.match(new RegExp(`<[^>]+${classPattern}[^>]*>([\\s\\S]*?)<\\/[^>]+>`, "i"));
+  return match ? cleanText(match[1]) : "";
+}
+
+function normalizeHeading(value: string) {
+  return cleanText(value)
+    .replace(/[‐‑‒–—]/g, "-")
+    .replace(/\s*-\s*/g, "-")
+    .replace(/\s+/g, " ")
+    .trim()
+    .toLowerCase();
+}
+
+function parseNumber(value: string | undefined) {
+  if (!value) return null;
+  const match = cleanText(value).match(/(-?\d+(?:\.\d+)?)/);
+  if (!match) return null;
+  const parsed = Number(match[1]);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+function chartBlocks(html: string) {
+  return [...html.matchAll(/<div\b(?=[^>]*class=["'][^"']*\bchart-block\b[^"']*["'])[^>]*>[\s\S]*?<\/div>\s*<\/div>/gi)].map((m) => m[0]);
+}
+
+function parseMovingAverageFromChartBlocks(html: string, day: 50 | 200) {
+  const wanted = `${day}-day average`;
+  for (const block of chartBlocks(html)) {
+    if (normalizeHeading(tagText(block, "chart-header")) !== wanted) continue;
+    const quota = block.match(/<div\b(?=[^>]*class=["'][^"']*\bquota-data\b[^"']*["'])[^>]*>([\s\S]*?)<\/div>/i)?.[1] ?? block;
+    const spanValue = quota.match(/<span\b[^>]*>([\s\S]*?)<\/span>/i)?.[1];
+    const parsed = parseNumber(spanValue ?? quota);
+    return parsed != null && parsed >= 0 && parsed <= 100 ? parsed : null;
+  }
+  return null;
+}
+
 function parsePercent(value: string | undefined) {
   if (!value) return null;
   const match = value.match(/(-?\d+(?:\.\d+)?)\s*%/);
@@ -147,8 +187,8 @@ export function parseBarchartSp500Breadth(html: string, fetchedAt = new Date().t
   if (looksLikeBarchartBlockPage(html)) throw new Error("Barchart response appears to be a block/challenge page.");
   const maSection = sectionAfter(html, "Percentage of S&P 500 Stocks Above Moving Average");
   if (!maSection) throw new Error("Barchart moving-average breadth section not found.");
-  const above50dPercent = parseMovingAveragePercent(maSection, 50);
-  const above200dPercent = parseMovingAveragePercent(maSection, 200);
+  const above50dPercent = parseMovingAverageFromChartBlocks(maSection, 50) ?? parseMovingAveragePercent(maSection, 50);
+  const above200dPercent = parseMovingAverageFromChartBlocks(maSection, 200) ?? parseMovingAveragePercent(maSection, 200);
   if (above50dPercent == null) throw new Error("Barchart 50-day average percentage not found or invalid.");
   if (above200dPercent == null) throw new Error("Barchart 200-day average percentage not found or invalid.");
 
@@ -177,7 +217,7 @@ export async function fetchBarchartSp500Breadth() {
   }
   const contentType = response.headers.get("content-type") ?? "unknown";
   const html = await response.text();
-  const diagnostic = { status: response.status, contentType, finalUrl: response.url, length: html.length, hasMovingAverageHeading: /Percentage of S&P 500 Stocks Above Moving Average/i.test(html), hasHighLowHeading: /Summary of S&P 500 Stocks With New Highs and Lows/i.test(html), has50DayLabel: /50\s*[-‐‑‒–—]?\s*DAY\s+AVERAGE/i.test(html) };
+  const diagnostic = { status: response.status, contentType, finalUrl: response.url, length: html.length, hasMovingAverageHeading: /Percentage of S&P 500 Stocks Above Moving Average/i.test(html), hasHighLowHeading: /Summary of S&P 500 Stocks With New Highs and Lows/i.test(html), has50DayLabel: /50\s*[-‐‑‒–—]?\s*DAY\s+AVERAGE/i.test(html), has200DayLabel: /200\s*[-‐‑‒–—]?\s*DAY\s+AVERAGE/i.test(html), hasRenderedAngularLastPrice: /data-ng-bind=["']::quotesItem\.lastPrice["']>\s*-?\d+(?:\.\d+)?\s*</i.test(html), hasEmptyAngularLastPrice: /data-ng-bind=["']::quotesItem\.lastPrice["']>\s*</i.test(html), appearsBlocked: looksLikeBarchartBlockPage(html) };
   if (!response.ok) throw new Error(`Barchart S&P 500 breadth fetch failed: ${JSON.stringify(diagnostic)}`);
   if (!/html/i.test(contentType)) throw new Error(`Barchart S&P 500 breadth fetch returned unexpected content type: ${JSON.stringify(diagnostic)}`);
   if (looksLikeBarchartBlockPage(html)) throw new Error(`Barchart S&P 500 breadth fetch returned a block/challenge page: ${JSON.stringify(diagnostic)}`);

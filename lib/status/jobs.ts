@@ -164,11 +164,11 @@ export const STATUS_JOBS: StatusJob[] = [
     job: "Market Breadth",
     functionName: "refresh-market-breadth",
     source: "Barchart",
-    frequency: "Hourly, Mon–Fri",
-    schedule: "0 * * * 1-5",
-    scheduleDescription: "Every hour Monday-Friday.",
-    nextRunRule: { days: [1, 2, 3, 4, 5], intervalMinutes: 60, minuteOffset: 0 },
-    staleAfterMinutes: 180
+    frequency: "Every 15m, Mon–Fri",
+    schedule: "*/15 * * * 1-5",
+    scheduleDescription: "Every 15 minutes, Monday–Friday.",
+    nextRunRule: { days: [1, 2, 3, 4, 5], intervalMinutes: 15, minuteOffset: 0 },
+    staleAfterMinutes: 45
   },
   {
     id: "markets-movers",
