@@ -675,7 +675,9 @@ async function buildTodayPayload(): Promise<{
     ? earningsSnapshotFromUnusualWhales(topTodayEarnings)
     : [];
   const earningsSummary = todayEarningsSummary(todayEarnings);
-  const todayEconomicEvents = economicCalendarResult.events;
+  const todayEconomicEvents = economicCalendarResult.events.filter(
+    (event) => event.stars === 3 || event.importance === "High"
+  );
   const highlightedEconomicEventCount = todayEconomicEvents.filter(
     (event) => event.isHighlighted || event.eventKey
   ).length;

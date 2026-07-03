@@ -195,7 +195,7 @@ Important constraints/indexes: status is limited to `running`, `success`, `warni
 | `/api/ownership/congressional` | Congressional holdings/trades | `GET` | Supabase congressional tables | Browser-safe cached response with SPY comparison support. |
 | `/api/sources/status` | Environment/source readiness | `GET` | Environment metadata only | Returns configured/missing booleans; never returns secret values. |
 | `/api/cache/status` | Cache diagnostics | `GET` | Supabase metadata/source tables | Reports row counts, freshness, and metadata diagnostics. |
-| `refresh-economy` | FRED ingestion and Economy snapshot | Hourly wake; provider work guarded to daily Toronto noon window | FRED | Incremental `fred_economy` upserts and `economy:latest` snapshot. |
+| `refresh-economy` | FRED ingestion and Economy snapshot | Daily at 00:00 UTC | FRED | Incremental `fred_economy` upserts and `economy:latest` snapshot. |
 | `refresh-markets` / `refresh-market-quotes` | Market quote cache and Markets snapshot | Frequent weekday schedules | Yahoo Finance, Finnhub | Upserts quote rows and dashboard snapshots. |
 | `refresh-news`, `refresh-news-feed`, `refresh-featured-articles` | News source rows and News & Calendar snapshot | Every 30 minutes | Unusual Whales | Upserts feed/article rows and snapshot payloads. |
 | `fetch-uw-earnings` | Earnings calendar source cache | Every 6 hours | Unusual Whales | Upserts active-window rows and prunes outside-window rows. |
