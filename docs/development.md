@@ -154,7 +154,7 @@ When adding symbols:
 2. Add an icon file in `public/assets/heatmap-icons/` if needed.
 3. Add/update mappings in `lib/constants/asset-icons.ts`.
 4. Update `docs/data-sources.md` if the symbol universe changes materially.
-5. For S&P 500 constituent heatmaps, keep provider fetching server-side in `refresh-markets`; the UI must read from the Supabase-backed Markets payload.
+5. For S&P 500 constituent heatmaps, keep provider fetching server-side in `refresh-market-heatmap`; the UI must read from the Supabase-backed Markets payload.
 
 ### Change News & Calendar data
 

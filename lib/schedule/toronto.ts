@@ -121,7 +121,10 @@ export function shouldRunInTorontoWindow(options: TorontoRunWindowOptions = {}):
     const minuteOfDay = parts.hour * 60 + parts.minute;
     const windowStart = options.windows?.find((window) => window.day === undefined || window.day === parts.day)?.startTime ?? options.startTime ?? "00:00";
     const elapsed = minuteOfDay - minutesFromTime(windowStart);
-    if (elapsed < 0 || elapsed % options.intervalMinutes !== 0 || parts.minute % 5 !== minuteOffset % 5) {
+    // Day-only guards intentionally start at Toronto midnight, so a Monday-Friday
+    // range covers the full local weekdays. Interval checks are then anchored to
+    // that explicit/default window start rather than to a fixed UTC cadence.
+    if (elapsed < 0 || (elapsed - minuteOffset) % options.intervalMinutes !== 0) {
       return { shouldRun: false, reason: "outside_toronto_interval", torontoTime: parts.label };
     }
   }

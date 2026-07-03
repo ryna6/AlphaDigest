@@ -173,6 +173,31 @@ test("Toronto weekday-only Flow guard allows late hourly wakes without interval 
   assert.equal(decision.torontoTime, "Tue 2026-06-23 01:15:05");
 });
 
+
+test("Toronto weekday interval guard treats Monday-Friday as full Toronto days", () => {
+  const earlyMonday = shouldRunInTorontoWindow({ days: [1, 2, 3, 4, 5], intervalMinutes: 5, now: new Date("2026-06-22T04:05:00.000Z") });
+  assert.equal(earlyMonday.shouldRun, true);
+  assert.equal(earlyMonday.torontoTime, "Mon 2026-06-22 00:05:00");
+
+  const lateFriday = shouldRunInTorontoWindow({ days: [1, 2, 3, 4, 5], intervalMinutes: 5, now: new Date("2026-06-27T03:55:00.000Z") });
+  assert.equal(lateFriday.shouldRun, true);
+  assert.equal(lateFriday.torontoTime, "Fri 2026-06-26 23:55:00");
+
+  const saturday = shouldRunInTorontoWindow({ days: [1, 2, 3, 4, 5], intervalMinutes: 5, now: new Date("2026-06-27T04:00:00.000Z") });
+  assert.equal(saturday.shouldRun, false);
+  assert.equal(saturday.reason, "outside_toronto_days");
+});
+
+test("Toronto interval guard preserves narrower explicit windows", () => {
+  const beforeWindow = shouldRunInTorontoWindow({ days: [1, 2, 3, 4, 5], startTime: "09:30", endTime: "16:00", intervalMinutes: 10, now: new Date("2026-06-22T13:20:00.000Z") });
+  assert.equal(beforeWindow.shouldRun, false);
+  assert.equal(beforeWindow.reason, "outside_toronto_window");
+
+  const insideWindow = shouldRunInTorontoWindow({ days: [1, 2, 3, 4, 5], startTime: "09:30", endTime: "16:00", intervalMinutes: 10, now: new Date("2026-06-22T13:40:00.000Z") });
+  assert.equal(insideWindow.shouldRun, true);
+  assert.equal(insideWindow.torontoTime, "Mon 2026-06-22 09:40:00");
+});
+
 test("CoinGecko normalization requires every configured current USD crypto quote", () => {
   const fixture = Object.fromEntries(
     cryptoAssets.map((asset, index) => [
