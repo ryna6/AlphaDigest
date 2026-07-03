@@ -162,13 +162,13 @@ export const STATUS_JOBS: StatusJob[] = [
     id: "markets-breadth",
     group: "Markets",
     job: "Market Breadth",
-    functionName: "refresh-markets-heatmap",
-    source: "Unusual Whales",
-    frequency: "Every 10m, Mon–Fri",
-    schedule: "*/10 * * * 1-5",
-    scheduleDescription: "Every 10 minutes Monday-Friday via refresh-markets-heatmap.",
-    nextRunRule: { days: [1, 2, 3, 4, 5], intervalMinutes: 10, minuteOffset: 0 },
-    staleAfterMinutes: 20
+    functionName: "refresh-market-breadth",
+    source: "Barchart",
+    frequency: "Hourly, Mon–Fri",
+    schedule: "0 * * * 1-5",
+    scheduleDescription: "Every hour Monday-Friday.",
+    nextRunRule: { days: [1, 2, 3, 4, 5], intervalMinutes: 60, minuteOffset: 0 },
+    staleAfterMinutes: 180
   },
   {
     id: "markets-movers",
