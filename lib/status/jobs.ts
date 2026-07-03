@@ -173,7 +173,7 @@ export const STATUS_JOBS: StatusJob[] = [
   {
     id: "markets-movers",
     group: "Markets",
-    job: "Movers / Leaders / Laggards",
+    job: "Market Movers",
     functionName: "refresh-markets-heatmap",
     source: "Unusual Whales",
     frequency: "Every 10m, Mon–Fri",
