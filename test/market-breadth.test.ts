@@ -30,10 +30,16 @@ test("Investing parser requires payload.data and rejects empty data", () => {
   assert.throws(() => parseLatestInvestingBreadthRow({ data: [] }), /no valid/i);
 });
 
-test("Investing parser reads payload.data image fixture indexes", () => {
+test("Investing parser reads exact supplied payload.data fixture indexes", () => {
   assert.deepEqual(
-    parseLatestInvestingBreadthRow({ data: [[1762819200000, 56.46, 58.05, 56.46, 57.45, 0, 0]] }),
-    { timestamp: 1762819200000, open: 56.46, high: 58.05, low: 56.46, close: 57.45 }
+    parseLatestInvestingBreadthRow({
+      data: [
+        [1782864000000, 64.34, 66.13, 63.09, 63.09, 0, 0],
+        [1782950400000, 66.46, 67.26, 64.88, 67.06, 0, 0]
+      ],
+      events: null
+    }),
+    { timestamp: 1782950400000, open: 66.46, high: 67.26, low: 64.88, close: 67.06 }
   );
 });
 
@@ -61,15 +67,25 @@ test("Investing parser does not confuse timestamp selection with highest price",
   );
 });
 
-test("Investing parser returns all OHLC values and ignores malformed rows", () => {
+test("Investing parser returns OHLC values, ignores malformed rows, and allows extra indexes", () => {
   assert.deepEqual(
     parseLatestInvestingBreadthRow({
       data: [
         [3000, "bad", 2],
-        [1782950400000, "66.46", "67.26", "64.88", "67.06"]
+        [1782950400000, 66.46, 67.26, 64.88, 67.06, 0, 0, 123]
       ]
     }),
     ohlc
+  );
+});
+
+test("Investing parser rejects strings instead of numbers", () => {
+  assert.throws(
+    () =>
+      parseLatestInvestingBreadthRow({
+        data: [[1782950400000, "66.46", "67.26", "64.88", "67.06"]]
+      }),
+    /no valid/i
   );
 });
 
@@ -79,18 +95,28 @@ test("Investing parser fails when no valid rows exist", () => {
       parseLatestInvestingBreadthRow({
         data: [
           [1, "x", 2, 3, 4],
-          [2, 101, 102, 100, 101]
+          [2, 1, "y", 3, 4]
         ]
       }),
     /no valid/i
   );
 });
 
-test("Investing parser validates ranges and OHLC consistency", () => {
-  assert.throws(() => parseLatestInvestingBreadthRow({ data: [[1, 50, 49, 45, 51]] }), /no valid/i);
+test("Investing parser validates positive timestamps and percentage ranges without OHLC over-rejection", () => {
+  assert.deepEqual(parseLatestInvestingBreadthRow({ data: [[1, 50, 49, 45, 51]] }), {
+    timestamp: 1,
+    open: 50,
+    high: 49,
+    low: 45,
+    close: 51
+  });
   assert.throws(
     () => validateMarketBreadth({ ...parsed, above50d: { ...ohlc, close: 101 } }),
     /outside 0-100/
+  );
+  assert.throws(
+    () => validateMarketBreadth({ ...parsed, above50d: { ...ohlc, timestamp: 0 } }),
+    /timestamp/
   );
 });
 
@@ -104,9 +130,9 @@ test("Market breadth UI metrics use latest close as the moving-average percentag
 test("Yahoo total parser uses total instead of count or records length", () => {
   assert.equal(
     parseYahooScreenerTotal({
-      finance: { result: [{ start: 0, count: 57, total: 123, records: [] }], error: null }
+      finance: { result: [{ start: 0, count: 25, total: 57, records: [] }], error: null }
     }),
-    123
+    57
   );
 });
 
@@ -114,11 +140,11 @@ test("Yahoo total parser reads finance.result[0].total", () => {
   assert.equal(
     parseYahooScreenerTotal({
       finance: {
-        result: [{ start: 0, count: 100, total: 123, records: [{ ticker: "UNH" }] }],
+        result: [{ start: 0, count: 100, total: 57, records: [] }],
         error: null
       }
     }),
-    123
+    57
   );
 });
 
