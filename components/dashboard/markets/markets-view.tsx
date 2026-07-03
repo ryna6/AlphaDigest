@@ -1,5 +1,4 @@
 "use client";
-
 import { useState } from "react";
 import type { MarketsPayload } from "@/lib/data/schemas/dashboard";
 import { PageTitle } from "@/components/dashboard/page-title";
@@ -11,7 +10,6 @@ import { ErrorState } from "@/components/ui/error-state";
 import { cn } from "@/lib/utils/cn";
 
 const modes = ["globalMarkets", "sectors", "sp500", "crypto", "macro"] as const;
-
 const labels = {
   globalMarkets: "Global Markets",
   sectors: "Sectors",
@@ -22,7 +20,6 @@ const labels = {
 
 function MarketMetricIcon({ src, label }: { src: string; label: string }) {
   const [hidden, setHidden] = useState(false);
-
   if (hidden) return null;
 
   return (
@@ -55,12 +52,10 @@ function MarketMoverValue({
   if (value === "—") return <span className="text-textPrimary">{value}</span>;
 
   const percentClass = metricTone === "negative" ? "text-negative" : "text-positive";
-
   return (
     <>
       {value.split(" · ").map((part, index) => {
         const match = part.match(/^(\S+)\s+([+-]\d+(?:\.\d+)?%)$/);
-
         if (!match) {
           return (
             <span key={`${part}-${index}`} className="text-textPrimary">
@@ -68,9 +63,7 @@ function MarketMoverValue({
             </span>
           );
         }
-
         const [, ticker, percent] = match;
-
         return (
           <span key={`${ticker}-${percent}-${index}`}>
             {index > 0 ? <span className="text-textSecondary"> · </span> : null}
@@ -91,7 +84,6 @@ function MarketMoverRow({ metric }: { metric: MarketsPayload["movers"][number] }
           <p className="truncate text-sm text-textMuted">{metric.label}</p>
         </div>
       </div>
-
       <div className="text-right tabular">
         <p className="text-base font-semibold">
           <MarketMoverValue value={metric.value} tone={metric.tone} />
@@ -108,10 +100,8 @@ export function MarketsView({ data }: { data: MarketsPayload }) {
   return (
     <>
       <PageTitle title="Markets" />
-
       <Panel>
         <SectionHeader title="Indices" />
-
         <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
           {data.strip.map((metric) => (
             <div
@@ -122,18 +112,13 @@ export function MarketsView({ data }: { data: MarketsPayload }) {
                 {metric.iconPath ? (
                   <MarketMetricIcon src={metric.iconPath} label={metric.label} />
                 ) : null}
-
                 <p className="text-sm font-semibold uppercase tracking-[0.18em] text-textMuted">
                   {metric.label}
                 </p>
               </div>
-
               <div className="mt-4">
                 <div className="flex items-baseline justify-between gap-3">
-                  <p className="min-w-0 text-2xl font-semibold text-textPrimary">
-                    {metric.value}
-                  </p>
-
+                  <p className="min-w-0 text-2xl font-semibold text-textPrimary">{metric.value}</p>
                   {metric.changePercent ? (
                     <p
                       className={cn(
@@ -145,7 +130,6 @@ export function MarketsView({ data }: { data: MarketsPayload }) {
                     </p>
                   ) : null}
                 </div>
-
                 {metric.change ? (
                   <p className={cn("mt-2 text-sm", signedValueClass(metric.change))}>
                     {metric.change}
@@ -156,77 +140,55 @@ export function MarketsView({ data }: { data: MarketsPayload }) {
           ))}
         </div>
       </Panel>
-
       <Panel className="mt-4">
         <SectionHeader title="Heatmap" />
-
         {data.heatmapKeyMessages.length ? (
           <div className="mb-3 grid gap-2">
-            {data.heatmapKeyMessages.map((message) => (
-              <ErrorState key={message} message={message} />
+            {data.heatmapKeyMessages.map((m) => (
+              <ErrorState key={m} message={m} />
             ))}
           </div>
         ) : null}
-
         <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
           <div className="inline-flex flex-wrap gap-1 rounded-none border border-borderStrong bg-sidebar/80 p-1 shadow-inner">
-            {modes.map((selectedMode) => (
+            {modes.map((m) => (
               <button
-                key={selectedMode}
-                onClick={() => setMode(selectedMode)}
+                key={m}
+                onClick={() => setMode(m)}
                 className={cn(
                   "rounded-none px-4 py-2 text-xs font-semibold transition",
-                  mode === selectedMode
+                  mode === m
                     ? "bg-accentBlue text-white shadow-[0_0_18px_rgba(79,140,255,0.35)]"
                     : "text-textSecondary hover:bg-panelHover hover:text-textPrimary"
                 )}
               >
-                {labels[selectedMode]}
+                {labels[m]}
               </button>
             ))}
           </div>
-
           {mode === "sp500" ? (
             <div className="inline-flex gap-1 rounded-none border border-borderStrong bg-sidebar/80 p-1 shadow-inner">
               {(["none", "sector"] as const).map((grouping) => (
-                <button
-                  key={grouping}
-                  onClick={() => setSp500Grouping(grouping)}
-                  className={cn(
-                    "rounded-none px-4 py-2 text-xs font-semibold transition",
-                    sp500Grouping === grouping
-                      ? "bg-accentBlue text-white shadow-[0_0_18px_rgba(79,140,255,0.35)]"
-                      : "text-textSecondary hover:bg-panelHover hover:text-textPrimary"
-                  )}
-                >
+                <button key={grouping} onClick={() => setSp500Grouping(grouping)} className={cn("rounded-none px-4 py-2 text-xs font-semibold transition", sp500Grouping === grouping ? "bg-accentBlue text-white shadow-[0_0_18px_rgba(79,140,255,0.35)]" : "text-textSecondary hover:bg-panelHover hover:text-textPrimary")}>
                   {grouping === "none" ? "No Group" : "Sector"}
                 </button>
               ))}
             </div>
           ) : null}
         </div>
-
-        <Heatmap
-          tiles={data.heatmaps[mode]}
-          variant={mode === "sp500" ? "trading" : "grid"}
-          grouping={sp500Grouping}
-        />
+        <Heatmap tiles={data.heatmaps[mode]} variant={mode === "sp500" ? "trading" : "grid"} grouping={sp500Grouping} />
       </Panel>
-
       <div className="mt-4 grid gap-4 xl:grid-cols-2">
         <Panel>
           <SectionHeader title="Market Breadth" />
-
-          {data.breadth.map((metric) => (
-            <MetricRow key={metric.label} metric={metric} density="roomy" />
+          {data.breadth.map((m) => (
+            <MetricRow key={m.label} metric={m} density="roomy" />
           ))}
         </Panel>
-
         <Panel>
           <SectionHeader title="Market Movers" />
-
-          {data.movers.map((metric) => (
-            <MarketMoverRow key={metric.label} metric={metric} />
+          {data.movers.map((m) => (
+            <MarketMoverRow key={m.label} metric={m} />
           ))}
         </Panel>
       </div>
