@@ -9,12 +9,13 @@ import { Heatmap } from "@/components/ui/heatmap";
 import { ErrorState } from "@/components/ui/error-state";
 import { cn } from "@/lib/utils/cn";
 
-const modes = ["globalMarkets", "sectors", "crypto", "macro"] as const;
+const modes = ["globalMarkets", "sectors", "crypto", "macro", "sp500"] as const;
 const labels = {
   globalMarkets: "Global Markets",
   sectors: "Sectors",
   crypto: "Crypto",
-  macro: "Macro"
+  macro: "Macro",
+  sp500: "S&P 500"
 };
 
 function MarketMetricIcon({ src, label }: { src: string; label: string }) {
@@ -43,6 +44,7 @@ function signedValueClass(value?: string) {
 
 export function MarketsView({ data }: { data: MarketsPayload }) {
   const [mode, setMode] = useState<(typeof modes)[number]>("globalMarkets");
+  const [sp500Grouping, setSp500Grouping] = useState<"none" | "sector">("none");
 
   return (
     <>
@@ -96,7 +98,8 @@ export function MarketsView({ data }: { data: MarketsPayload }) {
             ))}
           </div>
         ) : null}
-        <div className="mb-4 inline-flex flex-wrap gap-1 rounded-none border border-borderStrong bg-sidebar/80 p-1 shadow-inner">
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+          <div className="inline-flex flex-wrap gap-1 rounded-none border border-borderStrong bg-sidebar/80 p-1 shadow-inner">
           {modes.map((m) => (
             <button
               key={m}
@@ -111,8 +114,18 @@ export function MarketsView({ data }: { data: MarketsPayload }) {
               {labels[m]}
             </button>
           ))}
+          </div>
+          {mode === "sp500" ? (
+            <div className="inline-flex gap-1 rounded-none border border-borderStrong bg-sidebar/80 p-1 shadow-inner">
+              {(["none", "sector"] as const).map((grouping) => (
+                <button key={grouping} onClick={() => setSp500Grouping(grouping)} className={cn("rounded-none px-4 py-2 text-xs font-semibold transition", sp500Grouping === grouping ? "bg-accentBlue text-white shadow-[0_0_18px_rgba(79,140,255,0.35)]" : "text-textSecondary hover:bg-panelHover hover:text-textPrimary")}>
+                  {grouping === "none" ? "No Group" : "Sector"}
+                </button>
+              ))}
+            </div>
+          ) : null}
         </div>
-        <Heatmap tiles={data.heatmaps[mode]} />
+        <Heatmap tiles={data.heatmaps[mode]} variant={mode === "sp500" ? "trading" : "grid"} grouping={sp500Grouping} />
       </Panel>
       <div className="mt-4 grid gap-4 xl:grid-cols-2">
         <Panel>

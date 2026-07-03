@@ -40,7 +40,9 @@ export const heatmapTileSchema = z.object({
   value: z.number(),
   changePercent: z.number(),
   weight: z.number(),
-  iconPath: z.string().optional()
+  iconPath: z.string().optional(),
+  sector: z.string().optional(),
+  aggregate: z.boolean().optional()
 });
 export type HeatmapTile = z.infer<typeof heatmapTileSchema>;
 

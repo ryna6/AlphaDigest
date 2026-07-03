@@ -9,6 +9,7 @@ import type { YahooMarketQuote } from "./adapters/yahoo-finance";
 import { fetchYahooMarketQuote } from "./adapters/yahoo-finance";
 import { flowMock, marketsMock, ownershipMock, todayMock } from "./fixtures/mock-dashboard";
 import { fetchCryptoQuotes, cryptoAssets } from "./adapters/coingecko-crypto";
+import { readCachedSp500HeatmapRows, sp500Breadth, sp500Movers, sp500RowsToTiles } from "./adapters/unusual-whales-sp500-heatmap";
 import { getLatestCboePutCallRatio } from "./adapters/cboe-put-call";
 import { formatSignedPercent, recordMarketSummaryHistory } from "./market-summary-history";
 import { formatEtDateKey } from "../utils/time";
@@ -541,12 +542,15 @@ async function buildMarketsPayload(): Promise<{
 }> {
   const fallback = marketsMock();
   const cryptoQuotesResult = await fetchCryptoQuotes();
-  const [globalMarkets, sectors, crypto, macro] = await Promise.all([
+  const [globalMarkets, sectors, crypto, macro, sp500Result] = await Promise.all([
     heatmap("global-markets"),
     heatmap("sectors-heatmap"),
     cryptoHeatmap(cryptoQuotesResult),
-    heatmap("macro-heatmap")
+    heatmap("macro-heatmap"),
+    readCachedSp500HeatmapRows()
   ]);
+  const sp500Rows = sp500Result.rows;
+  const sp500 = sp500RowsToTiles(sp500Rows);
 
   const stripCandidates: Array<Metric | null> = await Promise.all([
     quoteMetric("global-markets", "SPY", "S&P 500"),
@@ -562,13 +566,16 @@ async function buildMarketsPayload(): Promise<{
     )
     .filter((metric): metric is Metric => Boolean(metric));
 
-  const liveHeatmaps = { globalMarkets, sectors, crypto, macro };
+  const liveHeatmaps = { globalMarkets, sectors, crypto, macro, sp500: sp500.length ? sp500 : null };
   const hasLive = Object.values(liveHeatmaps).some(Boolean) || stripCandidates.some(Boolean);
   if (!hasLive)
     return {
       payload: {
         ...fallback,
-        strip: strip.length ? strip : fallback.strip
+        strip: strip.length ? strip : fallback.strip,
+        heatmaps: { ...fallback.heatmaps, sp500 },
+        breadth: sp500Rows.length ? sp500Breadth(sp500Rows) : fallback.breadth.map((m) => (["% Above 50D MA", "New Highs / Lows"].includes(m.label) ? { ...m, value: "—", subtext: "Not yet available" } : m)),
+        movers: sp500Rows.length ? sp500Movers(sp500Rows) : fallback.movers
       },
       mode: "mock",
       notices: [
@@ -585,9 +592,12 @@ async function buildMarketsPayload(): Promise<{
         globalMarkets: globalMarkets ?? fallback.heatmaps.globalMarkets,
         sectors: sectors ?? fallback.heatmaps.sectors,
         crypto: crypto ?? [],
-        macro: macro ?? fallback.heatmaps.macro
+        macro: macro ?? fallback.heatmaps.macro,
+        sp500
       },
-      heatmapKeyMessages: []
+      breadth: sp500Rows.length ? sp500Breadth(sp500Rows) : fallback.breadth.map((m) => (["% Above 50D MA", "New Highs / Lows"].includes(m.label) ? { ...m, value: "—", subtext: "Not yet available" } : m)),
+      movers: sp500Rows.length ? sp500Movers(sp500Rows) : fallback.movers,
+      heatmapKeyMessages: sp500Result.message ? [`S&P 500 heatmap cache unavailable: ${sp500Result.message}`] : []
     },
     mode: "live",
     notices: []

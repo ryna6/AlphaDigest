@@ -264,6 +264,7 @@ export const marketsMock = (): MarketsPayload => ({
       ["ADAUSD", "Cardano", -0.16, 6],
       ["DOGEUSD", "Dogecoin", -1.2, 6]
     ]),
+    sp500: [],
     macro: tiles([
       ["GLD", "Gold", 0.22, 12],
       ["SLV", "Silver", -0.36, 8],

@@ -114,7 +114,8 @@ export const marketsPayloadSchema = z.object({
     globalMarkets: z.array(heatmapTileSchema),
     sectors: z.array(heatmapTileSchema),
     crypto: z.array(heatmapTileSchema),
-    macro: z.array(heatmapTileSchema)
+    macro: z.array(heatmapTileSchema),
+    sp500: z.array(heatmapTileSchema)
   }),
   heatmapKeyMessages: z.array(z.string()),
   breadth: z.array(metricSchema),

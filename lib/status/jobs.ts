@@ -139,28 +139,36 @@ export const STATUS_JOBS: StatusJob[] = [
     group: "Markets",
     job: "Indices/Heatmaps",
     functionName: "refresh-markets",
-    source: "Yahoo Finance, Finnhub",
-    frequency: "Every 5m, Mon–Fri",
-    schedule: "*/5 * * * 1-5",
-    scheduleDescription: "Every 5 minutes Monday-Friday.",
-    nextRunRule: { days: [1, 2, 3, 4, 5], intervalMinutes: 5, minuteOffset: 0 },
+    source: "Yahoo Finance, Finnhub, Unusual Whales",
+    frequency: "Every 10m, Mon–Fri",
+    schedule: "*/10 * * * 1-5",
+    scheduleDescription: "Every 10 minutes Monday-Friday.",
+    nextRunRule: { days: [1, 2, 3, 4, 5], intervalMinutes: 10, minuteOffset: 0 },
     staleAfterMinutes: 15
   },
   {
     id: "markets-breadth",
     group: "Markets",
     job: "Market Breadth",
-    functionName: "TBD",
-    source: "TBD",
-    frequency: "TBD"
+    functionName: "refresh-markets",
+    source: "Unusual Whales",
+    frequency: "Every 10m, Mon–Fri",
+    schedule: "*/10 * * * 1-5",
+    scheduleDescription: "Every 10 minutes Monday-Friday via refresh-markets.",
+    nextRunRule: { days: [1, 2, 3, 4, 5], intervalMinutes: 10, minuteOffset: 0 },
+    staleAfterMinutes: 20
   },
   {
     id: "markets-movers",
     group: "Markets",
     job: "Movers / Leaders / Laggards",
-    functionName: "TBD",
-    source: "TBD",
-    frequency: "TBD"
+    functionName: "refresh-markets",
+    source: "Unusual Whales",
+    frequency: "Every 10m, Mon–Fri",
+    schedule: "*/10 * * * 1-5",
+    scheduleDescription: "Every 10 minutes Monday-Friday via refresh-markets.",
+    nextRunRule: { days: [1, 2, 3, 4, 5], intervalMinutes: 10, minuteOffset: 0 },
+    staleAfterMinutes: 20
   },
   {
     id: "news-calendar-news-feed",
