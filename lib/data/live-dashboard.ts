@@ -10,6 +10,7 @@ import { fetchYahooMarketQuote } from "./adapters/yahoo-finance";
 import { flowMock, marketsMock, ownershipMock, todayMock } from "./fixtures/mock-dashboard";
 import { fetchCryptoQuotes, cryptoAssets } from "./adapters/coingecko-crypto";
 import { readCachedSp500HeatmapRows, sp500Breadth, sp500Movers, sp500RowsToTiles } from "./adapters/unusual-whales-sp500-heatmap";
+import { barchartBreadthMetrics, readCachedSp500Breadth } from "./adapters/barchart-sp500-breadth";
 import { getLatestCboePutCallRatio } from "./adapters/cboe-put-call";
 import { formatSignedPercent, recordMarketSummaryHistory } from "./market-summary-history";
 import { formatEtDateKey } from "../utils/time";
@@ -549,6 +550,8 @@ async function buildMarketsPayload(): Promise<{
     heatmap("macro-heatmap"),
     readCachedSp500HeatmapRows()
   ]);
+  const barchartBreadthResult = await readCachedSp500Breadth();
+  const breadthMetrics = barchartBreadthMetrics(barchartBreadthResult.snapshot);
   const sp500Rows = sp500Result.rows;
   const sp500 = sp500RowsToTiles(sp500Rows);
 
@@ -574,7 +577,10 @@ async function buildMarketsPayload(): Promise<{
         ...fallback,
         strip: strip.length ? strip : fallback.strip,
         heatmaps: { ...fallback.heatmaps, sp500 },
-        breadth: sp500Rows.length ? sp500Breadth(sp500Rows) : fallback.breadth.map((m) => (["% Above 50D MA", "New Highs / Lows"].includes(m.label) ? { ...m, value: "—", subtext: "Not yet available" } : m)),
+        breadth: sp500Rows.length ? sp500Breadth(sp500Rows, breadthMetrics) : [
+          ...fallback.breadth.filter((m) => !["% Above 50D MA", "% Above 200D MA", "New Highs / Lows", "New highs / lows", "52W Highs and Lows"].includes(m.label)),
+          ...breadthMetrics
+        ],
         movers: sp500Rows.length ? sp500Movers(sp500Rows) : fallback.movers
       },
       mode: "mock",
@@ -595,9 +601,15 @@ async function buildMarketsPayload(): Promise<{
         macro: macro ?? fallback.heatmaps.macro,
         sp500
       },
-      breadth: sp500Rows.length ? sp500Breadth(sp500Rows) : fallback.breadth.map((m) => (["% Above 50D MA", "New Highs / Lows"].includes(m.label) ? { ...m, value: "—", subtext: "Not yet available" } : m)),
+      breadth: sp500Rows.length ? sp500Breadth(sp500Rows, breadthMetrics) : [
+          ...fallback.breadth.filter((m) => !["% Above 50D MA", "% Above 200D MA", "New Highs / Lows", "New highs / lows", "52W Highs and Lows"].includes(m.label)),
+          ...breadthMetrics
+        ],
       movers: sp500Rows.length ? sp500Movers(sp500Rows) : fallback.movers,
-      heatmapKeyMessages: sp500Result.message ? [`S&P 500 heatmap cache unavailable: ${sp500Result.message}`] : []
+      heatmapKeyMessages: [
+        ...(sp500Result.message ? [`S&P 500 heatmap cache unavailable: ${sp500Result.message}`] : []),
+        ...(barchartBreadthResult.message ? [`S&P 500 breadth cache unavailable: ${barchartBreadthResult.message}`] : [])
+      ]
     },
     mode: "live",
     notices: []

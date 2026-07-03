@@ -79,7 +79,8 @@ The Markets page displays:
   - Sectors
   - Crypto
   - Macro
-- Fallback breadth and movers cards from `marketsMock()`.
+- Market Breadth displays Participation, Advancers / Decliners, `% Above 50D MA`, `% Above 200D MA`, and `52W Highs and Lows`; moving-average and 52-week breadth values are read from the cached server-side Barchart scrape when available.
+- Fallback breadth and movers cards from `marketsMock()` when live/cache rows are unavailable.
 
 Important behavior:
 
