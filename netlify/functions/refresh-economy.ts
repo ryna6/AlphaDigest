@@ -2,13 +2,13 @@ import { refreshEconomyObservations } from "../../lib/data/adapters/economy-obse
 import { getEconomyPayload } from "../../lib/data/economy";
 import { finishJobRun, startJobRun } from "../../lib/status/job-runs";
 
-export const config = { schedule: "0 0 * * *" };
+export const config = { schedule: "0 5 * * *" };
 
 const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json" } });
 
 export default async function handler() {
   const startedAt = new Date().toISOString();
-  console.log("scheduled_refresh_start", { job: "refresh-economy", source: "FRED", startedAt, schedule: "Daily at 00:00 UTC" });
+  console.log("scheduled_refresh_start", { job: "refresh-economy", source: "FRED", startedAt, schedule: "Daily at 05:00 UTC (midnight EST)" });
   const runId = await startJobRun({ jobName: "Economy Data", functionName: "refresh-economy", source: "FRED" });
   try {
     const result = await refreshEconomyObservations();
