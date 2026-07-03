@@ -144,6 +144,7 @@ Primary files:
 - `lib/data/adapters/finnhub-key-router.ts`.
 - `components/dashboard/markets/markets-view.tsx`.
 - `components/ui/heatmap.tsx`.
+- `lib/data/adapters/unusual-whales-sp500-heatmap.ts` for the persisted S&P 500 heatmap/breadth/movers dataset.
 - `lib/constants/asset-icons.ts`.
 - `public/assets/heatmap-icons/`.
 
@@ -153,6 +154,7 @@ When adding symbols:
 2. Add an icon file in `public/assets/heatmap-icons/` if needed.
 3. Add/update mappings in `lib/constants/asset-icons.ts`.
 4. Update `docs/data-sources.md` if the symbol universe changes materially.
+5. For S&P 500 constituent heatmaps, keep provider fetching server-side in `refresh-markets`; the UI must read from the Supabase-backed Markets payload.
 
 ### Change News & Calendar data
 
