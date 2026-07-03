@@ -190,14 +190,20 @@ export function sp500RowsToTiles(rows: Sp500HeatmapRow[]): HeatmapTile[] {
   return rows.map((row) => ({ symbol: row.ticker, label: row.ticker, value: row.close, changePercent: ((row.close - row.prevClose) / row.prevClose) * 100, weight: row.marketcap, sector: row.normalizedSector, iconPath: getHeatmapIconPath(row.ticker) }));
 }
 
+function hasValidClosePair(row: Sp500HeatmapRow) {
+  return Number.isFinite(row.close) && Number.isFinite(row.prevClose) && row.close > 0 && row.prevClose > 0;
+}
+
 export function sp500Breadth(rows: Sp500HeatmapRow[]): Metric[] {
-  const adv = rows.filter((r) => r.close > r.prevClose).length;
-  const dec = rows.filter((r) => r.close < r.prevClose).length;
-  const unchanged = rows.length - adv - dec;
-  const participation = rows.length ? ((adv + dec) / rows.length) * 100 : null;
+  const validRows = rows.filter(hasValidClosePair);
+  const adv = validRows.filter((r) => r.close > r.prevClose).length;
+  const dec = validRows.filter((r) => r.close < r.prevClose).length;
+  const unchanged = validRows.length - adv - dec;
+  const participation = validRows.length ? (adv / validRows.length) * 100 : null;
+  const skipped = rows.length - validRows.length;
   return [
-    { label: "Participation", value: participation == null ? "—" : `${(adv + dec).toLocaleString()}/${rows.length.toLocaleString()} (${participation.toFixed(1)}%)`, subtext: unchanged ? `${unchanged} unchanged` : "Equal-weight S&P 500 constituents", tone: "neutral" },
-    { label: "Advancers / Decliners", value: rows.length ? `${adv.toLocaleString()} / ${dec.toLocaleString()}` : "—", subtext: "Close vs previous close", tone: adv >= dec ? "positive" : "negative" },
+    { label: "Participation", value: participation == null ? "—" : `${adv.toLocaleString()}/${validRows.length.toLocaleString()} (${participation.toFixed(1)}%)`, subtext: skipped ? `${skipped} invalid rows ignored` : "Equal-weight positive S&P 500 constituents", tone: "neutral" },
+    { label: "Advancers / Decliners", value: validRows.length ? `${adv.toLocaleString()} / ${dec.toLocaleString()}` : "—", subtext: unchanged ? `${unchanged} unchanged vs previous close` : "Close vs previous close", tone: adv >= dec ? "positive" : "negative" },
     { label: "% Above 50D MA", value: "—", subtext: "Not yet available", tone: "neutral" },
     { label: "New Highs / Lows", value: "—", subtext: "Not yet available", tone: "neutral" }
   ];
@@ -205,7 +211,7 @@ export function sp500Breadth(rows: Sp500HeatmapRow[]): Metric[] {
 
 export function sp500Movers(rows: Sp500HeatmapRow[]): Metric[] {
   const movers = rows.map((r) => ({ r, pct: ((r.close - r.prevClose) / r.prevClose) * 100 })).filter((m) => Number.isFinite(m.pct));
-  const fmt = (m: typeof movers[number]) => `${m.r.ticker} ${m.pct >= 0 ? "+" : ""}${m.pct.toFixed(2)}% @ $${m.r.close.toFixed(2)}`;
+  const fmt = (m: typeof movers[number]) => `${m.r.ticker} ${m.pct >= 0 ? "+" : ""}${m.pct.toFixed(2)}%`;
   const leaders = [...movers].sort((a, b) => b.pct - a.pct).slice(0, 3).map(fmt).join(" · ");
   const laggards = [...movers].sort((a, b) => a.pct - b.pct).slice(0, 3).map(fmt).join(" · ");
   return [

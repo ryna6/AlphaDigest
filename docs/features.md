@@ -73,16 +73,17 @@ Route/component/data:
 The Markets page displays:
 
 - Market strip metrics: S&P 500, Nasdaq 100, Mid Cap, Small Cap, and S&P 500 Futures.
-- Four switchable heatmaps:
+- Five switchable heatmaps, with S&P 500 first and selected by default:
+  - S&P 500
   - Global Markets
   - Sectors
   - Crypto
   - Macro
-- Fallback breadth and movers cards from `marketsMock()`.
+- Market Breadth and Market Movers cards, with fixture fallback from `marketsMock()` when live/cache data is unavailable.
 
 Important behavior:
 
-- Heatmap groups are defined in `quoteSymbols` inside `lib/data/live-dashboard.ts`.
+- Non-S&P heatmap groups are defined in `quoteSymbols` inside `lib/data/live-dashboard.ts`; S&P 500 uses the Supabase-backed Unusual Whales constituent cache.
 - Finnhub feature areas are routed through dedicated environment variables by `lib/data/adapters/finnhub-key-router.ts`.
 - S&P 500 futures currently comes from Yahoo Finance when available.
 - If individual live requests fail, fallback metrics/tiles are used for those positions.
