@@ -135,7 +135,7 @@ export function MarketsView({ data }: { data: MarketsPayload }) {
           ))}
         </Panel>
         <Panel>
-          <SectionHeader title="Movers / Leaders / Laggards" />
+          <SectionHeader title="Market Movers" />
           {data.movers.map((m) => (
             <MetricRow key={m.label} metric={m} density="roomy" />
           ))}
