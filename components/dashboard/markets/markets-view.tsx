@@ -1,4 +1,5 @@
-import { useState } from "react";
+"use client";
+
 import type { MarketsPayload } from "@/lib/data/schemas/dashboard";
 import { PageTitle } from "@/components/dashboard/page-title";
 import { Panel } from "@/components/ui/panel";
