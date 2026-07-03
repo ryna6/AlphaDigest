@@ -7,6 +7,11 @@ import { MetricRow } from "@/components/ui/metric-row";
 import { Heatmap } from "@/components/ui/heatmap";
 import { ErrorState } from "@/components/ui/error-state";
 
+import { useEffect, useRef, useState } from "react";
+import Image from "next/image";
+import type { HeatmapTile } from "@/lib/data/schemas/common";
+import { cn } from "@/lib/utils/cn";
+
 function colorStyle(change: number) {
   const clamped = Math.max(-5, Math.min(5, change));
   const intensity = Math.min(1, Math.abs(clamped) / 3);
