@@ -308,10 +308,10 @@ export const STATUS_JOBS: StatusJob[] = [
     job: "Economy Data",
     functionName: "refresh-economy",
     source: "FRED",
-    frequency: "Daily at midnight UTC",
-    schedule: "0 0 * * *",
-    scheduleDescription: "Daily at 00:00 UTC (Netlify scheduled-function cron expressions use UTC).",
-    nextRunUtcRule: { hours: [0], minutes: [0] },
+    frequency: "Daily",
+    schedule: "0 5 * * *",
+    scheduleDescription: "Daily at 05:00 UTC (midnight EST).",
+    nextRunUtcRule: { hours: [5], minutes: [0] },
     staleAfterMinutes: 2160
   },
   {
