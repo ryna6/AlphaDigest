@@ -10,7 +10,7 @@ import { fetchYahooMarketQuote } from "./adapters/yahoo-finance";
 import { flowMock, marketsMock, ownershipMock, todayMock } from "./fixtures/mock-dashboard";
 import { fetchCryptoQuotes, cryptoAssets } from "./adapters/coingecko-crypto";
 import { readCachedSp500HeatmapRows, sp500Breadth, sp500Movers, sp500RowsToTiles } from "./adapters/unusual-whales-sp500-heatmap";
-import { barchartBreadthMetrics, readCachedSp500Breadth } from "./adapters/barchart-sp500-breadth";
+import { marketBreadthMetrics, readCachedSp500Breadth } from "./adapters/market-breadth";
 import { getLatestCboePutCallRatio } from "./adapters/cboe-put-call";
 import { formatSignedPercent, recordMarketSummaryHistory } from "./market-summary-history";
 import { formatEtDateKey } from "../utils/time";
@@ -550,8 +550,8 @@ async function buildMarketsPayload(): Promise<{
     heatmap("macro-heatmap"),
     readCachedSp500HeatmapRows()
   ]);
-  const barchartBreadthResult = await readCachedSp500Breadth();
-  const breadthMetrics = barchartBreadthMetrics(barchartBreadthResult.snapshot);
+  const marketBreadthResult = await readCachedSp500Breadth();
+  const breadthMetrics = marketBreadthMetrics(marketBreadthResult.snapshot);
   const sp500Rows = sp500Result.rows;
   const sp500 = sp500RowsToTiles(sp500Rows);
 
@@ -608,7 +608,7 @@ async function buildMarketsPayload(): Promise<{
       movers: sp500Rows.length ? sp500Movers(sp500Rows) : fallback.movers,
       heatmapKeyMessages: [
         ...(sp500Result.message ? [`S&P 500 heatmap cache unavailable: ${sp500Result.message}`] : []),
-        ...(barchartBreadthResult.message ? [`S&P 500 breadth cache unavailable: ${barchartBreadthResult.message}`] : [])
+        ...(marketBreadthResult.message ? [`S&P 500 breadth cache unavailable: ${marketBreadthResult.message}`] : [])
       ]
     },
     mode: "live",
@@ -977,8 +977,8 @@ async function ensureMarketsBreadthMetrics(payload: MarketsPayload): Promise<Mar
   const hasRenamedHighLow = payload.breadth.some((metric) => metric.label === "52W Highs and Lows");
   if (hasAbove200d && hasRenamedHighLow) return payload;
 
-  const barchartBreadthResult = await readCachedSp500Breadth();
-  const breadthMetrics = barchartBreadthMetrics(barchartBreadthResult.snapshot);
+  const marketBreadthResult = await readCachedSp500Breadth();
+  const breadthMetrics = marketBreadthMetrics(marketBreadthResult.snapshot);
   return {
     ...payload,
     breadth: [
@@ -990,7 +990,7 @@ async function ensureMarketsBreadthMetrics(payload: MarketsPayload): Promise<Mar
     ],
     heatmapKeyMessages: [
       ...payload.heatmapKeyMessages,
-      ...(barchartBreadthResult.message ? [`S&P 500 breadth cache unavailable: ${barchartBreadthResult.message}`] : [])
+      ...(marketBreadthResult.message ? [`S&P 500 breadth cache unavailable: ${marketBreadthResult.message}`] : [])
     ]
   };
 }

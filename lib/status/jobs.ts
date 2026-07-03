@@ -163,7 +163,7 @@ export const STATUS_JOBS: StatusJob[] = [
     group: "Markets",
     job: "Market Breadth",
     functionName: "refresh-market-breadth",
-    source: "Barchart",
+    source: "Investing.com, Yahoo Finance",
     frequency: "Every 15m, Mon–Fri",
     schedule: "*/15 * * * 1-5",
     scheduleDescription: "Every 15 minutes, Monday–Friday.",
