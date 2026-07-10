@@ -5,14 +5,22 @@ import type { HeatmapTile, Metric } from "../schemas/common";
 import { stableHash } from "./unusual-whales-earnings";
 import { payloadContentHash, sourceResult, updateRefreshMetadata } from "./supabase-refresh";
 
-export const UW_SP500_HEATMAP_URL = "https://phx.unusualwhales.com/api/sector/heatmap/options?date_range=one_day";
+export const UW_SP500_HEATMAP_URL =
+  "https://phx.unusualwhales.com/api/sector/heatmap/options?date_range=one_day";
 const TABLE = "unusual_whales_sp500_heatmap";
 const SOURCE = "unusual_whales_sp500_heatmap";
 
 type Rec = Record<string, unknown>;
 const isRec = (v: unknown): v is Rec => !!v && typeof v === "object" && !Array.isArray(v);
 const str = (v: unknown) => (typeof v === "string" && v.trim() ? v.trim() : null);
-const num = (v: unknown) => typeof v === "number" ? (Number.isFinite(v) ? v : null) : typeof v === "string" && v.trim() ? Number(v.replace(/[$,% ,]/g, "")) || null : null;
+const num = (v: unknown) =>
+  typeof v === "number"
+    ? Number.isFinite(v)
+      ? v
+      : null
+    : typeof v === "string" && v.trim()
+      ? Number(v.replace(/[$,% ,]/g, "")) || null
+      : null;
 
 export const STATE_STREET_SECTORS = [
   "Technology",
@@ -49,7 +57,7 @@ const SECTOR_MAP: Record<string, string> = {
 
 export function normalizeSp500Sector(value: string | null | undefined) {
   const key = value?.trim().replace(/\s+/g, " ").toLowerCase();
-  return key ? SECTOR_MAP[key] ?? "Other" : "Other";
+  return key ? (SECTOR_MAP[key] ?? "Other") : "Other";
 }
 
 export type Sp500HeatmapRow = {
@@ -81,41 +89,58 @@ function extractRows(json: unknown) {
 function dateKey(value: string | null, fallbackIso: string) {
   const source = value ?? fallbackIso;
   const parsed = new Date(source);
-  return Number.isFinite(parsed.getTime()) ? parsed.toISOString().slice(0, 10) : fallbackIso.slice(0, 10);
+  return Number.isFinite(parsed.getTime())
+    ? parsed.toISOString().slice(0, 10)
+    : fallbackIso.slice(0, 10);
 }
 
-export function normalizeSp500HeatmapPayload(payload: unknown, fetchedAt = new Date().toISOString()) {
+export function normalizeSp500HeatmapPayload(
+  payload: unknown,
+  fetchedAt = new Date().toISOString()
+) {
   const rawRows = extractRows(payload);
-  const rows = rawRows.map((v) => {
-    if (!isRec(v)) return null;
-    const ticker = str(v.ticker)?.toUpperCase();
-    const close = num(v.close);
-    const prevClose = num(v.prev_close ?? v.prevClose);
-    const marketcap = num(v.marketcap ?? v.market_cap);
-    const tapeTime = str(v.tape_time ?? v.tapeTime) ?? fetchedAt;
-    if (!ticker || close == null || prevClose == null || prevClose <= 0 || marketcap == null || marketcap <= 0) return null;
-    const sector = str(v.sector);
-    return {
-      ticker,
-      sector,
-      normalizedSector: normalizeSp500Sector(sector),
-      marketcap,
-      open: num(v.open),
-      high: num(v.high),
-      low: num(v.low),
-      close,
-      prevClose,
-      tapeTime,
-      asOfDate: dateKey(tapeTime, fetchedAt),
-      fetchedAt
-    } satisfies Sp500HeatmapRow;
-  }).filter((row): row is Sp500HeatmapRow => !!row);
+  const rows = rawRows
+    .map((v) => {
+      if (!isRec(v)) return null;
+      const ticker = str(v.ticker)?.toUpperCase();
+      const close = num(v.close);
+      const prevClose = num(v.prev_close ?? v.prevClose);
+      const marketcap = num(v.marketcap ?? v.market_cap);
+      const tapeTime = str(v.tape_time ?? v.tapeTime) ?? fetchedAt;
+      if (
+        !ticker ||
+        close == null ||
+        prevClose == null ||
+        prevClose <= 0 ||
+        marketcap == null ||
+        marketcap <= 0
+      )
+        return null;
+      const sector = str(v.sector);
+      return {
+        ticker,
+        sector,
+        normalizedSector: normalizeSp500Sector(sector),
+        marketcap,
+        open: num(v.open),
+        high: num(v.high),
+        low: num(v.low),
+        close,
+        prevClose,
+        tapeTime,
+        asOfDate: dateKey(tapeTime, fetchedAt),
+        fetchedAt
+      } satisfies Sp500HeatmapRow;
+    })
+    .filter((row): row is Sp500HeatmapRow => !!row);
   return { rows, rawCount: rawRows.length, skipped: rawRows.length - rows.length };
 }
 
 function headers(): Record<string, string> {
   const token = process.env.UNUSUAL_WHALES_API_KEY ?? process.env.UW_API_KEY;
-  return token ? { accept: "application/json", authorization: `Bearer ${token}` } : { accept: "application/json" };
+  return token
+    ? { accept: "application/json", authorization: `Bearer ${token}` }
+    : { accept: "application/json" };
 }
 
 export async function fetchSp500HeatmapRows() {
@@ -145,69 +170,197 @@ function toDb(row: Sp500HeatmapRow) {
 
 export async function refreshSp500Heatmap() {
   const supabase = createServerSupabaseClient();
-  if (!supabase.ok) return sourceResult({ ok: false, count: 0, error: supabase.message, persisted: false });
+  if (!supabase.ok)
+    return sourceResult({ ok: false, count: 0, error: supabase.message, persisted: false });
   try {
     const normalized = await fetchSp500HeatmapRows();
     const rows = normalized.rows;
     const contentHash = payloadContentHash(rows);
     if (!rows.length) {
-      await updateRefreshMetadata(supabase.client, SOURCE, { ok: false, changed: false, rowCount: 0, contentHash, error: "Provider returned zero valid S&P 500 heatmap rows.", meta: normalized });
-      return sourceResult({ ok: false, count: 0, changed: false, contentHash, error: "Provider returned zero valid rows.", persisted: false, meta: normalized });
+      await updateRefreshMetadata(supabase.client, SOURCE, {
+        ok: false,
+        changed: false,
+        rowCount: 0,
+        contentHash,
+        error: "Provider returned zero valid S&P 500 heatmap rows.",
+        meta: normalized
+      });
+      return sourceResult({
+        ok: false,
+        count: 0,
+        changed: false,
+        contentHash,
+        error: "Provider returned zero valid rows.",
+        persisted: false,
+        meta: normalized
+      });
     }
     const asOfDate = rows[0]?.asOfDate;
-    const { error } = await supabase.client.from(TABLE).upsert(rows.map(toDb), { onConflict: "id" });
+    const { error } = await supabase.client
+      .from(TABLE)
+      .upsert(rows.map(toDb), { onConflict: "id" });
     if (error) throw error;
-    const { count: pruneCount, error: pruneError } = await supabase.client.from(TABLE).delete({ count: "exact" }).lt("as_of_date", asOfDate);
+    const { count: pruneCount, error: pruneError } = await supabase.client
+      .from(TABLE)
+      .delete({ count: "exact" })
+      .lt("as_of_date", asOfDate);
     if (pruneError) throw pruneError;
-    await updateRefreshMetadata(supabase.client, SOURCE, { ok: true, changed: true, rowCount: rows.length, contentHash, meta: { rawCount: normalized.rawCount, skipped: normalized.skipped, asOfDate, prunedPriorRows: pruneCount ?? 0 } });
-    return sourceResult({ ok: true, count: rows.length, changed: true, contentHash, upserted: rows.length, persisted: true, meta: { ...normalized, asOfDate, prunedPriorRows: pruneCount ?? 0 } });
+    await updateRefreshMetadata(supabase.client, SOURCE, {
+      ok: true,
+      changed: true,
+      rowCount: rows.length,
+      contentHash,
+      meta: {
+        rawCount: normalized.rawCount,
+        skipped: normalized.skipped,
+        asOfDate,
+        prunedPriorRows: pruneCount ?? 0
+      }
+    });
+    return sourceResult({
+      ok: true,
+      count: rows.length,
+      changed: true,
+      contentHash,
+      upserted: rows.length,
+      persisted: true,
+      meta: { ...normalized, asOfDate, prunedPriorRows: pruneCount ?? 0 }
+    });
   } catch (error) {
-    const message = error instanceof Error ? error.message : "Unknown S&P 500 heatmap refresh error";
-    try { await updateRefreshMetadata(supabase.client, SOURCE, { ok: false, changed: false, rowCount: 0, error: message }); } catch {}
+    const message =
+      error instanceof Error ? error.message : "Unknown S&P 500 heatmap refresh error";
+    try {
+      await updateRefreshMetadata(supabase.client, SOURCE, {
+        ok: false,
+        changed: false,
+        rowCount: 0,
+        error: message
+      });
+    } catch {}
     return sourceResult({ ok: false, count: 0, error: message, persisted: false });
   }
 }
 
 function fromDb(row: Rec): Sp500HeatmapRow | null {
   const ticker = str(row.ticker)?.toUpperCase();
-  const close = num(row.close); const prevClose = num(row.prev_close); const marketcap = num(row.marketcap);
+  const close = num(row.close);
+  const prevClose = num(row.prev_close);
+  const marketcap = num(row.marketcap);
   const tapeTime = str(row.tape_time) ?? str(row.fetched_at) ?? new Date().toISOString();
   const asOfDate = str(row.as_of_date) ?? dateKey(tapeTime, new Date().toISOString());
-  if (!ticker || close == null || prevClose == null || prevClose <= 0 || marketcap == null || marketcap <= 0) return null;
+  if (
+    !ticker ||
+    close == null ||
+    prevClose == null ||
+    prevClose <= 0 ||
+    marketcap == null ||
+    marketcap <= 0
+  )
+    return null;
   const sector = str(row.sector);
-  return { ticker, sector, normalizedSector: str(row.normalized_sector) ?? normalizeSp500Sector(sector), marketcap, open: num(row.open), high: num(row.high), low: num(row.low), close, prevClose, tapeTime, asOfDate, fetchedAt: str(row.fetched_at) ?? new Date().toISOString() };
+  return {
+    ticker,
+    sector,
+    normalizedSector: str(row.normalized_sector) ?? normalizeSp500Sector(sector),
+    marketcap,
+    open: num(row.open),
+    high: num(row.high),
+    low: num(row.low),
+    close,
+    prevClose,
+    tapeTime,
+    asOfDate,
+    fetchedAt: str(row.fetched_at) ?? new Date().toISOString()
+  };
 }
 
 export async function readCachedSp500HeatmapRows(client?: SupabaseClient) {
   const supabase = client ? { ok: true as const, client } : createServerSupabaseClient();
   if (!supabase.ok) return { rows: [] as Sp500HeatmapRow[], message: supabase.message };
-  const { data, error } = await supabase.client.from(TABLE).select("ticker,sector,normalized_sector,marketcap,open,high,low,close,prev_close,tape_time,as_of_date,fetched_at").order("marketcap", { ascending: false });
+  const { data, error } = await supabase.client
+    .from(TABLE)
+    .select(
+      "ticker,sector,normalized_sector,marketcap,open,high,low,close,prev_close,tape_time,as_of_date,fetched_at"
+    )
+    .order("marketcap", { ascending: false });
   if (error) return { rows: [], message: error.message };
-  return { rows: (data ?? []).map((r) => fromDb(r as Rec)).filter((r): r is Sp500HeatmapRow => !!r) };
+  return {
+    rows: (data ?? []).map((r) => fromDb(r as Rec)).filter((r): r is Sp500HeatmapRow => !!r)
+  };
 }
 
 export function sp500RowsToTiles(rows: Sp500HeatmapRow[]): HeatmapTile[] {
-  return rows.map((row) => ({ symbol: row.ticker, label: row.ticker, value: row.close, changePercent: ((row.close - row.prevClose) / row.prevClose) * 100, weight: row.marketcap, sector: row.normalizedSector, iconPath: getHeatmapIconPath(row.ticker) }));
+  return rows.map((row) => ({
+    symbol: row.ticker,
+    label: row.ticker,
+    value: row.close,
+    changePercent: ((row.close - row.prevClose) / row.prevClose) * 100,
+    weight: row.marketcap,
+    sector: row.normalizedSector,
+    iconPath: getHeatmapIconPath(row.ticker)
+  }));
 }
 
-export function sp500Breadth(rows: Sp500HeatmapRow[], extraMetrics: Metric[] = []): Metric[] {
-  const validRows = rows.filter((r) => Number.isFinite(r.close) && Number.isFinite(r.prevClose) && r.close > 0 && r.prevClose > 0);
+export function sp500Breadth(
+  rows: Sp500HeatmapRow[],
+  extraMetrics: Metric[] = [],
+  indexChangePercent: number | null = null
+): Metric[] {
+  const validRows = rows.filter(
+    (r) =>
+      Number.isFinite(r.close) && Number.isFinite(r.prevClose) && r.close > 0 && r.prevClose > 0
+  );
   const adv = validRows.filter((r) => r.close > r.prevClose).length;
   const dec = validRows.filter((r) => r.close < r.prevClose).length;
   const unchanged = validRows.length - adv - dec;
-  const participation = validRows.length ? (adv / validRows.length) * 100 : null;
+  const indexDirection =
+    indexChangePercent == null || Math.abs(indexChangePercent) < 0.005
+      ? "unchanged"
+      : indexChangePercent > 0
+        ? "up"
+        : "down";
+  const sameDirection = indexDirection === "up" ? adv : indexDirection === "down" ? dec : null;
+  const participation =
+    sameDirection != null && validRows.length ? (sameDirection / validRows.length) * 100 : null;
+  const participationSubtext =
+    indexDirection === "unchanged"
+      ? "Index unchanged; participation not shown"
+      : validRows.length
+        ? `${sameDirection?.toLocaleString() ?? 0}/${validRows.length.toLocaleString()} ${indexDirection === "up" ? "positive" : "negative"}${unchanged ? ` · ${unchanged.toLocaleString()} unchanged` : ""}`
+        : "Valid close/previous close rows unavailable";
   return [
-    { label: "Participation", value: participation == null ? "—" : `${participation.toFixed(1)}%`, subtext: validRows.length ? `${adv.toLocaleString()}/${validRows.length.toLocaleString()} positive${unchanged ? ` · ${unchanged.toLocaleString()} unchanged` : ""}` : "Equal-weight close > previous close", tone: "neutral" },
-    { label: "Advancers / Decliners", value: validRows.length ? `${adv.toLocaleString()} / ${dec.toLocaleString()}` : "—", subtext: "Close vs previous close", tone: adv >= dec ? "positive" : "negative" },
+    {
+      label: "Participation",
+      value: participation == null ? "—" : `${participation.toFixed(1)}%`,
+      subtext: participationSubtext,
+      tone: "neutral"
+    },
+    {
+      label: "Advancers / Decliners",
+      value: validRows.length ? `${adv.toLocaleString()} / ${dec.toLocaleString()}` : "—",
+      subtext: "Close vs previous close",
+      tone: adv >= dec ? "positive" : "negative"
+    },
     ...extraMetrics
   ];
 }
 
 export function sp500Movers(rows: Sp500HeatmapRow[]): Metric[] {
-  const movers = rows.map((r) => ({ r, pct: ((r.close - r.prevClose) / r.prevClose) * 100 })).filter((m) => Number.isFinite(m.pct));
-  const fmt = (m: typeof movers[number]) => `${m.r.ticker} ${m.pct >= 0 ? "+" : ""}${m.pct.toFixed(2)}%`;
-  const leaders = [...movers].sort((a, b) => b.pct - a.pct).slice(0, 3).map(fmt).join(" · ");
-  const laggards = [...movers].sort((a, b) => a.pct - b.pct).slice(0, 3).map(fmt).join(" · ");
+  const movers = rows
+    .map((r) => ({ r, pct: ((r.close - r.prevClose) / r.prevClose) * 100 }))
+    .filter((m) => Number.isFinite(m.pct));
+  const fmt = (m: (typeof movers)[number]) =>
+    `${m.r.ticker} ${m.pct >= 0 ? "+" : ""}${m.pct.toFixed(2)}%`;
+  const leaders = [...movers]
+    .sort((a, b) => b.pct - a.pct)
+    .slice(0, 3)
+    .map(fmt)
+    .join(" · ");
+  const laggards = [...movers]
+    .sort((a, b) => a.pct - b.pct)
+    .slice(0, 3)
+    .map(fmt)
+    .join(" · ");
   return [
     { label: "Leaders", value: leaders || "—", tone: "positive" },
     { label: "Laggards", value: laggards || "—", tone: "negative" }
