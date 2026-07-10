@@ -159,16 +159,28 @@ export const STATUS_JOBS: StatusJob[] = [
     staleAfterMinutes: 20
   },
   {
-    id: "markets-breadth",
+    id: "markets-daily-candles",
     group: "Markets",
-    job: "Market Breadth",
-    functionName: "refresh-market-breadth",
-    source: "Investing.com, Yahoo Finance",
-    frequency: "Every 15m, Mon–Fri",
-    schedule: "*/15 * * * 1-5",
-    scheduleDescription: "Every 15 minutes, Monday–Friday.",
-    nextRunRule: { days: [1, 2, 3, 4, 5], intervalMinutes: 15, minuteOffset: 0 },
-    staleAfterMinutes: 45
+    job: "Daily Market Candles",
+    functionName: "refresh-daily-market-candles",
+    source: "Finnhub",
+    frequency: "Daily, Mon–Fri",
+    schedule: "30 22 * * 1-5",
+    scheduleDescription: "Once each market weekday at 6:30 PM America/Toronto.",
+    nextRunRule: { days: [1, 2, 3, 4, 5], hours: [18], minutes: [30] },
+    staleAfterMinutes: 1440
+  },
+  {
+    id: "markets-crypto-daily-candles",
+    group: "Markets",
+    job: "Crypto Daily Candles",
+    functionName: "refresh-crypto-daily-candles",
+    source: "Unusual Whales",
+    frequency: "Daily",
+    schedule: "45 22 * * *",
+    scheduleDescription: "Daily at 6:45 PM America/Toronto for overlapping recent crypto candles.",
+    nextRunRule: { hours: [18], minutes: [45] },
+    staleAfterMinutes: 1440
   },
   {
     id: "markets-movers",

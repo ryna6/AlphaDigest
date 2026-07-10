@@ -1,4 +1,6 @@
 import type { FinnhubFeatureArea } from "./adapters/finnhub-key-router";
+import { readSp500CandlesForBreadth } from "./daily-candles";
+import { calculateMarketBreadthFromCandles } from "./market-breadth-candles";
 import {
   getSnapshotOrNull,
   isSnapshotFresh,
@@ -15,7 +17,6 @@ import {
   sp500Movers,
   sp500RowsToTiles
 } from "./adapters/unusual-whales-sp500-heatmap";
-import { marketBreadthMetrics, readCachedSp500Breadth } from "./adapters/market-breadth";
 import { getLatestCboePutCallRatio } from "./adapters/cboe-put-call";
 import { formatSignedPercent, recordMarketSummaryHistory } from "./market-summary-history";
 import { formatEtDateKey } from "../utils/time";
@@ -566,8 +567,7 @@ async function buildMarketsPayload(): Promise<{
     heatmap("macro-heatmap"),
     readCachedSp500HeatmapRows()
   ]);
-  const marketBreadthResult = await readCachedSp500Breadth();
-  const breadthMetrics = marketBreadthMetrics(marketBreadthResult.snapshot);
+  const breadthMetrics: Metric[] = [];
   const sp500Rows = sp500Result.rows;
   const sp500 = sp500RowsToTiles(sp500Rows);
 
@@ -579,6 +579,8 @@ async function buildMarketsPayload(): Promise<{
     fetchYahooMarketQuote("ES=F").then((quote) => yahooQuoteMetric(quote, "S&P 500 Futures"))
   ]);
   const sp500IndexChangePercent = metricChangePercentValue(stripCandidates[0]);
+  const candleBreadthRows = sp500Rows.length ? await readSp500CandlesForBreadth(sp500Rows.map((row) => row.ticker)) : [];
+  const candleBreadth = candleBreadthRows.length ? calculateMarketBreadthFromCandles(candleBreadthRows, sp500Rows.map((row) => row.ticker), sp500IndexChangePercent) : null;
   const strip = stripCandidates
     .map(
       (metric, index) =>
@@ -601,7 +603,7 @@ async function buildMarketsPayload(): Promise<{
         strip: strip.length ? strip : fallback.strip,
         heatmaps: { ...fallback.heatmaps, sp500 },
         breadth: sp500Rows.length
-          ? sp500Breadth(sp500Rows, breadthMetrics, sp500IndexChangePercent)
+          ? (candleBreadth?.metrics ?? sp500Breadth(sp500Rows, breadthMetrics, sp500IndexChangePercent))
           : [
               ...fallback.breadth.filter(
                 (m) =>
@@ -636,7 +638,7 @@ async function buildMarketsPayload(): Promise<{
         sp500
       },
       breadth: sp500Rows.length
-        ? sp500Breadth(sp500Rows, breadthMetrics, sp500IndexChangePercent)
+        ? (candleBreadth?.metrics ?? sp500Breadth(sp500Rows, breadthMetrics, sp500IndexChangePercent))
         : [
             ...fallback.breadth.filter(
               (m) =>
@@ -655,9 +657,7 @@ async function buildMarketsPayload(): Promise<{
         ...(sp500Result.message
           ? [`S&P 500 heatmap cache unavailable: ${sp500Result.message}`]
           : []),
-        ...(marketBreadthResult.message
-          ? [`S&P 500 breadth cache unavailable: ${marketBreadthResult.message}`]
-          : [])
+
       ]
     },
     mode: "live",
@@ -1018,8 +1018,7 @@ async function ensureMarketsBreadthMetrics(payload: MarketsPayload): Promise<Mar
   const hasRenamedHighLow = payload.breadth.some((metric) => metric.label === "52W Highs and Lows");
   if (hasAbove200d && hasRenamedHighLow) return payload;
 
-  const marketBreadthResult = await readCachedSp500Breadth();
-  const breadthMetrics = marketBreadthMetrics(marketBreadthResult.snapshot);
+  const breadthMetrics: Metric[] = [];
   return {
     ...payload,
     breadth: [
@@ -1036,12 +1035,7 @@ async function ensureMarketsBreadthMetrics(payload: MarketsPayload): Promise<Mar
       ),
       ...breadthMetrics
     ],
-    heatmapKeyMessages: [
-      ...payload.heatmapKeyMessages,
-      ...(marketBreadthResult.message
-        ? [`S&P 500 breadth cache unavailable: ${marketBreadthResult.message}`]
-        : [])
-    ]
+    heatmapKeyMessages: payload.heatmapKeyMessages
   };
 }
 

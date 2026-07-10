@@ -39,3 +39,15 @@ export function getFinnhubKey(featureArea: FinnhubFeatureArea): FinnhubKeyResult
 export function getFinnhubKeyStatus() {
   return Object.keys(routes).map((featureArea) => getFinnhubKey(featureArea as FinnhubFeatureArea));
 }
+
+
+export function getDailyCandleFinnhubKeys() {
+  const envVars = Object.values(routes).map((route) => route.envVar);
+  const seen = new Set<string>();
+  return envVars.flatMap((envVar) => {
+    const key = process.env[envVar];
+    if (!key || seen.has(key)) return [];
+    seen.add(key);
+    return [{ envVar, key }];
+  });
+}

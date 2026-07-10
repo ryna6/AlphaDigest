@@ -10,6 +10,7 @@ import { Heatmap } from "@/components/ui/heatmap";
 import { ErrorState } from "@/components/ui/error-state";
 import { cn } from "@/lib/utils/cn";
 import { parseMarketMoverValue } from "@/lib/data/market-movers-display";
+import { MarketChartModal } from "./market-chart-modal";
 
 const modes = ["globalMarkets", "sectors", "sp500", "crypto", "macro"] as const;
 const labels = {
@@ -112,6 +113,7 @@ function MarketMoverSection({ metric }: { metric: MarketsPayload["movers"][numbe
 export function MarketsView({ data }: { data: MarketsPayload }) {
   const [mode, setMode] = useState<(typeof modes)[number]>("globalMarkets");
   const [sp500Grouping, setSp500Grouping] = useState<"none" | "sector">("none");
+  const [chart, setChart] = useState<{ symbol: string; label: string } | null>(null);
 
   return (
     <>
@@ -119,10 +121,15 @@ export function MarketsView({ data }: { data: MarketsPayload }) {
       <Panel>
         <SectionHeader title="Indices" />
         <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
-          {data.strip.map((metric) => (
-            <div
+          {data.strip.map((metric) => {
+            const symbol = metric.label === "S&P 500" ? "SPY" : metric.label === "Nasdaq 100" ? "QQQ" : metric.label === "Mid Cap" ? "IJH" : metric.label === "Small Cap" ? "IWM" : null;
+            const Element = symbol ? "button" : "div";
+            return (
+            <Element
+              type={symbol ? "button" : undefined}
+              onClick={symbol ? () => setChart({ symbol, label: metric.label }) : undefined}
               key={metric.label}
-              className="min-h-28 rounded-none border border-borderStrong bg-sidebar p-4 transition duration-200 hover:-translate-y-0.5"
+              className="min-h-28 rounded-none border border-borderStrong bg-sidebar p-4 text-left transition duration-200 hover:-translate-y-0.5"
             >
               <div className="flex items-center gap-2">
                 {metric.iconPath ? (
@@ -152,8 +159,8 @@ export function MarketsView({ data }: { data: MarketsPayload }) {
                   </p>
                 ) : null}
               </div>
-            </div>
-          ))}
+            </Element>
+          )})}
         </div>
       </Panel>
       <Panel className="mt-4">
@@ -205,6 +212,7 @@ export function MarketsView({ data }: { data: MarketsPayload }) {
           tiles={data.heatmaps[mode]}
           variant={mode === "sp500" ? "trading" : "grid"}
           grouping={sp500Grouping}
+          onSelect={(tile) => setChart({ symbol: tile.symbol, label: tile.label })}
         />
       </Panel>
       <div className="mt-4 grid gap-4 xl:grid-cols-2">
@@ -221,6 +229,7 @@ export function MarketsView({ data }: { data: MarketsPayload }) {
           ))}
         </Panel>
       </div>
+      {chart ? <MarketChartModal symbol={chart.symbol} label={chart.label} onClose={() => setChart(null)} /> : null}
     </>
   );
 }

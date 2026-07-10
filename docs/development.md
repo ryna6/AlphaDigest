@@ -145,7 +145,7 @@ Primary files:
 - `components/dashboard/markets/markets-view.tsx`.
 - `components/ui/heatmap.tsx`.
 - `lib/data/adapters/unusual-whales-sp500-heatmap.ts` for the persisted S&P 500 heatmap, participation/advancer breadth, and movers dataset.
-- `lib/data/adapters/market-breadth.ts` for server-side S&P 500 breadth refreshes cached in Supabase provider tables `%_above_ma` (Investing.com 50D/200D OHLC) and `52w_high_low` (Yahoo 52-week high/low totals) by the separate `refresh-market-breadth` function. Investing.com provides 50D and 200D breadth OHLC rows through financial-data endpoints 1225324 and 1225364; the refresh selects the valid row with the largest Unix timestamp and displays the close. Yahoo Finance provides 52-week high/low totals from `finance.result[0].total` through POST requests to the screener endpoint with predefined scrIds recent_52_week_highs and recent_52_week_lows; a crumb is fetched server-side only if Yahoo requires it. Provider writes are independent so a failed provider preserves its stale cache row without blocking the other provider's valid write.
+- `lib/data/daily-candles.ts`, `lib/data/daily-candle-refresh.ts`, and `lib/data/market-breadth-candles.ts` for server-side daily candle normalization, retention, Finnhub/Unusual Whales refreshes, and candle-derived S&P 500 breadth calculations.
 - `lib/constants/asset-icons.ts`.
 - `public/assets/heatmap-icons/`.
 
@@ -155,7 +155,7 @@ When adding symbols:
 2. Add an icon file in `public/assets/heatmap-icons/` if needed.
 3. Add/update mappings in `lib/constants/asset-icons.ts`.
 4. Update `docs/data-sources.md` if the symbol universe changes materially.
-5. For S&P 500 constituent heatmaps, keep S&P 500 heatmap provider fetching server-side in `refresh-markets-heatmap`; keep Investing.com/Yahoo Finance breadth fetching server-side in `refresh-market-breadth`; the UI must read from the Supabase-backed Markets payload.
+5. For S&P 500 constituent heatmaps, keep S&P 500 heatmap provider fetching server-side in `refresh-markets-heatmap`; breadth now derives from `sp500_daily_candles` after daily Finnhub candle ingestion; the UI must read from the Supabase-backed Markets payload and candle API.
 
 ### Change News & Calendar data
 
@@ -312,4 +312,20 @@ For each cached top-20 politician, the refresh then calls `https://phx.unusualwh
 
 The Ownership Congressional Holdings card displays the top 5 by YTD return with a View All link to the top 20. Politician detail pages show profile information with capitalized Chamber/Party labels, a shared-style Compare-to-SPY YTD return popup backed by Yahoo Finance/current-market SPY YTD data, and a grouped stock table titled `Top Volume Trades by Stock` sorted by total disclosed transaction volume. Amount ranges such as `$500,001 - $1,000,000` are parsed and summed by lower/upper bounds across buys and sells; malformed amounts are skipped from volume math with safe client diagnostics. Ticker drilldowns show all retained cached Supabase trades for that politician and selected `symbol`, sorted newest first, with Date, Ticker, display-capitalized Asset, Type, and Amount columns; Type text follows the row transaction direction (purchases/buys green, sales/sells red, unknown muted), while Asset is display-capitalized but not transaction-colored. The grouped stock table colors Purchases green and Sales red, while the politician title and bio align naturally and only the metadata row is centered.
 
-Market Breadth provider caches are split by source. Investing.com 50D/200D OHLC rows are stored in `%_above_ma`; Yahoo 52-week high/low totals are stored in `52w_high_low`. The single `refresh-market-breadth` function refreshes both providers independently, preserves stale provider data on partial failure, and the Markets payload reader combines the newest cached row from each table without reading the old combined `market_breadth` table.
+Legacy scraper Market Breadth provider caches (`market_breadth_cache`, `barchart_market_breadth`, `market_breadth`, `%_above_ma`, and `52w_high_low`) are removed by an additive migration. New breadth values are calculated from `sp500_daily_candles`.
+
+### Daily candle backfill, refresh, and validation
+
+Run the temporary stock/market backfill only from a server environment with service-role Supabase credentials and Unusual Whales credentials:
+
+```bash
+ENABLE_UW_CANDLE_BACKFILL=true npx tsx scripts/backfillDailyCandlesFromUnusualWhales.ts --group all --start-index 0 --limit 25
+```
+
+The stock/market historical Unusual Whales endpoint is temporary and isolated to that script plus tests/docs. To confirm it is not used by normal code, search for `ticker_candles/` and verify no page route, `/api/markets/candles`, or scheduled Finnhub daily refresh references it.
+
+Permanent refresh jobs are `refresh-daily-market-candles` (Finnhub-only for S&P 500 and fixed Markets assets, one paced lane per distinct key, 30 calls/minute/key) and `refresh-crypto-daily-candles` (Unusual Whales crypto candles for only the eight configured crypto heatmap assets). Validate stored coverage with:
+
+```bash
+npx tsx scripts/verifyDailyCandles.ts
+```

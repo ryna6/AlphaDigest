@@ -1,0 +1,12 @@
+drop index if exists public.idx_market_breadth_cache_fetched_at;
+drop index if exists public.idx_barchart_market_breadth_fetched_at;
+drop index if exists public.idx_market_breadth_fetched_at;
+drop index if exists public.idx_percent_above_ma_fetched_at;
+drop index if exists public.idx_52w_high_low_fetched_at;
+drop index if exists public.idx_percent_above_ma_50d_timestamp;
+drop index if exists public.idx_percent_above_ma_200d_timestamp;
+drop table if exists public.market_breadth_cache cascade;
+drop table if exists public.barchart_market_breadth cascade;
+drop table if exists public.market_breadth cascade;
+drop table if exists public."%_above_ma" cascade;
+drop table if exists public."52w_high_low" cascade;
