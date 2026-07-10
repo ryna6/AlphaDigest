@@ -234,15 +234,19 @@ function tradingTextTier(tile: Positioned) {
   return tradingTextTiers[adjustedIndex];
 }
 
-function TradingTile({ tile }: { tile: Positioned }) {
+function TradingTile({ tile, onSelect }: { tile: Positioned; onSelect?: (tile: HeatmapTile) => void }) {
   const textTier = tradingTextTier(tile);
   const showTicker = Boolean(textTier);
   const showChange = Boolean(textTier?.showChange);
   const showLogo = tile.w >= 74 && tile.h >= 70 && tile.iconPath && !tile.aggregate;
 
+  const interactive = onSelect && !tile.aggregate;
+  const Element = interactive ? "button" : "div";
   return (
-    <div
-      className="absolute overflow-hidden border p-1 shadow-[inset_0_0_24px_rgba(0,0,0,0.18)] transition duration-200 hover:z-10 hover:-translate-y-0.5 hover:brightness-110"
+    <Element
+      type={interactive ? "button" : undefined}
+      onClick={interactive ? () => onSelect(tile) : undefined}
+      className="absolute overflow-hidden border p-1 text-left shadow-[inset_0_0_24px_rgba(0,0,0,0.18)] transition duration-200 hover:z-10 hover:-translate-y-0.5 hover:brightness-110"
       style={{
         left: tile.x,
         top: tile.y,
@@ -279,11 +283,11 @@ function TradingTile({ tile }: { tile: Positioned }) {
           </div>
         ) : null}
       </div>
-    </div>
+    </Element>
   );
 }
 
-function TradingViewHeatmap({ tiles, grouping }: { tiles: HeatmapTile[]; grouping: "none" | "sector" }) {
+function TradingViewHeatmap({ tiles, grouping, onSelect }: { tiles: HeatmapTile[]; grouping: "none" | "sector"; onSelect?: (tile: HeatmapTile) => void }) {
   const [containerRef, size] = useElementSize<HTMLDivElement>();
   const hasSize = size.width > 0 && size.height > 0;
 
@@ -358,6 +362,7 @@ function TradingViewHeatmap({ tiles, grouping }: { tiles: HeatmapTile[]; groupin
                   <TradingTile
                     key={`${group.sector}-${tile.symbol}-${tile.label}`}
                     tile={tile}
+                    onSelect={onSelect}
                   />
                 ))}
               </div>
@@ -383,7 +388,7 @@ function TradingViewHeatmap({ tiles, grouping }: { tiles: HeatmapTile[]; groupin
       className="relative h-[32rem] overflow-hidden border border-borderStrong bg-panel md:h-[38rem]"
     >
       {positioned.map((tile) => (
-        <TradingTile key={`${tile.symbol}-${tile.label}`} tile={tile} />
+        <TradingTile key={`${tile.symbol}-${tile.label}`} tile={tile} onSelect={onSelect} />
       ))}
     </div>
   );
@@ -392,20 +397,27 @@ function TradingViewHeatmap({ tiles, grouping }: { tiles: HeatmapTile[]; groupin
 export function Heatmap({
   tiles,
   variant = "grid",
-  grouping = "none"
+  grouping = "none",
+  onSelect
 }: {
   tiles: HeatmapTile[];
   variant?: "grid" | "trading";
   grouping?: "none" | "sector";
+  onSelect?: (tile: HeatmapTile) => void;
 }) {
-  if (variant === "trading") return <TradingViewHeatmap tiles={tiles} grouping={grouping} />;
+  if (variant === "trading") return <TradingViewHeatmap tiles={tiles} grouping={grouping} onSelect={onSelect} />;
 
   return (
     <div className="grid grid-cols-2 gap-2 md:grid-cols-3 xl:grid-cols-4">
-      {tiles.map((tile) => (
-        <div
+      {tiles.map((tile) => {
+        const interactive = Boolean(onSelect && !tile.aggregate);
+        const Element = interactive ? "button" : "div";
+        return (
+        <Element
+          type={interactive ? "button" : undefined}
+          onClick={interactive ? () => onSelect?.(tile) : undefined}
           key={`${tile.symbol}-${tile.label}`}
-          className={`min-h-28 border p-3 transition duration-200 hover:-translate-y-0.5 hover:brightness-110 ${tileColor(tile.changePercent)}`}
+          className={`min-h-28 border p-3 text-left transition duration-200 hover:-translate-y-0.5 hover:brightness-110 ${tileColor(tile.changePercent)}`}
           title={`${tile.label}: ${tile.changePercent.toFixed(2)}%`}
         >
           <div className="flex h-full items-center justify-between gap-3">
@@ -435,8 +447,8 @@ export function Heatmap({
               {tile.changePercent.toFixed(2)}%
             </p>
           </div>
-        </div>
-      ))}
+        </Element>
+      )})}
     </div>
   );
 }
