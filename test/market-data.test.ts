@@ -48,7 +48,7 @@ const sp500Row = (
   fetchedAt: "2026-07-02T20:01:00.000Z"
 });
 
-test("S&P 500 breadth participation is equal-weighted and ignores invalid close rows", () => {
+test("S&P 500 breadth participation follows positive index direction and ignores invalid close rows", () => {
   const rows = [
     sp500Row("BIG", 90, 100, 1_000_000),
     sp500Row("UP1", 11, 10, 10),
@@ -60,12 +60,35 @@ test("S&P 500 breadth participation is equal-weighted and ignores invalid close 
     { ...sp500Row("NAN_PREV", 10, 9, 10), prevClose: Number.NaN }
   ];
 
-  const [participation, advancersDecliners] = sp500Breadth(rows);
+  const [participation, advancersDecliners] = sp500Breadth(rows, [], 1.25);
 
   assert.equal(participation.label, "Participation");
   assert.equal(participation.value, "50.0%");
   assert.equal(participation.subtext, "2/4 positive · 1 unchanged");
   assert.equal(advancersDecliners.value, "2 / 1");
+});
+
+test("S&P 500 breadth participation follows negative index direction", () => {
+  const [participation] = sp500Breadth(
+    [
+      sp500Row("DOWN1", 9, 10),
+      sp500Row("DOWN2", 18, 20),
+      sp500Row("UP", 11, 10),
+      sp500Row("FLAT", 30, 30)
+    ],
+    [],
+    -0.75
+  );
+
+  assert.equal(participation.value, "50.0%");
+  assert.equal(participation.subtext, "2/4 negative · 1 unchanged");
+});
+
+test("S&P 500 breadth participation is not shown when index is effectively unchanged", () => {
+  const [participation] = sp500Breadth([sp500Row("UP", 11, 10), sp500Row("DOWN", 9, 10)], [], 0);
+
+  assert.equal(participation.value, "—");
+  assert.equal(participation.subtext, "Index unchanged; participation not shown");
 });
 
 test("S&P 500 movers display ticker and percent change without stock price", () => {

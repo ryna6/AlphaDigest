@@ -157,6 +157,13 @@ function toneFromChange(value: number): Metric["tone"] {
   return value > 0 ? "positive" : value < 0 ? "negative" : "neutral";
 }
 
+function metricChangePercentValue(metric: Metric | null | undefined): number | null {
+  const raw = metric?.changePercent?.replace("%", "");
+  if (!raw) return null;
+  const value = Number(raw);
+  return Number.isFinite(value) ? value : null;
+}
+
 async function fetchFinnhubQuote(
   featureArea: FinnhubFeatureArea,
   symbol: string
@@ -571,6 +578,7 @@ async function buildMarketsPayload(): Promise<{
     quoteMetric("global-markets", "IWM", "Small Cap"),
     fetchYahooMarketQuote("ES=F").then((quote) => yahooQuoteMetric(quote, "S&P 500 Futures"))
   ]);
+  const sp500IndexChangePercent = metricChangePercentValue(stripCandidates[0]);
   const strip = stripCandidates
     .map(
       (metric, index) =>
@@ -593,7 +601,7 @@ async function buildMarketsPayload(): Promise<{
         strip: strip.length ? strip : fallback.strip,
         heatmaps: { ...fallback.heatmaps, sp500 },
         breadth: sp500Rows.length
-          ? sp500Breadth(sp500Rows, breadthMetrics)
+          ? sp500Breadth(sp500Rows, breadthMetrics, sp500IndexChangePercent)
           : [
               ...fallback.breadth.filter(
                 (m) =>
@@ -628,7 +636,7 @@ async function buildMarketsPayload(): Promise<{
         sp500
       },
       breadth: sp500Rows.length
-        ? sp500Breadth(sp500Rows, breadthMetrics)
+        ? sp500Breadth(sp500Rows, breadthMetrics, sp500IndexChangePercent)
         : [
             ...fallback.breadth.filter(
               (m) =>

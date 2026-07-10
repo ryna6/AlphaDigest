@@ -5,6 +5,7 @@ import { PageTitle } from "@/components/dashboard/page-title";
 import { Panel } from "@/components/ui/panel";
 import { SectionHeader } from "@/components/ui/section-header";
 import { MetricRow } from "@/components/ui/metric-row";
+import { InfoTooltip } from "@/components/ui/info-tooltip";
 import { Heatmap } from "@/components/ui/heatmap";
 import { ErrorState } from "@/components/ui/error-state";
 import { cn } from "@/lib/utils/cn";
@@ -18,6 +19,28 @@ const labels = {
   macro: "Macro",
   sp500: "S&P 500"
 };
+
+const participationInfoText =
+  "Participation shows the percentage of stocks in the S&P 500 that are moving in the same direction as the index. Higher participation % indicates a broader, stronger market move, while lower participation % suggests the index is being driven by a smaller number of stocks.";
+
+function MarketBreadthRow({ metric }: { metric: MarketsPayload["breadth"][number] }) {
+  if (metric.label !== "Participation") return <MetricRow metric={metric} density="roomy" />;
+
+  return (
+    <div className="flex items-center justify-between gap-3 border-b border-borderStrong/60 py-2 last:border-b-0">
+      <div className="min-w-0">
+        <div className="flex items-center gap-1.5">
+          <p className="truncate text-sm text-textMuted">{metric.label}</p>
+          <InfoTooltip text={participationInfoText} placement="right" size="default" />
+        </div>
+        {metric.subtext ? <p className="mt-0.5 text-xs text-textMuted">{metric.subtext}</p> : null}
+      </div>
+      <div className="shrink-0 text-right tabular">
+        <p className="text-base font-semibold text-textPrimary">{metric.value}</p>
+      </div>
+    </div>
+  );
+}
 
 function MarketMetricIcon({ src, label }: { src: string; label: string }) {
   const [hidden, setHidden] = useState(false);
@@ -189,7 +212,7 @@ export function MarketsView({ data }: { data: MarketsPayload }) {
         <Panel>
           <SectionHeader title="Market Breadth" />
           {data.breadth.map((m) => (
-            <MetricRow key={m.label} metric={m} density="roomy" />
+            <MarketBreadthRow key={m.label} metric={m} />
           ))}
         </Panel>
         <Panel>
