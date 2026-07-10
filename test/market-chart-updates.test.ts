@@ -99,3 +99,17 @@ test("crypto function rename repository expectations", () => {
   assert.match(fs.readFileSync("lib/status/jobs.ts", "utf8"), /Daily Crypto Candles/);
   assert.doesNotMatch(fs.readFileSync("lib/status/jobs.ts", "utf8"), /Crypto Daily Candles/);
 });
+
+test("modal chart title renders name before ticker and avoids duplicate labels", () => {
+  const src = modalSource();
+  assert.match(src, /function chartTitleParts/);
+  assert.match(src, /label\.trim\(\)\.toUpperCase\(\) === ticker/);
+  assert.match(src, /\{title\.name \? <span>\{title\.name\}<\/span> : null\}<span className="uppercase text-textMuted">\{title\.ticker\}<\/span>/);
+  assert.doesNotMatch(src, /font-bold uppercase tracking/);
+  assert.match(src, /aria-label=\{`\$\{accessibleTitle\} candle chart`\}/);
+});
+
+test("futures calendar is allowed in candle API schema", () => {
+  const base = { symbol:"ES=F", range:"1W", table:"market_daily_candles", available:true, candles:[], metadata:{ source:"Unusual Whales Futures EOD", earliestTradingDate:null, latestTradingDate:null, fetchedAt:null, rows:0, label:"S&P 500 Futures", providerSymbol:"09abc102-cb07-420e-92c6-e220f44c1e81", resolution:"1d", marketCalendar:"futures", timezone:"America/New_York" } };
+  assert.equal(candleApiPayloadSchema.safeParse(base).success, true);
+});

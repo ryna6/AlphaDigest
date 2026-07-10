@@ -122,7 +122,7 @@ export function MarketsView({ data }: { data: MarketsPayload }) {
         <SectionHeader title="Indices" />
         <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
           {data.strip.map((metric) => {
-            const symbol = metric.label === "S&P 500" ? "SPY" : metric.label === "Nasdaq 100" ? "QQQ" : metric.label === "Mid Cap" ? "IJH" : metric.label === "Small Cap" ? "IWM" : null;
+            const symbol = metric.label === "S&P 500" ? "SPY" : metric.label === "Nasdaq 100" ? "QQQ" : metric.label === "Mid Cap" ? "IJH" : metric.label === "Small Cap" ? "IWM" : metric.label === "S&P 500 Futures" ? "ES=F" : null;
             const Element = symbol ? "button" : "div";
             return (
             <Element

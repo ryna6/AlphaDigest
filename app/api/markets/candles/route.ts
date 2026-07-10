@@ -32,13 +32,13 @@ export async function GET(req: NextRequest) {
   try {
     const configured = await resolveCandleAsset(symbol);
     if (!configured) return unavailable(symbol, range, "Symbol is not configured for market candles.");
-    const marketCalendar = configured.table === "crypto_daily_candles" ? "24/7" : "exchange";
+    const marketCalendar = configured.asset.marketCalendar ?? (configured.table === "crypto_daily_candles" ? "24/7" : "exchange");
     const timezone = configured.table === "crypto_daily_candles" ? "UTC" : "America/New_York";
     const rows = await readCandlesForApi({ table: configured.table, symbol: configured.asset.symbol, range, marketCalendar, timezone });
     const latest = rows.at(-1) as any;
     const earliest = rows[0] as any;
     const candles = rows.map((r:any)=>({ time:r.trading_date, date:r.trading_date, open:Number(r.open), high:Number(r.high), low:Number(r.low), close:Number(r.close), volume:r.volume == null ? null : Number(r.volume), previousClose:r.previous_close == null ? null : Number(r.previous_close) }));
-    const payload = candleApiPayloadSchema.parse({ symbol: configured.asset.symbol, range, table: configured.table, available: candles.length > 0, candles, metadata:{ source: latest?.source ?? null, earliestTradingDate: earliest?.trading_date ?? null, latestTradingDate: latest?.trading_date ?? null, fetchedAt: latest?.fetched_at ?? null, rows: candles.length, label: configured.asset.label, providerSymbol: configured.asset.unusualWhalesSymbol ?? configured.asset.finnhubSymbol ?? configured.asset.symbol, range, resolution:"1d", marketCalendar, timezone, supabaseProjectHost:getSupabaseProjectHost(), dataVersion:DATA_VERSION } });
+    const payload = candleApiPayloadSchema.parse({ symbol: configured.asset.symbol, range, table: configured.table, available: candles.length > 0, candles, metadata:{ source: latest?.source ?? null, earliestTradingDate: earliest?.trading_date ?? null, latestTradingDate: latest?.trading_date ?? null, fetchedAt: latest?.fetched_at ?? null, rows: candles.length, label: configured.asset.label, providerSymbol: configured.asset.futuresHistoryId ?? configured.asset.unusualWhalesSymbol ?? configured.asset.finnhubSymbol ?? configured.asset.symbol, range, resolution:"1d", marketCalendar, timezone, supabaseProjectHost:getSupabaseProjectHost(), dataVersion:DATA_VERSION } });
     const envelope = envelopeSchema.parse({ payload, mode: candles.length ? "cached" : "unavailable", notices: candles.length ? [] : ["No cached candle history is available for this symbol."], generatedAt:new Date().toISOString(), timezone:"America/Toronto" });
     return NextResponse.json(envelope, { headers:NO_STORE_HEADERS });
   } catch (e) {
