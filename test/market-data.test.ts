@@ -18,6 +18,7 @@ import {
   articleTextFromHtml,
   stripUnusualWhalesAdSection
 } from "../lib/data/adapters/unusual-whales-news";
+import { DARK_POOL_RETENTION_DAYS } from "../lib/data/adapters/unusual-whales-dark-pool";
 import { WHALE_FEED_RETENTION_DAYS } from "../lib/data/adapters/unusual-whales-whale-feed";
 import { INSIDER_TRADES_LOOKBACK_MONTHS } from "../lib/data/insider-window";
 import { selectTopCongressionalPortfolioRows } from "../lib/data/adapters/unusual-whales-congressional";
@@ -27,7 +28,12 @@ import {
   type Sp500HeatmapRow
 } from "../lib/data/adapters/unusual-whales-sp500-heatmap";
 
-const sp500Row = (ticker: string, close: number, prevClose: number, marketcap = 100): Sp500HeatmapRow => ({
+const sp500Row = (
+  ticker: string,
+  close: number,
+  prevClose: number,
+  marketcap = 100
+): Sp500HeatmapRow => ({
   ticker,
   sector: "Technology",
   normalizedSector: "Technology",
@@ -64,7 +70,7 @@ test("S&P 500 breadth participation is equal-weighted and ignores invalid close 
 
 test("S&P 500 movers display ticker and percent change without stock price", () => {
   const [leaders, laggards] = sp500Movers([
-    sp500Row("GPC", 132.56, 117.40),
+    sp500Row("GPC", 132.56, 117.4),
     sp500Row("LOW", 90, 100),
     sp500Row("MID", 101, 100)
   ]);
@@ -118,7 +124,8 @@ test("Unusual Whales article cleanup keeps valid text around hr sections", () =>
 });
 
 test("Flow retention constants match requested source-table windows", () => {
-  assert.equal(WHALE_FEED_RETENTION_DAYS, 14);
+  assert.equal(DARK_POOL_RETENTION_DAYS, 30);
+  assert.equal(WHALE_FEED_RETENTION_DAYS, 30);
   assert.equal(INSIDER_TRADES_LOOKBACK_MONTHS, 6);
 });
 
@@ -145,7 +152,10 @@ test("Congressional portfolio selection blacklists and dedupes before top 20", (
     selected.rows.filter((row) => /harnisch|mceachin|dalio/i.test(row.name)),
     []
   );
-  assert.equal(selected.rows.some((row) => row.politicianKey === "michael-mccaul"), true);
+  assert.equal(
+    selected.rows.some((row) => row.politicianKey === "michael-mccaul"),
+    true
+  );
   assert.equal(new Set(selected.rows.map((row) => row.politicianKey)).size, selected.rows.length);
   assert.deepEqual(
     selected.rows.find((row) => row.politicianKey === "michael-mccaul")?.ids?.sort(),
@@ -226,35 +236,66 @@ test("Toronto weekday-only Flow guard allows late hourly wakes without interval 
   assert.equal(decision.torontoTime, "Tue 2026-06-23 01:15:05");
 });
 
-
 test("Toronto weekday interval guard treats Monday-Friday as full Toronto days", () => {
-  const earlyMonday = shouldRunInTorontoWindow({ days: [1, 2, 3, 4, 5], intervalMinutes: 10, now: new Date("2026-06-22T04:01:00.000Z") });
+  const earlyMonday = shouldRunInTorontoWindow({
+    days: [1, 2, 3, 4, 5],
+    intervalMinutes: 10,
+    now: new Date("2026-06-22T04:01:00.000Z")
+  });
   assert.equal(earlyMonday.shouldRun, true);
   assert.equal(earlyMonday.torontoTime, "Mon 2026-06-22 00:01:00");
 
-  const fridayMorning = shouldRunInTorontoWindow({ days: [1, 2, 3, 4, 5], intervalMinutes: 10, now: new Date("2026-07-03T09:09:57.000Z") });
+  const fridayMorning = shouldRunInTorontoWindow({
+    days: [1, 2, 3, 4, 5],
+    intervalMinutes: 10,
+    now: new Date("2026-07-03T09:09:57.000Z")
+  });
   assert.equal(fridayMorning.shouldRun, true);
   assert.equal(fridayMorning.torontoTime, "Fri 2026-07-03 05:09:57");
 
-  const lateFriday = shouldRunInTorontoWindow({ days: [1, 2, 3, 4, 5], intervalMinutes: 10, now: new Date("2026-06-27T03:59:00.000Z") });
+  const lateFriday = shouldRunInTorontoWindow({
+    days: [1, 2, 3, 4, 5],
+    intervalMinutes: 10,
+    now: new Date("2026-06-27T03:59:00.000Z")
+  });
   assert.equal(lateFriday.shouldRun, true);
   assert.equal(lateFriday.torontoTime, "Fri 2026-06-26 23:59:00");
 
-  const saturday = shouldRunInTorontoWindow({ days: [1, 2, 3, 4, 5], intervalMinutes: 10, now: new Date("2026-06-27T04:00:00.000Z") });
+  const saturday = shouldRunInTorontoWindow({
+    days: [1, 2, 3, 4, 5],
+    intervalMinutes: 10,
+    now: new Date("2026-06-27T04:00:00.000Z")
+  });
   assert.equal(saturday.shouldRun, false);
   assert.equal(saturday.reason, "outside_toronto_days");
 
-  const sunday = shouldRunInTorontoWindow({ days: [1, 2, 3, 4, 5], intervalMinutes: 10, now: new Date("2026-06-28T16:00:00.000Z") });
+  const sunday = shouldRunInTorontoWindow({
+    days: [1, 2, 3, 4, 5],
+    intervalMinutes: 10,
+    now: new Date("2026-06-28T16:00:00.000Z")
+  });
   assert.equal(sunday.shouldRun, false);
   assert.equal(sunday.reason, "outside_toronto_days");
 });
 
 test("Toronto interval guard preserves narrower explicit windows", () => {
-  const beforeWindow = shouldRunInTorontoWindow({ days: [1, 2, 3, 4, 5], startTime: "09:30", endTime: "16:00", intervalMinutes: 10, now: new Date("2026-06-22T13:20:00.000Z") });
+  const beforeWindow = shouldRunInTorontoWindow({
+    days: [1, 2, 3, 4, 5],
+    startTime: "09:30",
+    endTime: "16:00",
+    intervalMinutes: 10,
+    now: new Date("2026-06-22T13:20:00.000Z")
+  });
   assert.equal(beforeWindow.shouldRun, false);
   assert.equal(beforeWindow.reason, "outside_toronto_window");
 
-  const insideWindow = shouldRunInTorontoWindow({ days: [1, 2, 3, 4, 5], startTime: "09:30", endTime: "16:00", intervalMinutes: 10, now: new Date("2026-06-22T13:40:00.000Z") });
+  const insideWindow = shouldRunInTorontoWindow({
+    days: [1, 2, 3, 4, 5],
+    startTime: "09:30",
+    endTime: "16:00",
+    intervalMinutes: 10,
+    now: new Date("2026-06-22T13:40:00.000Z")
+  });
   assert.equal(insideWindow.shouldRun, true);
   assert.equal(insideWindow.torontoTime, "Mon 2026-06-22 09:40:00");
 });
@@ -327,7 +368,11 @@ test("Cboe current-page parser reads rendered text when static data tables are a
   `;
   const parsed = parseCboePutCallFromHtml(html, "2026-06-24T20:20:00.000Z");
   assert.deepEqual(parsed?.ratios, { equity: 0.71, index: 1.25, total: 0.85 });
-  assert.deepEqual(parsed?.raw?.latestTimesCentral, { total: "03:15 PM", index: "03:15 PM", equity: "03:15 PM" });
+  assert.deepEqual(parsed?.raw?.latestTimesCentral, {
+    total: "03:15 PM",
+    index: "03:15 PM",
+    equity: "03:15 PM"
+  });
   assert.equal(parsed?.raw?.asOfEastern, "2026-06-24T20:15:00.000Z");
 });
 

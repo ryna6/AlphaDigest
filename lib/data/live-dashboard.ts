@@ -9,7 +9,12 @@ import type { YahooMarketQuote } from "./adapters/yahoo-finance";
 import { fetchYahooMarketQuote } from "./adapters/yahoo-finance";
 import { flowMock, marketsMock, ownershipMock, todayMock } from "./fixtures/mock-dashboard";
 import { fetchCryptoQuotes, cryptoAssets } from "./adapters/coingecko-crypto";
-import { readCachedSp500HeatmapRows, sp500Breadth, sp500Movers, sp500RowsToTiles } from "./adapters/unusual-whales-sp500-heatmap";
+import {
+  readCachedSp500HeatmapRows,
+  sp500Breadth,
+  sp500Movers,
+  sp500RowsToTiles
+} from "./adapters/unusual-whales-sp500-heatmap";
 import { marketBreadthMetrics, readCachedSp500Breadth } from "./adapters/market-breadth";
 import { getLatestCboePutCallRatio } from "./adapters/cboe-put-call";
 import { formatSignedPercent, recordMarketSummaryHistory } from "./market-summary-history";
@@ -34,7 +39,11 @@ import { readInsiderTradeRows } from "./adapters/unusual-whales-insider-trades";
 import { INSIDER_TRADES_LOOKBACK_MONTHS } from "./insider-window";
 import { DARK_POOL_RETENTION_DAYS } from "./adapters/unusual-whales-dark-pool";
 import { aggregateInsiderTrades } from "./insider-aggregation";
-import { deriveFlowSummary, WHALE_FEED_SUMMARY_WINDOW_DAYS } from "./flow-summary";
+import {
+  deriveFlowSummary,
+  DARK_POOL_SUMMARY_WINDOW_DAYS,
+  WHALE_FEED_SUMMARY_WINDOW_DAYS
+} from "./flow-summary";
 import { payloadContentHash, updateRefreshMetadata } from "./adapters/supabase-refresh";
 import { createServerSupabaseClient } from "@/lib/db/supabase";
 import {
@@ -569,7 +578,13 @@ async function buildMarketsPayload(): Promise<{
     )
     .filter((metric): metric is Metric => Boolean(metric));
 
-  const liveHeatmaps = { globalMarkets, sectors, crypto, macro, sp500: sp500.length ? sp500 : null };
+  const liveHeatmaps = {
+    globalMarkets,
+    sectors,
+    crypto,
+    macro,
+    sp500: sp500.length ? sp500 : null
+  };
   const hasLive = Object.values(liveHeatmaps).some(Boolean) || stripCandidates.some(Boolean);
   if (!hasLive)
     return {
@@ -577,10 +592,21 @@ async function buildMarketsPayload(): Promise<{
         ...fallback,
         strip: strip.length ? strip : fallback.strip,
         heatmaps: { ...fallback.heatmaps, sp500 },
-        breadth: sp500Rows.length ? sp500Breadth(sp500Rows, breadthMetrics) : [
-          ...fallback.breadth.filter((m) => !["% Above 50D MA", "% Above 200D MA", "New Highs / Lows", "New highs / lows", "52W Highs and Lows"].includes(m.label)),
-          ...breadthMetrics
-        ],
+        breadth: sp500Rows.length
+          ? sp500Breadth(sp500Rows, breadthMetrics)
+          : [
+              ...fallback.breadth.filter(
+                (m) =>
+                  ![
+                    "% Above 50D MA",
+                    "% Above 200D MA",
+                    "New Highs / Lows",
+                    "New highs / lows",
+                    "52W Highs and Lows"
+                  ].includes(m.label)
+              ),
+              ...breadthMetrics
+            ],
         movers: sp500Rows.length ? sp500Movers(sp500Rows) : fallback.movers
       },
       mode: "mock",
@@ -601,14 +627,29 @@ async function buildMarketsPayload(): Promise<{
         macro: macro ?? fallback.heatmaps.macro,
         sp500
       },
-      breadth: sp500Rows.length ? sp500Breadth(sp500Rows, breadthMetrics) : [
-          ...fallback.breadth.filter((m) => !["% Above 50D MA", "% Above 200D MA", "New Highs / Lows", "New highs / lows", "52W Highs and Lows"].includes(m.label)),
-          ...breadthMetrics
-        ],
+      breadth: sp500Rows.length
+        ? sp500Breadth(sp500Rows, breadthMetrics)
+        : [
+            ...fallback.breadth.filter(
+              (m) =>
+                ![
+                  "% Above 50D MA",
+                  "% Above 200D MA",
+                  "New Highs / Lows",
+                  "New highs / lows",
+                  "52W Highs and Lows"
+                ].includes(m.label)
+            ),
+            ...breadthMetrics
+          ],
       movers: sp500Rows.length ? sp500Movers(sp500Rows) : fallback.movers,
       heatmapKeyMessages: [
-        ...(sp500Result.message ? [`S&P 500 heatmap cache unavailable: ${sp500Result.message}`] : []),
-        ...(marketBreadthResult.message ? [`S&P 500 breadth cache unavailable: ${marketBreadthResult.message}`] : [])
+        ...(sp500Result.message
+          ? [`S&P 500 heatmap cache unavailable: ${sp500Result.message}`]
+          : []),
+        ...(marketBreadthResult.message
+          ? [`S&P 500 breadth cache unavailable: ${marketBreadthResult.message}`]
+          : [])
       ]
     },
     mode: "live",
@@ -878,11 +919,7 @@ async function buildNewsCalendarPayload(): Promise<{
 
 export async function refreshDashboardSnapshot(
   key:
-    | "today:latest"
-    | "markets:latest"
-    | "news-calendar:latest"
-    | "flow:latest"
-    | "ownership:latest"
+    "today:latest" | "markets:latest" | "news-calendar:latest" | "flow:latest" | "ownership:latest"
 ) {
   const builders = {
     "today:latest": { ttlSeconds: 15 * 60, build: buildTodayPayload },
@@ -929,11 +966,7 @@ export async function refreshDashboardSnapshot(
 
 async function getSnapshotFirstPayload<T>(
   key:
-    | "today:latest"
-    | "markets:latest"
-    | "news-calendar:latest"
-    | "flow:latest"
-    | "ownership:latest",
+    "today:latest" | "markets:latest" | "news-calendar:latest" | "flow:latest" | "ownership:latest",
   build: () => Promise<{ payload: T; mode: "mock" | "live"; notices: string[] }>,
   ttlSeconds: number
 ): Promise<{ payload: T; mode: "mock" | "live" | "cached"; notices: string[] }> {
@@ -984,13 +1017,22 @@ async function ensureMarketsBreadthMetrics(payload: MarketsPayload): Promise<Mar
     breadth: [
       ...payload.breadth.filter(
         (metric) =>
-          !["% Above 50D MA", "% above 50D MA", "% Above 200D MA", "New Highs / Lows", "New highs / lows", "52W Highs and Lows"].includes(metric.label)
+          ![
+            "% Above 50D MA",
+            "% above 50D MA",
+            "% Above 200D MA",
+            "New Highs / Lows",
+            "New highs / lows",
+            "52W Highs and Lows"
+          ].includes(metric.label)
       ),
       ...breadthMetrics
     ],
     heatmapKeyMessages: [
       ...payload.heatmapKeyMessages,
-      ...(marketBreadthResult.message ? [`S&P 500 breadth cache unavailable: ${marketBreadthResult.message}`] : [])
+      ...(marketBreadthResult.message
+        ? [`S&P 500 breadth cache unavailable: ${marketBreadthResult.message}`]
+        : [])
     ]
   };
 }
@@ -1082,6 +1124,7 @@ export async function buildFlowPayload(): Promise<{
         insiderCompaniesAggregated: insiderCompanies.length,
         insiderSource: insiderRows.length ? "supabase/source-table" : "fixture-fallback",
         darkPoolWindowDays: DARK_POOL_RETENTION_DAYS,
+        darkPoolSummaryWindowDays: DARK_POOL_SUMMARY_WINDOW_DAYS,
         darkPoolRowsUsed: darkPoolRows.length,
         whaleFeedRowsUsed: whaleFeedRows.length,
         whaleFeedSource: whaleFeedRows.length ? "supabase/source-table" : "fixture-fallback"
@@ -1126,7 +1169,8 @@ export async function getDarkPoolPayload(
     };
   try {
     const rows = await readDarkPoolRows(supabase.client, limit, ticker);
-    const snapshotRows = ticker && !rows.length ? await readDarkPoolRowsFromFlowSnapshot(ticker, limit) : [];
+    const snapshotRows =
+      ticker && !rows.length ? await readDarkPoolRowsFromFlowSnapshot(ticker, limit) : [];
     const resolvedRows = rows.length
       ? rows
       : snapshotRows.length
@@ -1244,13 +1288,15 @@ export async function buildOwnershipPayload(): Promise<{
 function hasRevisedFlowSummary(payload: FlowPayload) {
   return (
     payload.summary.some((metric) => metric.label === "Insider sentiment") &&
-    payload.summary.some((metric) => metric.label === `Whale Feed (${WHALE_FEED_SUMMARY_WINDOW_DAYS}D)`)
+    payload.summary.some(
+      (metric) => metric.label === `Whale Feed (${WHALE_FEED_SUMMARY_WINDOW_DAYS}D)`
+    )
   );
 }
 
 function hasExplanatoryDarkPool30dVolumeSubtext(payload: FlowPayload) {
   const darkPoolMetric = payload.summary.find(
-    (metric) => metric.label === `Largest Dark Pool Print (${DARK_POOL_RETENTION_DAYS}D)`
+    (metric) => metric.label === `Largest Dark Pool Print (${DARK_POOL_SUMMARY_WINDOW_DAYS}D)`
   );
   return (
     !darkPoolMetric?.subtext ||

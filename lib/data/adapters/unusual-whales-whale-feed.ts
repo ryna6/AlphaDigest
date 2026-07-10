@@ -8,7 +8,7 @@ import { payloadContentHash, sourceResult, updateRefreshMetadata } from "./supab
 
 export const UW_WHALE_FEED_URL =
   "https://phx.unusualwhales.com/api/flow/lit-trades?tab=whale&limit=500&min_marketcap=10000000000&min_price=10&min_premium=10000000&min_size_avg30d_vol_perc=0.01&min_size_daily_perc=0.05&hide_index_etf=true&min_size=100000&order=Prem&max_size_avg30d_vol_perc=0.25&max_size_daily_perc=0.5";
-export const WHALE_FEED_RETENTION_DAYS = 14;
+export const WHALE_FEED_RETENTION_DAYS = 30;
 const SOURCE = "unusual_whales_whale_feed";
 type Rec = Record<string, unknown>;
 const isRec = (v: unknown): v is Rec => !!v && typeof v === "object" && !Array.isArray(v);

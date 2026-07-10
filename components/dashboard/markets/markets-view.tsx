@@ -8,6 +8,7 @@ import { MetricRow } from "@/components/ui/metric-row";
 import { Heatmap } from "@/components/ui/heatmap";
 import { ErrorState } from "@/components/ui/error-state";
 import { cn } from "@/lib/utils/cn";
+import { parseMarketMoverValue } from "@/lib/data/market-movers-display";
 
 const modes = ["globalMarkets", "sectors", "sp500", "crypto", "macro"] as const;
 const labels = {
@@ -42,52 +43,45 @@ function signedValueClass(value?: string) {
   return "text-textSecondary";
 }
 
-function MarketMoverValue({
-  value,
-  tone: metricTone
-}: {
-  value: string;
-  tone: MarketsPayload["movers"][number]["tone"];
-}) {
-  if (value === "—") return <span className="text-textPrimary">{value}</span>;
-
-  const percentClass = metricTone === "negative" ? "text-negative" : "text-positive";
+function MarketMoverSection({ metric }: { metric: MarketsPayload["movers"][number] }) {
+  const rows = parseMarketMoverValue(metric.value);
+  const isNegative = metric.tone === "negative";
   return (
-    <>
-      {value.split(" · ").map((part, index) => {
-        const match = part.match(/^(\S+)\s+([+-]\d+(?:\.\d+)?%)$/);
-        if (!match) {
-          return (
-            <span key={`${part}-${index}`} className="text-textPrimary">
-              {part}
-            </span>
-          );
-        }
-        const [, ticker, percent] = match;
-        return (
-          <span key={`${ticker}-${percent}-${index}`}>
-            {index > 0 ? <span className="text-textSecondary"> · </span> : null}
-            <span className="text-textPrimary">{ticker} </span>
-            <span className={percentClass}>{percent}</span>
-          </span>
-        );
-      })}
-    </>
-  );
-}
-
-function MarketMoverRow({ metric }: { metric: MarketsPayload["movers"][number] }) {
-  return (
-    <div className="flex items-center justify-between gap-3 border-b border-borderStrong/60 py-2 last:border-b-0">
-      <div className="flex min-w-0 items-center gap-2">
-        <div className="min-w-0">
-          <p className="truncate text-sm text-textMuted">{metric.label}</p>
-        </div>
+    <div className="rounded-none border border-borderStrong/70 bg-sidebar/45 px-3 py-3">
+      <div className="mb-2 flex items-center justify-between gap-3 border-b border-borderStrong/60 pb-2 text-[10px] font-semibold uppercase tracking-[0.16em] text-textMuted">
+        <span>{metric.label}</span>
+        <span>% Change</span>
       </div>
-      <div className="text-right tabular">
-        <p className="text-base font-semibold">
-          <MarketMoverValue value={metric.value} tone={metric.tone} />
-        </p>
+      <div className="space-y-1.5">
+        {rows.length ? (
+          rows.map((row, index) => (
+            <div
+              key={`${metric.label}-${row.ticker}-${index}`}
+              className="flex items-center justify-between gap-4 border-b border-borderStrong/30 pb-1.5 last:border-b-0 last:pb-0"
+            >
+              <span className="min-w-0 truncate text-sm font-medium text-textPrimary">
+                {row.ticker}
+              </span>
+              <span
+                className={cn(
+                  "shrink-0 text-right text-sm font-semibold tabular",
+                  row.percent == null
+                    ? "text-textSecondary"
+                    : isNegative
+                      ? "text-negative"
+                      : "text-positive"
+                )}
+              >
+                {row.percent ?? "—"}
+              </span>
+            </div>
+          ))
+        ) : (
+          <div className="flex items-center justify-between gap-4">
+            <span className="text-sm text-textPrimary">—</span>
+            <span className="text-sm text-textSecondary tabular">—</span>
+          </div>
+        )}
       </div>
     </div>
   );
@@ -169,14 +163,27 @@ export function MarketsView({ data }: { data: MarketsPayload }) {
           {mode === "sp500" ? (
             <div className="inline-flex gap-1 rounded-none border border-borderStrong bg-sidebar/80 p-1 shadow-inner">
               {(["none", "sector"] as const).map((grouping) => (
-                <button key={grouping} onClick={() => setSp500Grouping(grouping)} className={cn("rounded-none px-4 py-2 text-xs font-semibold transition", sp500Grouping === grouping ? "bg-accentBlue text-white shadow-[0_0_18px_rgba(79,140,255,0.35)]" : "text-textSecondary hover:bg-panelHover hover:text-textPrimary")}>
+                <button
+                  key={grouping}
+                  onClick={() => setSp500Grouping(grouping)}
+                  className={cn(
+                    "rounded-none px-4 py-2 text-xs font-semibold transition",
+                    sp500Grouping === grouping
+                      ? "bg-accentBlue text-white shadow-[0_0_18px_rgba(79,140,255,0.35)]"
+                      : "text-textSecondary hover:bg-panelHover hover:text-textPrimary"
+                  )}
+                >
                   {grouping === "none" ? "No Group" : "Sector"}
                 </button>
               ))}
             </div>
           ) : null}
         </div>
-        <Heatmap tiles={data.heatmaps[mode]} variant={mode === "sp500" ? "trading" : "grid"} grouping={sp500Grouping} />
+        <Heatmap
+          tiles={data.heatmaps[mode]}
+          variant={mode === "sp500" ? "trading" : "grid"}
+          grouping={sp500Grouping}
+        />
       </Panel>
       <div className="mt-4 grid gap-4 xl:grid-cols-2">
         <Panel>
@@ -188,7 +195,7 @@ export function MarketsView({ data }: { data: MarketsPayload }) {
         <Panel>
           <SectionHeader title="Market Movers" />
           {data.movers.map((m) => (
-            <MarketMoverRow key={m.label} metric={m} />
+            <MarketMoverSection key={m.label} metric={m} />
           ))}
         </Panel>
       </div>
