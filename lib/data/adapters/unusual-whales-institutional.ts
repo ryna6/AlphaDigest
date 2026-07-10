@@ -396,13 +396,13 @@ function institutionListUrl(page?: number) {
   return `https://phx.unusualwhales.com/api/institutions?limit=500${page == null ? "" : `&page=${page}`}`;
 }
 function holdingsUrl(slug: string) {
-  return `https://phx.unusualwhales.com/api/institutions/${encodeURIComponent(slug)}/holdings?security_types[]=Share&security_types[]=Fund&page=0&slim=true`;
+  return `https://phx.unusualwhales.com/api/institutions/${encodeURIComponent(slug)}/holdings?security_types[]=Share&security_types[]=Fund&page=0&slim=true&limit=500`;
 }
 function optionsUrl(slug: string) {
   return `https://phx.unusualwhales.com/api/institutions/${encodeURIComponent(slug)}/holdings?security_types[]=Option&slim=true`;
 }
 function activityUrl(slug: string) {
-  return `https://phx.unusualwhales.com/api/institutions/${encodeURIComponent(slug)}/activity?page=0&limit=50&ticker=`;
+  return `https://phx.unusualwhales.com/api/institutions/${encodeURIComponent(slug)}/activity?page=0&limit=500&ticker=`;
 }
 function historicalUrl(slug: string) {
   return `https://phx.unusualwhales.com/api/institutions/${encodeURIComponent(slug)}`;
@@ -886,6 +886,17 @@ function withReturns(institutions: TrackedInstitutionInfo[], history: TrackedIns
   });
 }
 
+function topTrackedHoldings(rows: TrackedStockHolding[]) {
+  const grouped = new Map<string, TrackedStockHolding[]>();
+  for (const row of rows)
+    grouped.set(row.institutionName, [...(grouped.get(row.institutionName) ?? []), row]);
+  return [...grouped.values()].flatMap((group) =>
+    group
+      .sort((a, b) => (b.value ?? Number.NEGATIVE_INFINITY) - (a.value ?? Number.NEGATIVE_INFINITY))
+      .slice(0, 30)
+  );
+}
+
 export async function getCachedTrackedInstitutions(): Promise<TrackedInstitutionPayload> {
   const supabase = createServerSupabaseClient();
   if (!supabase.ok)
@@ -960,20 +971,22 @@ export async function getCachedTrackedInstitutions(): Promise<TrackedInstitution
   }));
   return {
     institutions: withReturns(infos, histories),
-    holdings: (holdings.data ?? []).map((r: any) => ({
-      institutionName: r.institution_name,
-      date: r.report_date,
-      ticker: r.ticker,
-      fullName: r.full_name,
-      units: r.units == null ? null : Number(r.units),
-      avgPrice: r.avg_price == null ? null : Number(r.avg_price),
-      unitsChange: r.units_change == null ? null : Number(r.units_change),
-      changePerc: r.change_perc == null ? null : Number(r.change_perc),
-      percOfShareValue: r.perc_of_share_value == null ? null : Number(r.perc_of_share_value),
-      value: r.value == null ? null : Number(r.value),
-      close: r.close == null ? null : Number(r.close),
-      fetchedAt: r.fetched_at
-    })),
+    holdings: topTrackedHoldings(
+      (holdings.data ?? []).map((r: any) => ({
+        institutionName: r.institution_name,
+        date: r.report_date,
+        ticker: r.ticker,
+        fullName: r.full_name,
+        units: r.units == null ? null : Number(r.units),
+        avgPrice: r.avg_price == null ? null : Number(r.avg_price),
+        unitsChange: r.units_change == null ? null : Number(r.units_change),
+        changePerc: r.change_perc == null ? null : Number(r.change_perc),
+        percOfShareValue: r.perc_of_share_value == null ? null : Number(r.perc_of_share_value),
+        value: r.value == null ? null : Number(r.value),
+        close: r.close == null ? null : Number(r.close),
+        fetchedAt: r.fetched_at
+      }))
+    ),
     options: (options.data ?? []).map((r: any) => ({
       institutionName: r.institution_name,
       asOfDate: r.as_of_date,
