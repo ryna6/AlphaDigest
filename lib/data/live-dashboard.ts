@@ -602,21 +602,9 @@ async function buildMarketsPayload(): Promise<{
         ...fallback,
         strip: strip.length ? strip : fallback.strip,
         heatmaps: { ...fallback.heatmaps, sp500 },
-        breadth: sp500Rows.length
+        breadth: ensureCanonicalMarketBreadthMetrics(sp500Rows.length
           ? (candleBreadth?.metrics ?? sp500Breadth(sp500Rows, breadthMetrics, sp500IndexChangePercent))
-          : [
-              ...fallback.breadth.filter(
-                (m) =>
-                  ![
-                    "% Above 50D MA",
-                    "% Above 200D MA",
-                    "New Highs / Lows",
-                    "New highs / lows",
-                    "52W Highs and Lows"
-                  ].includes(m.label)
-              ),
-              ...breadthMetrics
-            ],
+          : [...fallback.breadth, ...breadthMetrics]),
         movers: sp500Rows.length ? sp500Movers(sp500Rows) : fallback.movers
       },
       mode: "mock",
@@ -637,21 +625,9 @@ async function buildMarketsPayload(): Promise<{
         macro: macro ?? fallback.heatmaps.macro,
         sp500
       },
-      breadth: sp500Rows.length
+      breadth: ensureCanonicalMarketBreadthMetrics(sp500Rows.length
         ? (candleBreadth?.metrics ?? sp500Breadth(sp500Rows, breadthMetrics, sp500IndexChangePercent))
-        : [
-            ...fallback.breadth.filter(
-              (m) =>
-                ![
-                  "% Above 50D MA",
-                  "% Above 200D MA",
-                  "New Highs / Lows",
-                  "New highs / lows",
-                  "52W Highs and Lows"
-                ].includes(m.label)
-            ),
-            ...breadthMetrics
-          ],
+        : [...fallback.breadth, ...breadthMetrics]),
       movers: sp500Rows.length ? sp500Movers(sp500Rows) : fallback.movers,
       metadata: {
         refreshedBy: "builder",
@@ -1038,31 +1014,30 @@ async function getSnapshotFirstPayload<T>(
   }
 }
 
-async function ensureMarketsBreadthMetrics(payload: MarketsPayload): Promise<MarketsPayload> {
-  const hasAbove200d = payload.breadth.some((metric) => metric.label === "% Above 200D MA");
-  const hasRenamedHighLow = payload.breadth.some((metric) => metric.label === "52W Highs and Lows");
-  if (hasAbove200d && hasRenamedHighLow) return payload;
 
-  const breadthMetrics: Metric[] = [];
-  return {
-    ...payload,
-    breadth: [
-      ...payload.breadth.filter(
-        (metric) =>
-          ![
-            "% Above 50D MA",
-            "% above 50D MA",
-            "% Above 200D MA",
-            "New Highs / Lows",
-            "New highs / lows",
-            "52W Highs and Lows"
-          ].includes(metric.label)
-      ),
-      ...breadthMetrics
-    ],
-    heatmapKeyMessages: payload.heatmapKeyMessages
-  };
+export const CANONICAL_MARKET_BREADTH_LABELS = ["Participation", "Advancers / Decliners", "% Above 50D MA", "% Above 200D MA", "New 52W Highs / Lows"] as const;
+const BREADTH_ALIAS: Record<string, string> = {
+  "New Highs / Lows": "New 52W Highs / Lows",
+  "New highs / lows": "New 52W Highs / Lows",
+  "52W Highs and Lows": "New 52W Highs / Lows",
+  "New 52W Highs / Lows": "New 52W Highs / Lows",
+  "% above 50D MA": "% Above 50D MA"
+};
+export function ensureCanonicalMarketBreadthMetrics(metrics: Metric[]): Metric[] {
+  const byLabel = new Map<string, Metric>();
+  for (const metric of metrics) {
+    const label = BREADTH_ALIAS[metric.label] ?? metric.label;
+    if (!CANONICAL_MARKET_BREADTH_LABELS.includes(label as any)) continue;
+    if (!byLabel.has(label)) byLabel.set(label, { ...metric, label });
+  }
+  return CANONICAL_MARKET_BREADTH_LABELS.map((label) =>
+    byLabel.get(label) ?? { label, value: "-", tone: "neutral" as const }
+  );
 }
+async function ensureMarketsBreadthMetrics(payload: MarketsPayload): Promise<MarketsPayload> {
+  return { ...payload, breadth: ensureCanonicalMarketBreadthMetrics(payload.breadth) };
+}
+
 
 export async function getMarketsPayload(): Promise<{
   payload: MarketsPayload;

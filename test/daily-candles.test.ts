@@ -127,3 +127,39 @@ test("daily Finnhub keys are deduplicated across one to four configured lanes", 
     process.env = old;
   }
 });
+
+import { SP500_FUTURES_HISTORY_ID, SP500_FUTURES_HISTORY_URL, parseUnusualWhalesFuturesCandles, retainTrailingFuturesYear } from "../lib/data/unusual-whales-futures-candles";
+import { marketCandleAssets } from "../lib/data/market-assets";
+
+test("S&P 500 futures candle asset is enabled with centralized UUID metadata", () => {
+  const asset = marketCandleAssets.find((a) => a.symbol === "ES=F");
+  assert.equal(asset?.chartAvailable, true);
+  assert.equal(asset?.label, "S&P 500 Futures");
+  assert.equal(asset?.group, "indices");
+  assert.equal(asset?.marketCalendar, "futures");
+  assert.equal(asset?.futuresHistoryId, SP500_FUTURES_HISTORY_ID);
+  assert.equal(asset?.finnhubSymbol, undefined);
+  assert.equal(SP500_FUTURES_HISTORY_URL, "https://phx.unusualwhales.com/api/futures_eod_history/09abc102-cb07-420e-92c6-e220f44c1e81");
+  assert.ok(!SP500_FUTURES_HISTORY_URL.includes("-USD"));
+});
+
+test("futures parser maps fields, preserves Sunday, skips Saturday, and derives previous close after sorting", () => {
+  const result = parseUnusualWhalesFuturesCandles({ data: { history: [
+    { date:"2026-07-09", open:6310.25, high:6342.5, low:6298.75, close:6331.0 },
+    { date:"2026-07-05", open:"6300", high:"6320", low:"6290", close:"6310" },
+    { date:"2026-07-04", open:1, high:2, low:1, close:2 },
+    { date:"2026-07-10", open:10, high:9, low:8, close:9 }
+  ] } }, "2026-07-10T00:00:00.000Z");
+  assert.equal(result.arrayPath, "data.history");
+  assert.equal(result.rawCount, 4);
+  assert.equal(result.parsedCount, 2);
+  assert.equal(result.saturdayRowsSkipped, 1);
+  assert.deepEqual(result.candles.map(c=>c.tradingDate), ["2026-07-05", "2026-07-09"]);
+  assert.equal(result.candles[0].volume, null);
+  assert.equal(result.candles[1].previousClose, 6310);
+});
+
+test("futures one-year retention uses calendar-year boundary including leap days", () => {
+  const rows = ["2024-02-28", "2024-02-29", "2025-02-28"].map((tradingDate, i) => ({ symbol:"ES=F", providerSymbol:SP500_FUTURES_HISTORY_ID, tradingDate, open:1, high:2, low:1, close:i+1, volume:null, previousClose:null, source:"Unusual Whales Futures EOD", sourceTimestamp:tradingDate, fetchedAt:tradingDate, assetGroup:"indices" }));
+  assert.deepEqual(retainTrailingFuturesYear(rows).map(r=>r.tradingDate), ["2024-02-28", "2024-02-29", "2025-02-28"]);
+});

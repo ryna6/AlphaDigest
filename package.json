@@ -13,7 +13,8 @@
     "format:write": "prettier --write .",
     "fetch:uw-earnings": "tsx scripts/fetchUnusualWhalesEarnings.ts",
     "test": "npm run typecheck && tsx --test test/*.test.ts",
-    "validate:news-calendar": "sucrase-node scripts/validateNewsCalendarUi.tsx"
+    "validate:news-calendar": "sucrase-node scripts/validateNewsCalendarUi.tsx",
+    "backfill:futures-candles": "tsx scripts/backfillUnusualWhalesFuturesCandles.ts"
   },
   "dependencies": {
     "@supabase/supabase-js": "latest",

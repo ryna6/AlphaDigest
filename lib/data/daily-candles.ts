@@ -7,10 +7,10 @@ import { readCachedSp500HeatmapRows } from "./adapters/unusual-whales-sp500-heat
 export const CANDLE_TABLES = ["sp500_daily_candles", "market_daily_candles", "crypto_daily_candles"] as const;
 export type CandleTable = (typeof CANDLE_TABLES)[number];
 export type DailyCandle = { symbol: string; providerSymbol: string; tradingDate: string; open: number; high: number; low: number; close: number; volume: number | null; previousClose: number | null; source: string; sourceTimestamp: string | null; fetchedAt: string; assetGroup?: string };
-export const candleApiPayloadSchema = z.object({ symbol: z.string(), range: z.enum(["1W","1M","3M","YTD","1Y"]), table: z.enum(CANDLE_TABLES), available: z.boolean(), candles: z.array(z.object({ time: z.string(), date: z.string().optional(), open: z.number(), high: z.number(), low: z.number(), close: z.number(), volume: z.number().nullable(), previousClose: z.number().nullable() })), metadata: z.object({ source: z.string().nullable(), earliestTradingDate: z.string().nullable(), latestTradingDate: z.string().nullable(), fetchedAt: z.string().nullable(), rows: z.number(), label: z.string(), providerSymbol: z.string().nullable(), range: z.enum(["1W","1M","3M","YTD","1Y"]).optional(), resolution: z.enum(["1d","1h","30m","15m","5m","1m"]).default("1d"), marketCalendar: z.enum(["24/7","exchange"]).default("exchange"), timezone: z.string().default("America/New_York"), supabaseProjectHost: z.string().nullable().optional(), dataVersion: z.string().optional() }) });
+export const candleApiPayloadSchema = z.object({ symbol: z.string(), range: z.enum(["1W","1M","3M","YTD","1Y"]), table: z.enum(CANDLE_TABLES), available: z.boolean(), candles: z.array(z.object({ time: z.string(), date: z.string().optional(), open: z.number(), high: z.number(), low: z.number(), close: z.number(), volume: z.number().nullable(), previousClose: z.number().nullable() })), metadata: z.object({ source: z.string().nullable(), earliestTradingDate: z.string().nullable(), latestTradingDate: z.string().nullable(), fetchedAt: z.string().nullable(), rows: z.number(), label: z.string(), providerSymbol: z.string().nullable(), range: z.enum(["1W","1M","3M","YTD","1Y"]).optional(), resolution: z.enum(["1d","1h","30m","15m","5m","1m"]).default("1d"), marketCalendar: z.enum(["24/7","exchange","futures"]).default("exchange"), timezone: z.string().default("America/New_York"), supabaseProjectHost: z.string().nullable().optional(), dataVersion: z.string().optional() }) });
 export type CandleRange = z.infer<typeof candleApiPayloadSchema>["range"];
 export type CandleResolution = "1d" | "1h" | "30m" | "15m" | "5m" | "1m";
-export type MarketCalendar = "24/7" | "exchange";
+export type MarketCalendar = "24/7" | "exchange" | "futures";
 
 const isRecord = (v: unknown): v is Record<string, unknown> => !!v && typeof v === "object" && !Array.isArray(v);
 const numeric = (n: unknown) => typeof n === "number" ? (Number.isFinite(n) ? n : null) : typeof n === "string" && n.trim() !== "" ? (Number.isFinite(Number(n)) ? Number(n) : null) : null;
@@ -39,11 +39,13 @@ export async function mergeVolumePreservingRows(table:CandleTable, rows: any[], 
   if (!rows.some((r) => r.volume == null)) return rows;
   const supabase = client ? { ok:true as const, client } : createServerSupabaseClient();
   if (!supabase.ok) return rows;
-  const symbols = Array.from(new Set(rows.filter((r) => r.volume == null).map((r) => r.symbol)));
-  const dates = Array.from(new Set(rows.filter((r) => r.volume == null).map((r) => r.trading_date)));
+  const eligibleNullRows = rows.filter((r) => r.volume == null && r.source !== "Unusual Whales Futures EOD");
+  if (!eligibleNullRows.length) return rows;
+  const symbols = Array.from(new Set(eligibleNullRows.map((r) => r.symbol)));
+  const dates = Array.from(new Set(eligibleNullRows.map((r) => r.trading_date)));
   const { data } = await supabase.client.from(table).select("symbol,trading_date,volume").in("symbol", symbols).in("trading_date", dates);
   const existing = new Map((data ?? []).map((r:any) => [`${r.symbol}:${r.trading_date}`, r.volume]));
-  return rows.map((r) => r.volume == null && existing.get(`${r.symbol}:${r.trading_date}`) != null ? { ...r, volume: existing.get(`${r.symbol}:${r.trading_date}`) } : r);
+  return rows.map((r) => r.volume == null && r.source !== "Unusual Whales Futures EOD" && existing.get(`${r.symbol}:${r.trading_date}`) != null ? { ...r, volume: existing.get(`${r.symbol}:${r.trading_date}`) } : r);
 }
 
 function supabaseErrorMessage(error: any) { return JSON.stringify({ code:error?.code, message:error?.message, details:error?.details, hint:error?.hint }); }
