@@ -240,3 +240,24 @@ Status display names include `Institutional Holdings` for the `refresh-instituti
 ### Job run retention RPC
 
 `public.cleanup_old_job_runs()` is tracked as a no-argument Supabase RPC for server-side scheduled-function telemetry. It deletes `job_runs` rows whose `started_at` is older than 24 hours and grants execution to the service role only. Deploy the Supabase migration before relying on scheduled jobs to call the RPC; if PostgREST still reports the old schema cache immediately after deployment, refresh/reload the Supabase schema cache before rechecking Netlify logs.
+
+## OHLCV daily candle operations (July 2026 repair)
+
+The candle pipeline is intentionally split by responsibility:
+
+- **Scheduled dispatcher:** `refresh-daily-market-candles` is a small Netlify scheduled function. It logs `daily_candle_dispatch_started`, evaluates Toronto local time, records skipped telemetry with UTC and Toronto timestamps, invokes the worker, and returns immediately. It must not process the S&P 500 universe itself.
+- **Background worker:** `refresh-daily-market-candles-worker-background` is the long-running Netlify background function. It uses Finnhub only for the latest daily equity row, validates `market_daily_candles` and `sp500_daily_candles` before provider calls, logs progress by group, writes both tables, verifies each upsert in the same table, prunes only tables with successful writes, calculates breadth through the Markets snapshot refresh, and finishes the Status job run.
+- **Manual protected invocation:** POST `/.netlify/functions/refresh-daily-market-candles-worker-background` with `x-alphadigest-worker-token: $DAILY_CANDLE_WORKER_TOKEN` and a JSON body such as `{ "manual": true, "correlationId": "manual-YYYYMMDD" }`. Manual worker runs are not blocked by the 6:30 PM Toronto schedule guard.
+- **Historical backfill:** `scripts/backfillDailyCandlesFromUnusualWhales.ts` remains the separate, resumable Unusual Whales maintenance path for one-year equity history. It is not part of the daily Finnhub worker.
+
+Netlify cron is UTC, so the dispatcher now wakes at `30 22,23 * * 1-5`. The runtime guard admits only 18:30 America/Toronto. This covers daylight and standard time without changing environment variables for tests; rejected invocations are logged and recorded as skipped job telemetry.
+
+Required production environment variables for functions and server-side API routes are `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, the Finnhub feature keys used by `getDailyCandleFinnhubKeys()`, and `DAILY_CANDLE_WORKER_TOKEN` for protected manual/dispatcher worker calls. Diagnostics log only booleans, the distinct Finnhub key count, deployment context, deployment ID, site URL, and the Supabase project hostname; secrets are never logged. If the candle API and worker report different Supabase project hostnames, treat environment scoping as the root cause before changing code.
+
+A single worker can safely write to both `market_daily_candles` and `sp500_daily_candles`: every job carries its own target table, `asset_group` is included only for `market_daily_candles`, the upsert conflict target is `(symbol, trading_date)`, and post-upsert verification queries the same table. Empty S&P universe is a warning/error condition, preserves existing S&P rows, and skips S&P pruning.
+
+Finnhub daily updates run one paced lane per distinct key at a target of 30 calls/minute/key, retry limited `429`/`5xx` responses with `Retry-After`/bounded backoff, and preserve existing non-null volume when the quote response has no volume. The daily path writes only the latest completed daily row; it does not create one-year history.
+
+Unusual Whales historical equity backfill uses `ticker_candles/{TICKER}/historic/v2?interval=1y&include_1m_data=true` with ticker symbols such as `AAPL`, `SPY`, `XLK`, and `GLD` (no `-USD`). Run conservative batches first (`--symbol SPY`, then `--symbol AAPL`, then `--group markets --limit 5`) before larger resumable runs. Use low concurrency/delay in production rollouts and verify rows after each batch.
+
+During this repair, `/api/markets/candles` responses are strict no-store (`Cache-Control`, `CDN-Cache-Control`, and `Netlify-CDN-Cache-Control`) and include safe diagnostics: selected table, source, provider symbol, row count, earliest/latest trading dates, fetched timestamp, Supabase project hostname, and `dataVersion: ohlcv-supabase-v3`. Candle charts must never use fixtures, heatmap-derived candles, or mock OHLC arrays; no rows render an unavailable state and query errors render an error state.

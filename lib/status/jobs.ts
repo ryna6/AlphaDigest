@@ -165,8 +165,8 @@ export const STATUS_JOBS: StatusJob[] = [
     functionName: "refresh-daily-market-candles",
     source: "Finnhub",
     frequency: "Daily, Mon–Fri",
-    schedule: "30 22 * * 1-5",
-    scheduleDescription: "Once each market weekday at 6:30 PM America/Toronto.",
+    schedule: "30 22,23 * * 1-5",
+    scheduleDescription: "Dispatcher wakes at 22:30 and 23:30 UTC Monday-Friday; Toronto guard permits only 6:30 PM America/Toronto and invokes the background worker.",
     nextRunRule: { days: [1, 2, 3, 4, 5], hours: [18], minutes: [30] },
     staleAfterMinutes: 1440
   },

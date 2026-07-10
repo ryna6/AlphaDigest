@@ -112,3 +112,18 @@ test("volume merge preserves existing stored volume when incoming refresh has nu
   const merged = await mergeVolumePreservingRows("market_daily_candles", rows, client);
   assert.equal(merged[0].volume, 12345);
 });
+
+import { getDailyCandleFinnhubKeys } from "../lib/data/adapters/finnhub-key-router";
+
+test("daily Finnhub keys are deduplicated across one to four configured lanes", () => {
+  const old = { ...process.env };
+  process.env.FINNHUB_GLOBAL_MARKETS_API_KEY = "a";
+  process.env.FINNHUB_SECTORS_HEATMAP_API_KEY = "a";
+  process.env.FINNHUB_CRYPTO_HEATMAP_API_KEY = "b";
+  process.env.FINNHUB_MACRO_HEATMAP_API_KEY = "c";
+  try {
+    assert.deepEqual(getDailyCandleFinnhubKeys().map(k => k.key), ["a", "b", "c"]);
+  } finally {
+    process.env = old;
+  }
+});
