@@ -424,3 +424,26 @@ Daily Market Candles use Finnhub quote OHLC fields for S&P 500 and fixed Markets
 ### Market Breadth provider table split
 
 Storage retention: Dark Pool and Whale Feed source tables use a rolling 30-day `executed_at` retention window. Flow Summary largest Dark Pool print window: 14 days, so larger valid prints from days 15–30 remain stored but are excluded from the summary card.
+
+### Crypto daily candles repair notes
+
+`refresh-crypto-daily-candles` is the only recurring provider caller for crypto OHLC history. It reads the eight uppercase application symbols from `cryptoCandleAssets` and maps them to uppercase Unusual Whales provider symbols: `BTCUSD → BTC-USD`, `ETHUSD → ETH-USD`, `SOLUSD → SOL-USD`, `XRPUSD → XRP-USD`, `BNBUSD → BNB-USD`, `TRXUSD → TRX-USD`, `ADAUSD → ADA-USD`, and `DOGEUSD → DOGE-USD`. Endpoint casing is not operationally significant, but the app keeps uppercase symbols for configuration, logs, database metadata, and documentation. During this repair the configured historical start date is fixed at `2025-07-10`; after production coverage is confirmed it should be changed in a separate focused update back to the dynamic trailing one-year start date.
+
+The exact endpoint pattern is `https://phx.unusualwhales.com/api/crypto_candles/{PROVIDER}/1d/2025-07-10`. The observed/supported candle array wrapper is `payload.data` (with compatibility for `payload`, `payload.candles`, `payload.results`, `data`, `data.candles`, `data.results`, `candles`, `results`, and a top-level array). Rows use short fields `date`, `o`, `h`, `l`, `c`, and `v`, mapped to trading date/source timestamp, open, high, low, close, and nullable numeric volume. OHLC must be positive and internally consistent; volume must be finite and non-negative and may be zero.
+
+Migration `0037_daily_candle_volume.sql` adds nullable `volume numeric` to `sp500_daily_candles`, `market_daily_candles`, and `crypto_daily_candles`. The crypto refresh checks that `crypto_daily_candles` can be queried with the `volume` column before making provider requests. Supabase writes use the service-role client server-side only; `/api/markets/candles` reads only Supabase candle rows and never calls Unusual Whales.
+
+Run diagnostics with `npx tsx scripts/debugUnusualWhalesCryptoCandles.ts --symbol=BTCUSD` or omit `--symbol` for all eight assets. The script reports safe metadata including URL, HTTP status, content type, response length, top-level keys, detected array path, raw/parsed/skipped counts, and parsed date range without printing credentials or full response bodies. The refresh accepts `UNUSUAL_WHALES_API_KEY` or `UW_API_KEY` and sends a Bearer token when present; if the endpoint is reachable without a token, the request can still proceed.
+
+Manual Netlify invocation should call the deployed `refresh-crypto-daily-candles` function and inspect metadata for `configuredSymbols`, `attemptedSymbols`, `successfulSymbols`, `failedSymbols`, `rawRowsFetched`, `validRowsParsed`, `rowsSkipped`, `rowsUpserted`, `rowsVerified`, `rowsPruned`, `failures`, and `perSymbolResults`. Full success requires all eight symbols to fetch, parse, upsert, and verify; partial success returns a warning job status when at least one symbol verifies and at least one fails; total failure returns an error/502 when nothing is stored or verified. Pruning runs only after at least one symbol verifies and uses the normal dynamic one-year cutoff.
+
+Verify Supabase coverage with:
+
+```sql
+select symbol, count(*) as row_count, min(trading_date) as earliest_date, max(trading_date) as latest_date, count(volume) as rows_with_volume
+from public.crypto_daily_candles
+group by symbol
+order by symbol;
+```
+
+Also check duplicates, negative volume, and invalid OHLC using the validation queries in the development runbook. The Markets chart modal displays candlestick price data with aligned volume bars below the price pane using green/red candle direction styling and handles null or zero volume without fabricating values.

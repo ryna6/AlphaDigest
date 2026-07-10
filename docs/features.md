@@ -229,3 +229,5 @@ The Economy tab stores FRED observations in `fred_economy`, refreshes them daily
 
 - Markets `Market Movers` presents Leaders and Laggards as compact structured sections with neutral ticker text and color applied only to signed percentage changes.
 - Institution Detail Stock Holdings calculates `% Change` from current units and `units_change`: `(units_change / abs(current units - units_change)) * 100`. Sold-out positions show `-100.00%`, new positions or missing previous units show `—`, and positive absolute Change values include a leading `+`.
+
+Markets chart modals display cached daily OHLC candlesticks plus a lower volume pane when Supabase candle rows include volume. Crypto chart history comes from the eight configured Unusual Whales crypto mappings and is exposed to the UI only through `/api/markets/candles`.

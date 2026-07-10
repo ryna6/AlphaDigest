@@ -329,3 +329,9 @@ Permanent refresh jobs are `refresh-daily-market-candles` (Finnhub-only for S&P 
 ```bash
 npx tsx scripts/verifyDailyCandles.ts
 ```
+
+### Crypto daily candle diagnostic and verification
+
+Use `npx tsx scripts/debugUnusualWhalesCryptoCandles.ts --symbol=BTCUSD` for the configured BTC endpoint, or omit `--symbol` for all eight uppercase mappings (`BTCUSD/BTC-USD`, `ETHUSD/ETH-USD`, `SOLUSD/SOL-USD`, `XRPUSD/XRP-USD`, `BNBUSD/BNB-USD`, `TRXUSD/TRX-USD`, `ADAUSD/ADA-USD`, `DOGEUSD/DOGE-USD`). The temporary repair fetch start date is `2025-07-10`; return it to a dynamic one-year start only after Supabase coverage is confirmed in production. The script prints only sanitized diagnostics and requires no browser access to Unusual Whales.
+
+Before running `refresh-crypto-daily-candles`, apply migration `0037_daily_candle_volume.sql` so all candle tables include nullable `volume numeric`. The function uses `UNUSUAL_WHALES_API_KEY` or `UW_API_KEY` when present, `SUPABASE_URL`, and `SUPABASE_SERVICE_ROLE_KEY`. It fails before provider requests if `crypto_daily_candles` or `volume` is unavailable.
