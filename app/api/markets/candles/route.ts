@@ -4,7 +4,7 @@ import { candleApiPayloadSchema, getSp500CandleUniverse, readCandlesForApi, type
 import { getSupabaseProjectHost } from "@/lib/db/supabase";
 import { normalizeAppSymbol, resolveConfiguredCryptoCandleAsset, resolveConfiguredFixedCandleAsset, resolveSp500CandleAsset } from "@/lib/data/market-assets";
 
-const querySchema = z.object({ symbol: z.string().min(1).max(16), range: z.enum(["1D","1W","1M","3M","YTD","1Y"]).default("1D") });
+const querySchema = z.object({ symbol: z.string().min(1).max(16), range: z.enum(["1W","1M","3M","YTD","1Y"]).default("1W") });
 const envelopeSchema = z.object({ payload: candleApiPayloadSchema, mode: z.enum(["cached","unavailable","error"]), notices: z.array(z.string()), generatedAt: z.string(), timezone: z.string() });
 const DATA_VERSION = "ohlcv-supabase-v3";
 const NO_STORE = "no-store, no-cache, max-age=0, must-revalidate";
