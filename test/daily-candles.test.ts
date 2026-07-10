@@ -1,21 +1,63 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { calculateMarketBreadthFromCandles } from "../lib/data/market-breadth-candles";
-import { normalizeFinnhubQuote, normalizeUnusualWhalesCandles, oneYearCutoff, validateOhlc, type DailyCandle } from "../lib/data/daily-candles";
+import { dailyCandleRowsForUpsert, normalizeFinnhubQuote, normalizeUnusualWhalesCandles, normalizeUnusualWhalesCandlesWithDiagnostics, oneYearCutoff, validateOhlc, type DailyCandle } from "../lib/data/daily-candles";
 import { cryptoCandleAssets, normalizeAppSymbol, toFinnhubShareClassSymbol } from "../lib/data/market-assets";
+import { buildUnusualWhalesCryptoCandleUrl } from "../lib/data/unusual-whales-crypto-candles";
+
+const mappings = [
+  ["BTCUSD","BTC-USD"],["ETHUSD","ETH-USD"],["SOLUSD","SOL-USD"],["XRPUSD","XRP-USD"],["BNBUSD","BNB-USD"],["TRXUSD","TRX-USD"],["ADAUSD","ADA-USD"],["DOGEUSD","DOGE-USD"]
+] as const;
 
 test("normalizes valid Finnhub quote and rejects invalid OHLC", () => {
   const c = normalizeFinnhubQuote("BRK-B", "BRK.B", { o: 10, h: 12, l: 9, c: 11, pc: 10, t: 1762819200 });
-  assert.equal(c.symbol, "BRK-B"); assert.equal(c.providerSymbol, "BRK.B"); assert.equal(c.tradingDate, "2025-11-10");
+  assert.equal(c.symbol, "BRK-B"); assert.equal(c.providerSymbol, "BRK.B"); assert.equal(c.tradingDate, "2025-11-10"); assert.equal(c.volume, null);
   assert.throws(() => normalizeFinnhubQuote("AAPL", "AAPL", { o: 0, h: 1, l: 1, c: 1, t: 1 }), /missing positive/);
   assert.throws(() => validateOhlc(10, 9, 8, 11), /Invalid OHLC/);
 });
 
-test("normalizes observed Unusual Whales wrapper variants and crypto mappings", () => {
-  const rows = normalizeUnusualWhalesCandles("BTCUSD", "BTC-USD", { data: [{ date: "2026-07-09", open: "100", high: "110", low: "90", close: "105" }] }, "Unusual Whales Crypto");
-  assert.equal(rows.length, 1); assert.equal(rows[0].tradingDate, "2026-07-09");
-  assert.deepEqual(cryptoCandleAssets.map(a => a.unusualWhalesSymbol), ["BTC-USD","ETH-USD","SOL-USD","XRP-USD","BNB-USD","TRX-USD","ADA-USD","DOGE-USD"]);
+test("configures exact uppercase crypto endpoint mappings", () => {
+  assert.deepEqual(cryptoCandleAssets.map(a => [a.symbol, a.unusualWhalesSymbol]), mappings);
+  assert.equal(new Set(cryptoCandleAssets.map(a => a.symbol)).size, 8);
+  for (const [, provider] of mappings) {
+    assert.equal(provider, provider.toUpperCase());
+    const url = buildUnusualWhalesCryptoCandleUrl(provider, "2025-07-10");
+    assert.equal(url, `https://phx.unusualwhales.com/api/crypto_candles/${provider}/1d/2025-07-10`);
+    assert.ok(!url.endsWith("."));
+  }
   assert.equal(normalizeAppSymbol("brk.b"), "BRK-B"); assert.equal(toFinnhubShareClassSymbol("BRK-B"), "BRK.B");
+});
+
+test("normalizes observed Unusual Whales crypto short fields with diagnostics", () => {
+  const payload = { payload: { data: [{ date: "2026-07-09", c: 108500.25, h: 110000, l: 106750, o: 107100, v: 12345.67 }] } };
+  const d = normalizeUnusualWhalesCandlesWithDiagnostics("BTCUSD", "BTC-USD", payload, "Unusual Whales Crypto");
+  assert.equal(d.arrayPath, "payload.data"); assert.equal(d.rawCount, 1); assert.equal(d.parsedCount, 1); assert.equal(d.skippedCount, 0);
+  assert.equal(d.candles[0].close, 108500.25); assert.equal(d.candles[0].high, 110000); assert.equal(d.candles[0].low, 106750); assert.equal(d.candles[0].open, 107100); assert.equal(d.candles[0].volume, 12345.67);
+});
+
+test("parser accepts numeric strings and zero volume, rejects malformed rows", () => {
+  const payload = { payload: { data: [
+    { date: "2026-07-09T00:00:00Z", c: "105", h: "110", l: "90", o: "100", v: "0" },
+    { date: 1783555200, c: 105, h: 110, l: 90, o: 100, v: -1 },
+    { date: "bad", c: 105, h: 110, l: 90, o: 100, v: 1 },
+    { c: 105, h: 110, l: 90, o: 100, v: 1 },
+    { date: "2026-07-09", c: 120, h: 110, l: 90, o: 100, v: 1 }
+  ] } };
+  const d = normalizeUnusualWhalesCandlesWithDiagnostics("BTCUSD", "BTC-USD", payload, "Unusual Whales Crypto");
+  assert.equal(d.parsedCount, 1); assert.equal(d.candles[0].volume, 0); assert.equal(d.skippedReasons.invalid_volume, 1); assert.equal(d.skippedReasons.missing_or_malformed_date, 2); assert.equal(d.skippedReasons.invalid_ohlc_relationship, 1);
+});
+
+test("long-form Unusual Whales fields remain supported", () => {
+  const rows = normalizeUnusualWhalesCandles("BTCUSD", "BTC-USD", { data: [{ date: "2026-07-09", open: "100", high: "110", low: "90", close: "105", volume:"10" }] }, "Unusual Whales Crypto");
+  assert.equal(rows.length, 1); assert.equal(rows[0].tradingDate, "2026-07-09"); assert.equal(rows[0].volume, 10);
+});
+
+test("upsert row mapping includes volume and omits unsupported asset_group", () => {
+  const c: DailyCandle = { symbol:"BTCUSD", providerSymbol:"BTC-USD", tradingDate:"2026-07-09", open:1, high:2, low:1, close:2, volume:3.5, previousClose:null, source:"test", sourceTimestamp:null, fetchedAt:"now", assetGroup:"crypto" };
+  const cryptoRow = dailyCandleRowsForUpsert("crypto_daily_candles", [c])[0] as any;
+  assert.equal(cryptoRow.volume, 3.5); assert.equal("asset_group" in cryptoRow, false);
+  const marketRow = dailyCandleRowsForUpsert("market_daily_candles", [{...c, volume:null}])[0] as any;
+  assert.equal(marketRow.volume, null); assert.equal(marketRow.asset_group, "crypto");
 });
 
 test("one-year cutoff handles leap years", () => {
@@ -23,7 +65,7 @@ test("one-year cutoff handles leap years", () => {
   assert.equal(oneYearCutoff(new Date("2024-02-29T12:00:00Z"), "UTC"), "2023-03-01");
 });
 
-function candle(symbol:string, day:number, close:number): DailyCandle { return { symbol, providerSymbol:symbol, tradingDate:`2026-01-${String(day).padStart(2,"0")}`, open:close, high:close+1, low:close-1, close, previousClose:null, source:"test", sourceTimestamp:null, fetchedAt:"now" }; }
+function candle(symbol:string, day:number, close:number): DailyCandle { return { symbol, providerSymbol:symbol, tradingDate:`2026-01-${String(day).padStart(2,"0")}`, open:close, high:close+1, low:close-1, close, volume:null, previousClose:null, source:"test", sourceTimestamp:null, fetchedAt:"now" }; }
 test("breadth calculates participation, SMA, 52-week and coverage", () => {
   const rows: DailyCandle[] = [];
   for (const s of ["AAA","BBB"]) for (let i=1;i<=200;i++) rows.push(candle(s, (i%28)+1, s==="AAA" ? i : 300-i));
