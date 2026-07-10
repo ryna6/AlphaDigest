@@ -291,3 +291,7 @@ Configure only the environment variables needed for the flows you are testing. S
 ### Daily candle architecture
 
 Markets chart history and S&P 500 breadth calculations are backed by three server-only Supabase tables: `sp500_daily_candles`, `market_daily_candles`, and `crypto_daily_candles`. Provider writes use the Supabase service-role client on the server, while the browser reads only through `/api/markets/candles?symbol=SPY&range=1D`. Stock and fixed-market history is temporarily backfilled from Unusual Whales by an explicit maintenance script, then updated daily from Finnhub only. Crypto is the exception: the eight configured crypto heatmap assets continue to use Unusual Whales daily candles. All candle tables are pruned to a dynamic trailing one-year window and `markets:latest` remains a compact frontend-ready snapshot rather than a candle-history payload.
+
+### Markets candle data flow
+
+Historical Markets charts use a frontend-safe API over Supabase candle tables: `crypto_daily_candles`, `market_daily_candles`, and `sp500_daily_candles`. Chart history never uses fixtures or `marketsMock()`; no rows means an unavailable chart state. Crypto backfill remains Unusual Whales crypto candles, while temporary equity backfills use Unusual Whales `ticker_candles/{TICKER}/historic/v2?interval=1y&include_1m_data=true`; ongoing equity daily updates remain Finnhub and preserve existing non-null Unusual Whales volume when Finnhub volume is null. Real candle API responses are short-cacheable; empty/error responses are `no-store`.

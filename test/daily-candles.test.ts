@@ -74,3 +74,41 @@ test("breadth calculates participation, SMA, 52-week and coverage", () => {
   assert.equal(result.coverage.sma50.eligible, 2); assert.equal(result.coverage.sma200.eligible, 2); assert.equal(result.coverage.week52.eligible, 2); assert.ok(result.warning);
   assert.equal(calculateMarketBreadthFromCandles(rows, ["AAA"], 0).metrics[0].value, "—");
 });
+
+import { buildUnusualWhalesEquityCandleUrl, equityProviderTicker } from "../lib/data/unusual-whales-equity-candles";
+import { findConfiguredCandleAsset } from "../lib/data/market-assets";
+import { mergeVolumePreservingRows } from "../lib/data/daily-candles";
+
+test("candle routing resolves crypto and fixed assets before S&P universe", () => {
+  assert.equal(findConfiguredCandleAsset("BTCUSD", [])?.table, "crypto_daily_candles");
+  assert.equal(findConfiguredCandleAsset("SPY", [])?.table, "market_daily_candles");
+  assert.equal(findConfiguredCandleAsset("AAPL", ["AAPL"])?.table, "sp500_daily_candles");
+  assert.equal(findConfiguredCandleAsset("NOTREAL", ["AAPL"]), null);
+});
+
+test("equity endpoint construction uses direct ticker_candles path without crypto suffix", () => {
+  for (const symbol of ["AAPL", "SPY", "XLK"]){
+    const url = buildUnusualWhalesEquityCandleUrl(symbol);
+    assert.ok(url.includes(`/ticker_candles/${symbol}/historic/v2`));
+    assert.ok(url.includes("interval=1y"));
+    assert.ok(url.includes("include_1m_data=true"));
+    assert.ok(!url.includes("-USD"));
+  }
+  assert.equal(equityProviderTicker("BRK-B"), "BRK.B");
+  assert.ok(buildUnusualWhalesEquityCandleUrl("BRK.B").includes("BRK.B"));
+});
+
+test("equity parser accepts date c h l o v and reports zero-valid diagnostics", () => {
+  const d = normalizeUnusualWhalesCandlesWithDiagnostics("AAPL", "AAPL", { data: [{ date: "2026-07-09", c: 213.75, h: 215.1, l: 210.4, o: 211.25, v: 48500123 }] }, "Unusual Whales Equity");
+  assert.equal(d.arrayPath, "data"); assert.equal(d.parsedCount, 1); assert.equal(d.candles[0].tradingDate, "2026-07-09"); assert.equal(d.candles[0].close, 213.75); assert.equal(d.candles[0].volume, 48500123);
+  const invalid = normalizeUnusualWhalesCandlesWithDiagnostics("AAPL", "AAPL", { payload: { data: [{ date: "2026-07-09", c: 1, h: 1, l: 1, o: 1, v: -1 }] } }, "Unusual Whales Equity");
+  assert.equal(invalid.rawCount, 1); assert.equal(invalid.parsedCount, 0); assert.equal(invalid.skippedReasons.invalid_volume, 1);
+});
+
+test("volume merge preserves existing stored volume when incoming refresh has null", async () => {
+  const rows = [{ symbol:"SPY", trading_date:"2026-07-09", volume:null, close:1 }];
+  const query:any = { select(){ return query; }, calls:0, in(){ query.calls++; return query.calls === 2 ? Promise.resolve({ data:[{ symbol:"SPY", trading_date:"2026-07-09", volume:12345 }], error:null }) : query; } };
+  const client:any = { from(){ return query; } };
+  const merged = await mergeVolumePreservingRows("market_daily_candles", rows, client);
+  assert.equal(merged[0].volume, 12345);
+});

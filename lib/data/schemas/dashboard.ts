@@ -120,7 +120,8 @@ export const marketsPayloadSchema = z.object({
   heatmapKeyMessages: z.array(z.string()),
   breadth: z.array(metricSchema),
   movers: z.array(metricSchema),
-  sourceMeta: z.array(sourceMetaSchema)
+  sourceMeta: z.array(sourceMetaSchema),
+  metadata: z.record(z.string(), z.unknown()).optional()
 });
 
 export const flowTradeSideSchema = z.enum(["ask", "bid", "unknown"]);
