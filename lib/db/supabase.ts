@@ -8,3 +8,8 @@ export function createServerSupabaseClient() {
   }
   return { ok: true as const, client: createClient(url, serviceRoleKey, { auth: { persistSession: false } }) };
 }
+
+export function getSupabaseProjectHost(url = process.env.SUPABASE_URL) {
+  if (!url) return null;
+  try { return new URL(url).host; } catch { return null; }
+}
