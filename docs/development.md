@@ -324,7 +324,7 @@ ENABLE_UW_CANDLE_BACKFILL=true npx tsx scripts/backfillDailyCandlesFromUnusualWh
 
 The stock/market historical Unusual Whales endpoint is temporary and isolated to that script plus tests/docs. To confirm it is not used by normal code, search for `ticker_candles/` and verify no page route, `/api/markets/candles`, or scheduled Finnhub daily refresh references it.
 
-Permanent refresh jobs are `refresh-daily-market-candles` (Finnhub-only for S&P 500 and fixed Markets assets, one paced lane per distinct key, 30 calls/minute/key) and `refresh-crypto-daily-candles` (Unusual Whales crypto candles for only the eight configured crypto heatmap assets). Validate stored coverage with:
+Permanent refresh jobs are `refresh-daily-market-candles` (Finnhub-only for S&P 500 and fixed Markets assets, one paced lane per distinct key, 30 calls/minute/key) and `refresh-daily-crypto-candles` (Unusual Whales crypto candles for only the eight configured crypto heatmap assets). Validate stored coverage with:
 
 ```bash
 npx tsx scripts/verifyDailyCandles.ts
@@ -334,7 +334,7 @@ npx tsx scripts/verifyDailyCandles.ts
 
 Use `npx tsx scripts/debugUnusualWhalesCryptoCandles.ts --symbol=BTCUSD` for the configured BTC endpoint, or omit `--symbol` for all eight uppercase mappings (`BTCUSD/BTC-USD`, `ETHUSD/ETH-USD`, `SOLUSD/SOL-USD`, `XRPUSD/XRP-USD`, `BNBUSD/BNB-USD`, `TRXUSD/TRX-USD`, `ADAUSD/ADA-USD`, `DOGEUSD/DOGE-USD`). The temporary repair fetch start date is `2025-07-10`; return it to a dynamic one-year start only after Supabase coverage is confirmed in production. The script prints only sanitized diagnostics and requires no browser access to Unusual Whales.
 
-Before running `refresh-crypto-daily-candles`, apply migration `0037_daily_candle_volume.sql` so all candle tables include nullable `volume numeric`. The function uses `UNUSUAL_WHALES_API_KEY` or `UW_API_KEY` when present, `SUPABASE_URL`, and `SUPABASE_SERVICE_ROLE_KEY`. It fails before provider requests if `crypto_daily_candles` or `volume` is unavailable.
+Before running `refresh-daily-crypto-candles`, apply migration `0037_daily_candle_volume.sql` so all candle tables include nullable `volume numeric`. The function uses `UNUSUAL_WHALES_API_KEY` or `UW_API_KEY` when present, `SUPABASE_URL`, and `SUPABASE_SERVICE_ROLE_KEY`. It fails before provider requests if `crypto_daily_candles` or `volume` is unavailable.
 
 ## Markets candle verification checklist
 

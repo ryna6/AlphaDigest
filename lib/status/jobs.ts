@@ -171,10 +171,10 @@ export const STATUS_JOBS: StatusJob[] = [
     staleAfterMinutes: 1440
   },
   {
-    id: "markets-crypto-daily-candles",
+    id: "markets-daily-crypto-candles",
     group: "Markets",
-    job: "Crypto Daily Candles",
-    functionName: "refresh-crypto-daily-candles",
+    job: "Daily Crypto Candles",
+    functionName: "refresh-daily-crypto-candles",
     source: "Unusual Whales",
     frequency: "Daily",
     schedule: "45 22 * * *",
