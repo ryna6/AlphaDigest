@@ -231,3 +231,8 @@ The Economy tab stores FRED observations in `fred_economy`, refreshes them daily
 - Institution Detail Stock Holdings calculates `% Change` from current units and `units_change`: `(units_change / abs(current units - units_change)) * 100`. Sold-out positions show `-100.00%`, new positions or missing previous units show `—`, and positive absolute Change values include a leading `+`.
 
 Markets chart modals display cached daily OHLC candlesticks plus a lower volume pane when Supabase candle rows include volume. Crypto chart history comes from the eight configured Unusual Whales crypto mappings and is exposed to the UI only through `/api/markets/candles`.
+
+
+### Markets OHLCV charts
+
+Market charts render real Supabase candle rows from `/api/markets/candles` with TradingView Lightweight Charts. The modal uses a candlestick price pane and a lower volume histogram pane, includes TradingView attribution, and does not use TradingView-hosted market data. Ranges are calculated from the latest stored candle using calendar boundaries: `1D` latest daily bar for current daily storage (future intraday can use a 24-hour/session window), `1W` latest minus six calendar days, `1M` latest minus one calendar month, `3M` latest minus three calendar months, `YTD` January 1 of the latest candle year, and `1Y` latest minus one calendar year. Crypto uses a 24/7 calendar, so Saturday and Sunday rows remain; equity tables return only stored market sessions and do not fabricate weekends or holidays.

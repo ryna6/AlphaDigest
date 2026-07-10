@@ -26,7 +26,8 @@
     "react-dom": "18.3.1",
     "recharts": "latest",
     "tailwind-merge": "latest",
-    "zod": "latest"
+    "zod": "latest",
+    "lightweight-charts": "5.2.0"
   },
   "devDependencies": {
     "@types/node": "latest",

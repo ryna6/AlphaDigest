@@ -261,3 +261,8 @@ Finnhub daily updates run one paced lane per distinct key at a target of 30 call
 Unusual Whales historical equity backfill uses `ticker_candles/{TICKER}/historic/v2?interval=1y&include_1m_data=true` with ticker symbols such as `AAPL`, `SPY`, `XLK`, and `GLD` (no `-USD`). Run conservative batches first (`--symbol SPY`, then `--symbol AAPL`, then `--group markets --limit 5`) before larger resumable runs. Use low concurrency/delay in production rollouts and verify rows after each batch.
 
 During this repair, `/api/markets/candles` responses are strict no-store (`Cache-Control`, `CDN-Cache-Control`, and `Netlify-CDN-Cache-Control`) and include safe diagnostics: selected table, source, provider symbol, row count, earliest/latest trading dates, fetched timestamp, Supabase project hostname, and `dataVersion: ohlcv-supabase-v3`. Candle charts must never use fixtures, heatmap-derived candles, or mock OHLC arrays; no rows render an unavailable state and query errors render an error state.
+
+
+### Daily Market Candles manual Netlify Run now
+
+Netlify → Functions → `refresh-daily-market-candles` → **Run now** is treated as a manual dispatcher invocation when the scheduled `next_run` body field is absent. Manual runs log `daily_candle_manual_override`, bypass the Toronto weekday and 6:30 p.m. guard, call the protected `refresh-daily-market-candles-worker-background` function, and send `manual: true` with trigger `manual_netlify_ui`. Automatic cron invocations still use the DST-safe `22:30/23:30 UTC` schedule plus the America/Toronto guard; the extra UTC wake-up is recorded as skipped. Verify outside the Toronto window by confirming no `outside_1830_toronto_window` dispatcher result and that the worker metadata contains `manual: true`.
