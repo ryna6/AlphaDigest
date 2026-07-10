@@ -338,7 +338,7 @@ Before running `refresh-daily-crypto-candles`, apply migration `0037_daily_candl
 
 ## Markets candle verification checklist
 
-Use Supabase as the source of truth for historical OHLCV charts. Browser code must call only `/api/markets/candles`; it must not call Unusual Whales, Finnhub, or privileged Supabase APIs. Empty chart responses are not cacheable and must render an unavailable state instead of fixture candles. Real chart responses include source metadata such as `Unusual Whales Crypto` or `Unusual Whales Equity`, provider symbol, table, earliest/latest trading dates, and row count.
+Use Supabase as the source of truth for historical OHLCV charts. Browser code must call only `/api/markets/candles`; it must not call Unusual Whales, Finnhub, or privileged Supabase APIs. Empty chart responses are not cacheable and must render an unavailable state instead of fixture candles. Real chart responses include source metadata such as `Unusual Whales Crypto` or `Unusual Whales Equity`, provider symbol, table, earliest/latest trading dates, and row count for diagnostics, but the chart modal header does not render that metadata line. The modal defaults to `1W`; supported ranges are `1W`, `1M`, `3M`, `YTD`, and `1Y`, while daily `1d` resolution remains valid for current stored rows. The chart keeps a fixed non-resizable price/volume separator and a top-left OHLCV legend.
 
 For equity historical validation, run targeted script invocations before a broad S&P 500 run:
 
