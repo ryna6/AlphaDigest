@@ -1,0 +1,10 @@
+type Result = { url:string; run:number; ok:boolean; status:number; ttfbMs:number; totalMs:number; bytes:number; gzipBytes:number|null; mode?:string; payloadKeys?:number; cacheControl:string|null; serverTiming:string|null };
+const DEFAULT_PATHS = ["/api/today","/api/markets","/api/markets/candles?symbol=SPY&range=1M","/api/news-calendar","/api/flow","/api/ownership","/api/economy","/api/cache/status"];
+function env(name:string){ return process.env[name]?.trim(); }
+function baseUrl(){ const value=env("PERF_BASE_URL")||env("URL")||env("DEPLOY_PRIME_URL"); if(!value) throw new Error("Set PERF_BASE_URL to the production or deploy-preview origin."); return value.replace(/\/$/,""); }
+function paths(){ return (env("PERF_API_PATHS")?.split(",").map(s=>s.trim()).filter(Boolean) ?? DEFAULT_PATHS); }
+async function measure(url:string, run:number): Promise<Result> { const start=performance.now(); const res=await fetch(url,{headers:{"user-agent":"AlphaDigestPerformanceAudit/1.0","accept":"application/json"}}); const first=performance.now(); const text=await res.text(); const end=performance.now(); let mode:string|undefined; let payloadKeys:number|undefined; try{ const json=JSON.parse(text); mode=json.mode; payloadKeys=json.payload&&typeof json.payload==="object"?Object.keys(json.payload).length:undefined; }catch{} return {url,run,ok:res.ok,status:res.status,ttfbMs:+(first-start).toFixed(1),totalMs:+(end-start).toFixed(1),bytes:Buffer.byteLength(text),gzipBytes:null,mode,payloadKeys,cacheControl:res.headers.get("cache-control"),serverTiming:res.headers.get("server-timing")}; }
+async function main(){ const origin=baseUrl(); const runs=Number(env("PERF_RUNS")||3); const out:Result[]=[]; for(const path of paths()){ for(let i=1;i<=runs;i++){ out.push(await measure(`${origin}${path.startsWith("/")?path:`/${path}`}`,i)); await new Promise(r=>setTimeout(r,250)); } } console.log(JSON.stringify({generatedAt:new Date().toISOString(), origin, runs, results:out},null,2)); }
+main().catch(e=>{ console.error(e.message); process.exit(1); });
+
+export {};
