@@ -1,5 +1,5 @@
 import type { FinnhubFeatureArea } from "./adapters/finnhub-key-router";
-import { readSp500CandlesForBreadth } from "./daily-candles";
+import { getSp500CandleUniverse, readSp500CandlesForBreadth } from "./daily-candles";
 import { calculateMarketBreadthFromCandles } from "./market-breadth-candles";
 import {
   getSnapshotOrNull,
@@ -653,6 +653,15 @@ async function buildMarketsPayload(): Promise<{
             ...breadthMetrics
           ],
       movers: sp500Rows.length ? sp500Movers(sp500Rows) : fallback.movers,
+      metadata: {
+        refreshedBy: "builder",
+        candleBreadthSource: candleBreadth ? "sp500_daily_candles" : "fallback",
+        sp500ConfiguredSymbols: sp500Rows.length,
+        sp500CandleSymbolsCovered: candleBreadth?.coverage.participation.eligible ?? 0,
+        latestCandleTradingDate: candleBreadthRows.map((row) => row.tradingDate).sort().at(-1) ?? null,
+        usedMockStrip: stripCandidates.every((metric) => !metric),
+        usedMockHeatmaps: Object.entries(liveHeatmaps).filter(([, value]) => !value).map(([key]) => key)
+      },
       heatmapKeyMessages: [
         ...(sp500Result.message
           ? [`S&P 500 heatmap cache unavailable: ${sp500Result.message}`]
@@ -944,7 +953,8 @@ export async function refreshDashboardSnapshot(
     notices: result.notices,
     metadata: {
       refreshedBy: "netlify-function",
-      ...(key === "flow:latest" ? ((result.payload as FlowPayload).diagnostics ?? {}) : {})
+      ...(key === "flow:latest" ? ((result.payload as FlowPayload).diagnostics ?? {}) : {}),
+      ...(key === "markets:latest" ? (((result.payload as MarketsPayload).metadata as Record<string, unknown> | undefined) ?? {}) : {})
     }
   });
   const supabase = createServerSupabaseClient();
@@ -960,7 +970,8 @@ export async function refreshDashboardSnapshot(
         notices: result.notices,
         persisted: write.persisted ?? false,
         refreshedBy: "netlify-function",
-        ...(key === "flow:latest" ? ((result.payload as FlowPayload).diagnostics ?? {}) : {})
+        ...(key === "flow:latest" ? ((result.payload as FlowPayload).diagnostics ?? {}) : {}),
+      ...(key === "markets:latest" ? (((result.payload as MarketsPayload).metadata as Record<string, unknown> | undefined) ?? {}) : {})
       }
     }).catch((error) =>
       console.warn("dashboard_snapshot_metadata_write_failed", {
@@ -972,6 +983,17 @@ export async function refreshDashboardSnapshot(
   return { ...write, key, mode: result.mode, notices: result.notices };
 }
 
+async function isUsableMarketsSnapshot(snapshot: { mode?: string | null; payload?: any; metadata?: Record<string, unknown> | null }) {
+  if (snapshot.mode === "mock") return false;
+  const metadata = (snapshot.metadata ?? snapshot.payload?.metadata ?? {}) as Record<string, unknown>;
+  if (metadata.candleBreadthSource === "sp500_daily_candles") return true;
+  const expected = await getSp500CandleUniverse().catch(() => [] as string[]);
+  if (!expected.length) return true;
+  const rows = await readSp500CandlesForBreadth(expected).catch(() => []);
+  const covered = new Set(rows.map((row) => row.symbol)).size;
+  return covered < Math.max(25, Math.floor(expected.length * 0.5));
+}
+
 async function getSnapshotFirstPayload<T>(
   key:
     "today:latest" | "markets:latest" | "news-calendar:latest" | "flow:latest" | "ownership:latest",
@@ -980,7 +1002,10 @@ async function getSnapshotFirstPayload<T>(
 ): Promise<{ payload: T; mode: "mock" | "live" | "cached"; notices: string[] }> {
   const cached = await getSnapshotOrNull<T>(key);
   if (cached.snapshot && isSnapshotFresh(cached.snapshot)) {
-    return { payload: cached.snapshot.payload, mode: "cached", notices: cached.snapshot.notices };
+    if (key !== "markets:latest" || await isUsableMarketsSnapshot(cached.snapshot)) {
+      return { payload: cached.snapshot.payload, mode: "cached", notices: cached.snapshot.notices };
+    }
+    console.warn("dashboard_snapshot_bypassed", { key, reason: "fresh markets snapshot is mock or lacks candle breadth metadata" });
   }
   if (cached.message) console.warn("dashboard_snapshot_read", { key, message: cached.message });
 

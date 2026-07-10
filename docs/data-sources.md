@@ -447,3 +447,25 @@ order by symbol;
 ```
 
 Also check duplicates, negative volume, and invalid OHLC using the validation queries in the development runbook. The Markets chart modal displays candlestick price data with aligned volume bars below the price pane using green/red candle direction styling and handles null or zero volume without fabricating values.
+
+## Markets candle repair and equity backfill workflow
+
+Markets chart history is intentionally separate from live quote cards and heatmaps. Live cards, global/sector/macro/crypto heatmaps, Today Market Overview, and S&P 500 current-day heatmap values continue to use their existing quote/cache sources. The chart modal reads only `/api/markets/candles`, which reads Supabase candle rows from `crypto_daily_candles`, `market_daily_candles`, or `sp500_daily_candles`; it never falls back to fixtures, heatmap values, or `marketsMock()`.
+
+The crypto table could be populated while BTC charts still appeared unavailable because candle routing loaded the cached S&P 500 heatmap universe before checking configured crypto and fixed-market assets, and empty/unavailable candle API responses were cacheable for a long stale window. The repaired route resolves symbols in this order: configured crypto assets, configured fixed Markets assets, then the S&P 500 universe. Empty, unsupported, credential, table, and read-error responses use `Cache-Control: no-store`; only real candle payloads use a short shared cache (`s-maxage=300, stale-while-revalidate=900`). The modal also requests `cache: "no-store"` and caches a response in-memory only when `available === true`, `mode === "cached"`, and at least one candle is present.
+
+Unusual Whales crypto historical candles use `https://phx.unusualwhales.com/api/crypto_candles/{PROVIDER}/1d/{START_DATE}` where provider symbols are crypto pairs such as `BTC-USD`. Temporary equity historical backfills use `https://phx.unusualwhales.com/api/ticker_candles/{TICKER}/historic/v2?interval=1y&include_1m_data=true`; ordinary equities and ETFs use the ticker directly (`AAPL`, `SPY`, `XLK`) and share classes keep application symbols such as `BRK-B` separate from provider tickers such as `BRK.B`. Equity rows are parsed from `date`, `c`, `h`, `l`, `o`, and `v`, mapped to trading date, close, high, low, open, and nullable non-negative volume.
+
+Run targeted validation before broad backfills:
+
+```bash
+tsx scripts/backfillDailyCandlesFromUnusualWhales.ts --group sp500 --symbol AAPL --force
+tsx scripts/backfillDailyCandlesFromUnusualWhales.ts --group markets --symbol SPY --force
+tsx scripts/backfillDailyCandlesFromUnusualWhales.ts --group all --start-index 0 --limit 25
+```
+
+The script verifies `sp500_daily_candles` and `market_daily_candles` with `volume` before provider requests, writes each completed symbol immediately, verifies stored rows after upsert, prunes only after verified writes, and refreshes `markets:latest` after S&P writes. Permanent daily stock/fixed-market refresh remains Finnhub-based. Finnhub quotes may not include volume, so candle upserts preserve existing non-null Unusual Whales volume when an incoming refresh has `volume = null`.
+
+Markets snapshots now include candle-breadth metadata (`candleBreadthSource`, configured/covered S&P symbols, latest candle trading date, and section fallback diagnostics). Fresh mock `markets:latest` snapshots, or fresh snapshots that lack required candle-breadth metadata when sufficient source rows exist, are bypassed and rebuilt so a stale mock snapshot cannot hide real candle-derived breadth. To verify real data, compare Supabase rows with `/api/markets/candles?symbol=BTCUSD&range=1Y` (or `SPY`/`AAPL`) and confirm the response metadata reports the table, source, provider symbol, earliest/latest trading dates, fetched time, and row count.
+
+Required environment variables are `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, and, for Unusual Whales maintenance backfills, `UNUSUAL_WHALES_API_KEY` or `UW_API_KEY`. After production validation, remove the temporary equity backfill script and keep the server-only candle API plus Finnhub daily refresh path.

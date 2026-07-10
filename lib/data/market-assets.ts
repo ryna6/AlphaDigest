@@ -24,12 +24,21 @@ export const cryptoCandleAssets: CandleAsset[] = cryptoAssets.map((asset) => ({
 export function normalizeAppSymbol(symbol: string) { return symbol.trim().toUpperCase().replace(/\./g, "-"); }
 export function toFinnhubShareClassSymbol(symbol: string) { return normalizeAppSymbol(symbol).replace(/-/g, "."); }
 export function toUnusualWhalesShareClassSymbol(symbol: string) { return normalizeAppSymbol(symbol).replace(/-/g, "."); }
-export function findConfiguredCandleAsset(symbol: string, sp500Symbols: string[] = []) {
+export function resolveConfiguredCryptoCandleAsset(symbol: string) {
   const normalized = normalizeAppSymbol(symbol);
-  if (sp500Symbols.map(normalizeAppSymbol).includes(normalized)) return { table: "sp500_daily_candles" as const, asset: { symbol: normalized, label: normalized, group: "sp500" as const, finnhubSymbol: toFinnhubShareClassSymbol(normalized), unusualWhalesSymbol: toUnusualWhalesShareClassSymbol(normalized), chartAvailable: true } };
+  const crypto = cryptoCandleAssets.find((a) => normalizeAppSymbol(a.symbol) === normalized && a.chartAvailable);
+  return crypto ? { table: "crypto_daily_candles" as const, asset: crypto } : null;
+}
+export function resolveConfiguredFixedCandleAsset(symbol: string) {
+  const normalized = normalizeAppSymbol(symbol);
   const market = marketCandleAssets.find((a) => normalizeAppSymbol(a.symbol) === normalized && a.chartAvailable);
-  if (market) return { table: "market_daily_candles" as const, asset: market };
-  const crypto = cryptoCandleAssets.find((a) => normalizeAppSymbol(a.symbol) === normalized);
-  if (crypto) return { table: "crypto_daily_candles" as const, asset: crypto };
-  return null;
+  return market ? { table: "market_daily_candles" as const, asset: market } : null;
+}
+export function resolveSp500CandleAsset(symbol: string, sp500Symbols: string[] = []) {
+  const normalized = normalizeAppSymbol(symbol);
+  if (!sp500Symbols.map(normalizeAppSymbol).includes(normalized)) return null;
+  return { table: "sp500_daily_candles" as const, asset: { symbol: normalized, label: normalized, group: "sp500" as const, finnhubSymbol: toFinnhubShareClassSymbol(normalized), unusualWhalesSymbol: toUnusualWhalesShareClassSymbol(normalized), chartAvailable: true } };
+}
+export function findConfiguredCandleAsset(symbol: string, sp500Symbols: string[] = []) {
+  return resolveConfiguredCryptoCandleAsset(symbol) ?? resolveConfiguredFixedCandleAsset(symbol) ?? resolveSp500CandleAsset(symbol, sp500Symbols);
 }

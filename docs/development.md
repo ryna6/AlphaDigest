@@ -335,3 +335,16 @@ npx tsx scripts/verifyDailyCandles.ts
 Use `npx tsx scripts/debugUnusualWhalesCryptoCandles.ts --symbol=BTCUSD` for the configured BTC endpoint, or omit `--symbol` for all eight uppercase mappings (`BTCUSD/BTC-USD`, `ETHUSD/ETH-USD`, `SOLUSD/SOL-USD`, `XRPUSD/XRP-USD`, `BNBUSD/BNB-USD`, `TRXUSD/TRX-USD`, `ADAUSD/ADA-USD`, `DOGEUSD/DOGE-USD`). The temporary repair fetch start date is `2025-07-10`; return it to a dynamic one-year start only after Supabase coverage is confirmed in production. The script prints only sanitized diagnostics and requires no browser access to Unusual Whales.
 
 Before running `refresh-crypto-daily-candles`, apply migration `0037_daily_candle_volume.sql` so all candle tables include nullable `volume numeric`. The function uses `UNUSUAL_WHALES_API_KEY` or `UW_API_KEY` when present, `SUPABASE_URL`, and `SUPABASE_SERVICE_ROLE_KEY`. It fails before provider requests if `crypto_daily_candles` or `volume` is unavailable.
+
+## Markets candle verification checklist
+
+Use Supabase as the source of truth for historical OHLCV charts. Browser code must call only `/api/markets/candles`; it must not call Unusual Whales, Finnhub, or privileged Supabase APIs. Empty chart responses are not cacheable and must render an unavailable state instead of fixture candles. Real chart responses include source metadata such as `Unusual Whales Crypto` or `Unusual Whales Equity`, provider symbol, table, earliest/latest trading dates, and row count.
+
+For equity historical validation, run targeted script invocations before a broad S&P 500 run:
+
+```bash
+tsx scripts/backfillDailyCandlesFromUnusualWhales.ts --group sp500 --symbol AAPL --force
+tsx scripts/backfillDailyCandlesFromUnusualWhales.ts --group markets --symbol SPY --force
+```
+
+Then compare Supabase rows with `/api/markets/candles?symbol=AAPL&range=1Y` or `/api/markets/candles?symbol=SPY&range=1Y`. Do not claim a visible chart is real until API first/latest candles have been compared with stored Supabase rows.
