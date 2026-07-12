@@ -1,5 +1,7 @@
 import { AppMobileNav, AppSidebar } from "./app-sidebar";
 import { AppLogo } from "./app-logo";
+import { DeferredRoutePrefetch } from "./deferred-route-prefetch";
+import { NavigationProgress } from "./navigation-progress";
 
 export function DashboardShell({ children }: { children: React.ReactNode }) {
   return (
@@ -22,7 +24,9 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
             </div>
             <AppMobileNav />
           </div>
+          <NavigationProgress />
           <div className="p-4 lg:p-6">{children}</div>
+          <DeferredRoutePrefetch />
         </main>
       </div>
     </div>

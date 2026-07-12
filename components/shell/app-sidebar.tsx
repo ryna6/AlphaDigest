@@ -16,6 +16,7 @@ function NavItem({ item, compact = false }: { item: NavigationItem; compact?: bo
   return (
     <Link
       href={item.href}
+      prefetch={false}
       className={cn(
         "flex items-center rounded-none border transition",
         compact ? "shrink-0 gap-2 px-3 py-2 text-xs" : "gap-2 px-2.5 py-2 text-sm",
@@ -45,6 +46,7 @@ export function AppSidebar() {
     <aside className="sticky top-0 hidden h-screen w-48 shrink-0 border-r border-borderStrong bg-sidebar p-3 lg:flex lg:flex-col">
       <Link
         href="/overview/today"
+        prefetch={false}
         className="mb-5 flex min-h-12 items-center gap-2 rounded-none border border-borderStrong bg-panel px-2.5 py-2"
         aria-label="AlphaDigest home"
       >

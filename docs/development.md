@@ -348,3 +348,7 @@ tsx scripts/backfillDailyCandlesFromUnusualWhales.ts --group markets --symbol SP
 ```
 
 Then compare Supabase rows with `/api/markets/candles?symbol=AAPL&range=1Y` or `/api/markets/candles?symbol=SPY&range=1Y`. Do not claim a visible chart is real until API first/latest candles have been compared with stored Supabase rows.
+
+### Performance continuation checks
+
+Use production or deploy-preview browser traces to compare `/overview/today` before and after loading changes. Verify that navigation links render with `prefetch={false}`, deferred prefetch starts after load+idle, constrained networks skip background warming, loading skeletons appear on route transitions, and Ownership renders a table skeleton while `/api/ownership/institutional` is pending.

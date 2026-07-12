@@ -335,6 +335,14 @@ export type TrackedInstitutionPayload = {
   options: TrackedOptionHolding[];
   activity: TrackedActivity[];
   notices: string[];
+  metadata?: {
+    latestAvailableReportDate: string | null;
+    latestProviderReportDate: string | null;
+    selectedReportDatesByInstitution: Record<string, string>;
+    institutionsUsingFallback: number;
+    incompleteNewerPeriods: string[];
+    fetchedAt: string | null;
+  };
 };
 
 const normalizeName = (value: string) => value.replace(/[^a-z0-9]/gi, "").toUpperCase();
@@ -886,10 +894,36 @@ function withReturns(institutions: TrackedInstitutionInfo[], history: TrackedIns
   });
 }
 
-function topTrackedHoldings(rows: TrackedStockHolding[]) {
+export function selectLatestCompleteInstitutionPeriod({
+  infoDates,
+  holdingDates,
+  activityDates = [],
+  optionDates = []
+}: {
+  infoDates: string[];
+  holdingDates: string[];
+  activityDates?: string[];
+  optionDates?: string[];
+}) {
+  const validInfo = new Set(infoDates.filter(Boolean));
+  const validHoldings = new Set(holdingDates.filter(Boolean));
+  const allDates = Array.from(new Set([...infoDates, ...holdingDates, ...activityDates, ...optionDates].filter(Boolean))).sort().reverse();
+  const selectedReportDate = allDates.find((date) => validInfo.has(date) && validHoldings.has(date)) ?? null;
+  const latestProviderReportDate = allDates[0] ?? null;
+  return {
+    selectedReportDate,
+    latestProviderReportDate,
+    incompleteNewerPeriods: selectedReportDate ? allDates.filter((date) => date > selectedReportDate) : allDates
+  };
+}
+
+function topTrackedHoldings(rows: TrackedStockHolding[], selectedDates: Map<string, string>) {
   const grouped = new Map<string, TrackedStockHolding[]>();
-  for (const row of rows)
+  for (const row of rows) {
+    const selected = selectedDates.get(row.institutionName);
+    if (!selected || row.date !== selected) continue;
     grouped.set(row.institutionName, [...(grouped.get(row.institutionName) ?? []), row]);
+  }
   return [...grouped.values()].flatMap((group) =>
     group
       .sort((a, b) => (b.value ?? Number.NEGATIVE_INFINITY) - (a.value ?? Number.NEGATIVE_INFINITY))
@@ -947,7 +981,7 @@ export async function getCachedTrackedInstitutions(): Promise<TrackedInstitution
   ] as const)
     if (result.error)
       notices.push(`Tracked institution ${label} cache read failed: ${result.error.message}`);
-  const infos = (info.data ?? []).map((r: any) => ({
+  const rawInfos = (info.data ?? []).map((r: any) => ({
     name: r.institution_name,
     providerName: r.provider_name,
     slug: r.slug,
@@ -969,24 +1003,53 @@ export async function getCachedTrackedInstitutions(): Promise<TrackedInstitution
     spyPrice: r.spy_price == null ? null : Number(r.spy_price),
     fetchedAt: r.fetched_at
   }));
+  const holdingRows = (holdings.data ?? []).map((r: any) => ({
+    institutionName: r.institution_name,
+    date: r.report_date,
+    ticker: r.ticker,
+    fullName: r.full_name,
+    units: r.units == null ? null : Number(r.units),
+    avgPrice: r.avg_price == null ? null : Number(r.avg_price),
+    unitsChange: r.units_change == null ? null : Number(r.units_change),
+    changePerc: r.change_perc == null ? null : Number(r.change_perc),
+    percOfShareValue: r.perc_of_share_value == null ? null : Number(r.perc_of_share_value),
+    value: r.value == null ? null : Number(r.value),
+    close: r.close == null ? null : Number(r.close),
+    fetchedAt: r.fetched_at
+  }));
+  const activityRows = (activity.data ?? []).map((r: any) => ({
+    activityId: r.activity_id,
+    institutionName: r.institution_name,
+    ticker: r.ticker,
+    reportDate: r.report_date,
+    units: r.units == null ? null : Number(r.units),
+    unitsChange: r.units_change == null ? null : Number(r.units_change),
+    securityType: r.security_type,
+    buyPrice: r.buy_price == null ? null : Number(r.buy_price),
+    sellPrice: r.sell_price == null ? null : Number(r.sell_price),
+    priceOnReport: r.price_on_report == null ? null : Number(r.price_on_report),
+    close: r.close == null ? null : Number(r.close),
+    fetchedAt: r.fetched_at
+  }));
+  const selectedByInstitution = new Map<string, string>();
+  const latestProviderByInstitution = new Map<string, string>();
+  const incompleteNewerPeriods = new Set<string>();
+  const names = Array.from(new Set([...rawInfos.map((r) => r.name), ...holdingRows.map((r) => r.institutionName)]));
+  for (const name of names) {
+    const selection = selectLatestCompleteInstitutionPeriod({
+      infoDates: rawInfos.filter((r) => r.name === name).map((r) => r.date),
+      holdingDates: holdingRows.filter((r) => r.institutionName === name).map((r) => r.date),
+      activityDates: activityRows.filter((r) => r.institutionName === name).map((r) => r.reportDate),
+      optionDates: (options.data ?? []).filter((r: any) => r.institution_name === name).map((r: any) => r.as_of_date)
+    });
+    if (selection.selectedReportDate) selectedByInstitution.set(name, selection.selectedReportDate);
+    if (selection.latestProviderReportDate) latestProviderByInstitution.set(name, selection.latestProviderReportDate);
+    selection.incompleteNewerPeriods.forEach((date) => incompleteNewerPeriods.add(date));
+  }
+  const infos = rawInfos.filter((row) => selectedByInstitution.get(row.name) === row.date);
   return {
     institutions: withReturns(infos, histories),
-    holdings: topTrackedHoldings(
-      (holdings.data ?? []).map((r: any) => ({
-        institutionName: r.institution_name,
-        date: r.report_date,
-        ticker: r.ticker,
-        fullName: r.full_name,
-        units: r.units == null ? null : Number(r.units),
-        avgPrice: r.avg_price == null ? null : Number(r.avg_price),
-        unitsChange: r.units_change == null ? null : Number(r.units_change),
-        changePerc: r.change_perc == null ? null : Number(r.change_perc),
-        percOfShareValue: r.perc_of_share_value == null ? null : Number(r.perc_of_share_value),
-        value: r.value == null ? null : Number(r.value),
-        close: r.close == null ? null : Number(r.close),
-        fetchedAt: r.fetched_at
-      }))
-    ),
+    holdings: topTrackedHoldings(holdingRows, selectedByInstitution),
     options: (options.data ?? []).map((r: any) => ({
       institutionName: r.institution_name,
       asOfDate: r.as_of_date,
@@ -998,21 +1061,16 @@ export async function getCachedTrackedInstitutions(): Promise<TrackedInstitution
       callOi: r.call_oi == null ? null : Number(r.call_oi),
       fetchedAt: r.fetched_at
     })),
-    activity: (activity.data ?? []).map((r: any) => ({
-      activityId: r.activity_id,
-      institutionName: r.institution_name,
-      ticker: r.ticker,
-      reportDate: r.report_date,
-      units: r.units == null ? null : Number(r.units),
-      unitsChange: r.units_change == null ? null : Number(r.units_change),
-      securityType: r.security_type,
-      buyPrice: r.buy_price == null ? null : Number(r.buy_price),
-      sellPrice: r.sell_price == null ? null : Number(r.sell_price),
-      priceOnReport: r.price_on_report == null ? null : Number(r.price_on_report),
-      close: r.close == null ? null : Number(r.close),
-      fetchedAt: r.fetched_at
-    })),
-    notices
+    activity: activityRows.filter((row) => selectedByInstitution.get(row.institutionName) === row.reportDate),
+    notices,
+    metadata: {
+      latestAvailableReportDate: Array.from(selectedByInstitution.values()).sort().reverse()[0] ?? null,
+      latestProviderReportDate: Array.from(latestProviderByInstitution.values()).sort().reverse()[0] ?? null,
+      selectedReportDatesByInstitution: Object.fromEntries(selectedByInstitution),
+      institutionsUsingFallback: Array.from(selectedByInstitution).filter(([name, date]) => latestProviderByInstitution.get(name) && latestProviderByInstitution.get(name) !== date).length,
+      incompleteNewerPeriods: Array.from(incompleteNewerPeriods).sort().reverse(),
+      fetchedAt: [...rawInfos.map((r) => r.fetchedAt), ...holdingRows.map((r) => r.fetchedAt)].filter(Boolean).sort().reverse()[0] ?? null
+    }
   };
 }
 

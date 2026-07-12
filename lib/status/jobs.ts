@@ -165,9 +165,9 @@ export const STATUS_JOBS: StatusJob[] = [
     functionName: "refresh-daily-market-candles",
     source: "Finnhub",
     frequency: "Daily, Mon–Fri",
-    schedule: "30 22,23 * * 1-5",
-    scheduleDescription: "Dispatcher wakes at 22:30 and 23:30 UTC Monday-Friday; Toronto guard permits only 6:30 PM America/Toronto and invokes the background worker.",
-    nextRunRule: { days: [1, 2, 3, 4, 5], hours: [18], minutes: [30] },
+    schedule: "0 23 * * 1-5",
+    scheduleDescription: "Daily at 23:00 UTC Monday-Friday (6:00 PM America/Toronto during standard time; 7:00 PM during daylight time) and invokes the background worker.",
+    nextRunRule: { days: [1, 2, 3, 4, 5], utcHours: [23], minutes: [0] },
     staleAfterMinutes: 1440
   },
   {
@@ -177,9 +177,9 @@ export const STATUS_JOBS: StatusJob[] = [
     functionName: "refresh-daily-crypto-candles",
     source: "Unusual Whales",
     frequency: "Daily",
-    schedule: "45 22 * * *",
-    scheduleDescription: "Daily at 6:45 PM America/Toronto for overlapping recent crypto candles.",
-    nextRunRule: { hours: [18], minutes: [45] },
+    schedule: "0 6 * * *",
+    scheduleDescription: "Daily at 06:00 UTC (1:00 AM America/Toronto during standard time; 2:00 AM during daylight time).",
+    nextRunRule: { utcHours: [6], minutes: [0] },
     staleAfterMinutes: 1440
   },
   {
