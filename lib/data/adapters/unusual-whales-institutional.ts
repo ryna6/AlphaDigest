@@ -89,6 +89,7 @@ export type InstitutionalTickerFlowRow = {
   order: string;
   ticker: string;
   value: number | null;
+  reportDate: string;
   increasedPositions: number | null;
   decreasedPositions: number | null;
   holdingCount: number | null;
@@ -113,6 +114,10 @@ export type InstitutionalSummaryPayload = {
   tickerFlow: InstitutionalTickerFlowRow[];
   sectorExposure: InstitutionalSectorExposureRow[];
   notices: string[];
+  metadata?: {
+    selectedReportDatesByInvestorType: Record<string, string>;
+    rejectedPeriodsByInvestorType: Record<string, Record<string, string[]>>;
+  };
 };
 
 function latestQuarterEndCutoff(now = new Date()) {
@@ -137,7 +142,7 @@ function isQuarterEnd(value: string) {
   return /-(03-31|06-30|09-30|12-31)$/.test(value);
 }
 
-function normalizeTickerRow(
+export function normalizeTickerRow(
   raw: unknown,
   investorType: InstitutionalInvestorType,
   order: string,
@@ -146,11 +151,15 @@ function normalizeTickerRow(
   if (!isRec(raw)) return null;
   const ticker = str(raw, ["ticker", "symbol", "underlying_symbol"]);
   if (!ticker) return null;
+  const reportDate = str(raw, ["report_date", "date", "period_of_report"]);
+  const isoDate = reportDate?.slice(0, 10);
+  if (!isoDate || !isQuarterEnd(isoDate)) return null;
   return {
     investorType,
     order,
     ticker: ticker.toUpperCase(),
     value: num(raw.value),
+    reportDate: isoDate,
     increasedPositions: num(raw.increased_positions),
     decreasedPositions: num(raw.decreased_positions),
     holdingCount: num(raw.holding_count),
@@ -182,6 +191,61 @@ function normalizeSectorRow(
   };
 }
 
+const REQUIRED_SUMMARY_TICKER_ORDERS = [
+  TOP_HOLDINGS_ORDER,
+  "increased_positions_and_units",
+  "decreased_positions_and_units"
+] as const;
+const EXPECTED_SUMMARY_SECTOR_COUNT = stateStreetSectorMeta.length;
+
+export function selectLatestCompleteInstitutionalSummaryPeriod({
+  tickerFlow,
+  sectorExposure,
+  investorType
+}: {
+  tickerFlow: InstitutionalTickerFlowRow[];
+  sectorExposure: InstitutionalSectorExposureRow[];
+  investorType: InstitutionalInvestorType;
+}) {
+  const dates = Array.from(
+    new Set(
+      [
+        ...tickerFlow.filter((row) => row.investorType === investorType).map((row) => row.reportDate),
+        ...sectorExposure.filter((row) => row.investorType === investorType).map((row) => row.reportDate)
+      ].filter(Boolean)
+    )
+  ).sort().reverse();
+  const rejected: Record<string, string[]> = {};
+  for (const date of dates) {
+    const reasons: string[] = [];
+    for (const order of REQUIRED_SUMMARY_TICKER_ORDERS) {
+      const rows = tickerFlow.filter(
+        (row) =>
+          row.investorType === investorType &&
+          row.reportDate === date &&
+          row.order === order &&
+          !!row.ticker &&
+          row.value !== null
+      );
+      if (!rows.length) reasons.push(`missing ticker-flow ${order}`);
+    }
+    const sectors = sectorExposure.filter(
+      (row) =>
+        row.investorType === investorType &&
+        row.reportDate === date &&
+        !!row.sector &&
+        row.value !== null
+    );
+    const uniqueSectors = new Set(sectors.map((row) => normalizeSectorLabel(row.sector) ?? row.sector));
+    if (!sectors.length) reasons.push("missing sector rows");
+    if (uniqueSectors.size < EXPECTED_SUMMARY_SECTOR_COUNT)
+      reasons.push(`incomplete sector rows ${uniqueSectors.size}/${EXPECTED_SUMMARY_SECTOR_COUNT}`);
+    if (!reasons.length) return { selectedReportDate: date, rejectedPeriods: rejected };
+    rejected[date] = reasons;
+  }
+  return { selectedReportDate: null, rejectedPeriods: rejected };
+}
+
 function tickerFlowUrl(slug: string, order: string) {
   return `https://phx.unusualwhales.com/api/institutions/ticker-flow/${slug}?order=${order}&limit=10&marketcap_size=null`;
 }
@@ -207,6 +271,7 @@ function toTickerDb(row: InstitutionalTickerFlowRow) {
     investor_type: row.investorType,
     order: row.order,
     ticker: row.ticker,
+    report_date: row.reportDate,
     value: row.value,
     increased_positions: row.increasedPositions,
     decreased_positions: row.decreasedPositions,
@@ -335,6 +400,14 @@ export type TrackedInstitutionPayload = {
   options: TrackedOptionHolding[];
   activity: TrackedActivity[];
   notices: string[];
+  metadata?: {
+    latestAvailableReportDate: string | null;
+    latestProviderReportDate: string | null;
+    selectedReportDatesByInstitution: Record<string, string>;
+    institutionsUsingFallback: number;
+    incompleteNewerPeriods: string[];
+    fetchedAt: string | null;
+  };
 };
 
 const normalizeName = (value: string) => value.replace(/[^a-z0-9]/gi, "").toUpperCase();
@@ -886,10 +959,36 @@ function withReturns(institutions: TrackedInstitutionInfo[], history: TrackedIns
   });
 }
 
-function topTrackedHoldings(rows: TrackedStockHolding[]) {
+export function selectLatestCompleteInstitutionPeriod({
+  infoDates,
+  holdingDates,
+  activityDates = [],
+  optionDates = []
+}: {
+  infoDates: string[];
+  holdingDates: string[];
+  activityDates?: string[];
+  optionDates?: string[];
+}) {
+  const validInfo = new Set(infoDates.filter(Boolean));
+  const validHoldings = new Set(holdingDates.filter(Boolean));
+  const allDates = Array.from(new Set([...infoDates, ...holdingDates, ...activityDates, ...optionDates].filter(Boolean))).sort().reverse();
+  const selectedReportDate = allDates.find((date) => validInfo.has(date) && validHoldings.has(date)) ?? null;
+  const latestProviderReportDate = allDates[0] ?? null;
+  return {
+    selectedReportDate,
+    latestProviderReportDate,
+    incompleteNewerPeriods: selectedReportDate ? allDates.filter((date) => date > selectedReportDate) : allDates
+  };
+}
+
+function topTrackedHoldings(rows: TrackedStockHolding[], selectedDates: Map<string, string>) {
   const grouped = new Map<string, TrackedStockHolding[]>();
-  for (const row of rows)
+  for (const row of rows) {
+    const selected = selectedDates.get(row.institutionName);
+    if (!selected || row.date !== selected) continue;
     grouped.set(row.institutionName, [...(grouped.get(row.institutionName) ?? []), row]);
+  }
   return [...grouped.values()].flatMap((group) =>
     group
       .sort((a, b) => (b.value ?? Number.NEGATIVE_INFINITY) - (a.value ?? Number.NEGATIVE_INFINITY))
@@ -947,7 +1046,7 @@ export async function getCachedTrackedInstitutions(): Promise<TrackedInstitution
   ] as const)
     if (result.error)
       notices.push(`Tracked institution ${label} cache read failed: ${result.error.message}`);
-  const infos = (info.data ?? []).map((r: any) => ({
+  const rawInfos = (info.data ?? []).map((r: any) => ({
     name: r.institution_name,
     providerName: r.provider_name,
     slug: r.slug,
@@ -969,24 +1068,53 @@ export async function getCachedTrackedInstitutions(): Promise<TrackedInstitution
     spyPrice: r.spy_price == null ? null : Number(r.spy_price),
     fetchedAt: r.fetched_at
   }));
+  const holdingRows = (holdings.data ?? []).map((r: any) => ({
+    institutionName: r.institution_name,
+    date: r.report_date,
+    ticker: r.ticker,
+    fullName: r.full_name,
+    units: r.units == null ? null : Number(r.units),
+    avgPrice: r.avg_price == null ? null : Number(r.avg_price),
+    unitsChange: r.units_change == null ? null : Number(r.units_change),
+    changePerc: r.change_perc == null ? null : Number(r.change_perc),
+    percOfShareValue: r.perc_of_share_value == null ? null : Number(r.perc_of_share_value),
+    value: r.value == null ? null : Number(r.value),
+    close: r.close == null ? null : Number(r.close),
+    fetchedAt: r.fetched_at
+  }));
+  const activityRows = (activity.data ?? []).map((r: any) => ({
+    activityId: r.activity_id,
+    institutionName: r.institution_name,
+    ticker: r.ticker,
+    reportDate: r.report_date,
+    units: r.units == null ? null : Number(r.units),
+    unitsChange: r.units_change == null ? null : Number(r.units_change),
+    securityType: r.security_type,
+    buyPrice: r.buy_price == null ? null : Number(r.buy_price),
+    sellPrice: r.sell_price == null ? null : Number(r.sell_price),
+    priceOnReport: r.price_on_report == null ? null : Number(r.price_on_report),
+    close: r.close == null ? null : Number(r.close),
+    fetchedAt: r.fetched_at
+  }));
+  const selectedByInstitution = new Map<string, string>();
+  const latestProviderByInstitution = new Map<string, string>();
+  const incompleteNewerPeriods = new Set<string>();
+  const names = Array.from(new Set([...rawInfos.map((r) => r.name), ...holdingRows.map((r) => r.institutionName)]));
+  for (const name of names) {
+    const selection = selectLatestCompleteInstitutionPeriod({
+      infoDates: rawInfos.filter((r) => r.name === name).map((r) => r.date),
+      holdingDates: holdingRows.filter((r) => r.institutionName === name).map((r) => r.date),
+      activityDates: activityRows.filter((r) => r.institutionName === name).map((r) => r.reportDate),
+      optionDates: (options.data ?? []).filter((r: any) => r.institution_name === name).map((r: any) => r.as_of_date)
+    });
+    if (selection.selectedReportDate) selectedByInstitution.set(name, selection.selectedReportDate);
+    if (selection.latestProviderReportDate) latestProviderByInstitution.set(name, selection.latestProviderReportDate);
+    selection.incompleteNewerPeriods.forEach((date) => incompleteNewerPeriods.add(date));
+  }
+  const infos = rawInfos.filter((row) => selectedByInstitution.get(row.name) === row.date);
   return {
     institutions: withReturns(infos, histories),
-    holdings: topTrackedHoldings(
-      (holdings.data ?? []).map((r: any) => ({
-        institutionName: r.institution_name,
-        date: r.report_date,
-        ticker: r.ticker,
-        fullName: r.full_name,
-        units: r.units == null ? null : Number(r.units),
-        avgPrice: r.avg_price == null ? null : Number(r.avg_price),
-        unitsChange: r.units_change == null ? null : Number(r.units_change),
-        changePerc: r.change_perc == null ? null : Number(r.change_perc),
-        percOfShareValue: r.perc_of_share_value == null ? null : Number(r.perc_of_share_value),
-        value: r.value == null ? null : Number(r.value),
-        close: r.close == null ? null : Number(r.close),
-        fetchedAt: r.fetched_at
-      }))
-    ),
+    holdings: topTrackedHoldings(holdingRows, selectedByInstitution),
     options: (options.data ?? []).map((r: any) => ({
       institutionName: r.institution_name,
       asOfDate: r.as_of_date,
@@ -998,21 +1126,16 @@ export async function getCachedTrackedInstitutions(): Promise<TrackedInstitution
       callOi: r.call_oi == null ? null : Number(r.call_oi),
       fetchedAt: r.fetched_at
     })),
-    activity: (activity.data ?? []).map((r: any) => ({
-      activityId: r.activity_id,
-      institutionName: r.institution_name,
-      ticker: r.ticker,
-      reportDate: r.report_date,
-      units: r.units == null ? null : Number(r.units),
-      unitsChange: r.units_change == null ? null : Number(r.units_change),
-      securityType: r.security_type,
-      buyPrice: r.buy_price == null ? null : Number(r.buy_price),
-      sellPrice: r.sell_price == null ? null : Number(r.sell_price),
-      priceOnReport: r.price_on_report == null ? null : Number(r.price_on_report),
-      close: r.close == null ? null : Number(r.close),
-      fetchedAt: r.fetched_at
-    })),
-    notices
+    activity: activityRows.filter((row) => selectedByInstitution.get(row.institutionName) === row.reportDate),
+    notices,
+    metadata: {
+      latestAvailableReportDate: Array.from(selectedByInstitution.values()).sort().reverse()[0] ?? null,
+      latestProviderReportDate: Array.from(latestProviderByInstitution.values()).sort().reverse()[0] ?? null,
+      selectedReportDatesByInstitution: Object.fromEntries(selectedByInstitution),
+      institutionsUsingFallback: Array.from(selectedByInstitution).filter(([name, date]) => latestProviderByInstitution.get(name) && latestProviderByInstitution.get(name) !== date).length,
+      incompleteNewerPeriods: Array.from(incompleteNewerPeriods).sort().reverse(),
+      fetchedAt: [...rawInfos.map((r) => r.fetchedAt), ...holdingRows.map((r) => r.fetchedAt)].filter(Boolean).sort().reverse()[0] ?? null
+    }
   };
 }
 
@@ -1086,26 +1209,10 @@ export async function refreshInstitutionalSummaryData() {
   if (tickerRows.length) {
     const { error } = await supabase.client
       .from(SOURCE_TICKER_FLOW)
-      .upsert(tickerRows.map(toTickerDb), { onConflict: "investor_type,order,ticker" });
+      .upsert(tickerRows.map(toTickerDb), { onConflict: "investor_type,order,ticker,report_date" });
     if (error) throw new Error(`Institutional ticker-flow upsert failed: ${error.message}`);
   }
   if (retainedSectorRows.length) {
-    await Promise.all(
-      institutionalInvestorTypes.map(async (investor) => {
-        const keepDates = Array.from(
-          new Set(
-            retainedSectorRows
-              .filter((row) => row.investorType === investor.value)
-              .map((row) => row.reportDate)
-          )
-        );
-        if (!keepDates.length) return;
-        await supabase.client
-          .from(SOURCE_SECTOR_EXPOSURE)
-          .delete()
-          .eq("investor_type", investor.value);
-      })
-    );
     const { error } = await supabase.client
       .from(SOURCE_SECTOR_EXPOSURE)
       .upsert(retainedSectorRows.map(toSectorDb), {
@@ -1132,6 +1239,7 @@ function fromTickerDb(row: any): InstitutionalTickerFlowRow {
     order: row.order,
     ticker: row.ticker,
     value: row.value == null ? null : Number(row.value),
+    reportDate: row.report_date,
     increasedPositions: row.increased_positions == null ? null : Number(row.increased_positions),
     decreasedPositions: row.decreased_positions == null ? null : Number(row.decreased_positions),
     holdingCount: row.holding_count == null ? null : Number(row.holding_count),
@@ -1164,7 +1272,7 @@ export async function getCachedInstitutionalSummary(): Promise<InstitutionalSumm
     supabase.client
       .from(SOURCE_TICKER_FLOW)
       .select(
-        "investor_type,order,ticker,value,increased_positions,decreased_positions,holding_count,units,prev_units,fetched_at"
+        "investor_type,order,ticker,report_date,value,increased_positions,decreased_positions,holding_count,units,prev_units,fetched_at"
       )
       .order("value", { ascending: false, nullsFirst: false }),
     supabase.client
@@ -1177,10 +1285,24 @@ export async function getCachedInstitutionalSummary(): Promise<InstitutionalSumm
     notices.push(`Institutional ticker-flow cache read failed: ${tickerResult.error.message}`);
   if (sectorResult.error)
     notices.push(`Institutional sector exposure cache read failed: ${sectorResult.error.message}`);
+  const allTickerFlow = (tickerResult.data ?? []).map(fromTickerDb);
+  const allSectorExposure = (sectorResult.data ?? []).map(fromSectorDb);
+  const selectedReportDatesByInvestorType: Record<string, string> = {};
+  const rejectedPeriodsByInvestorType: Record<string, Record<string, string[]>> = {};
+  for (const investor of institutionalInvestorTypes) {
+    const selection = selectLatestCompleteInstitutionalSummaryPeriod({
+      tickerFlow: allTickerFlow,
+      sectorExposure: allSectorExposure,
+      investorType: investor.value
+    });
+    if (selection.selectedReportDate) selectedReportDatesByInvestorType[investor.value] = selection.selectedReportDate;
+    rejectedPeriodsByInvestorType[investor.value] = selection.rejectedPeriods;
+  }
   return {
     ...base,
-    tickerFlow: (tickerResult.data ?? []).map(fromTickerDb),
-    sectorExposure: (sectorResult.data ?? []).map(fromSectorDb),
-    notices
+    tickerFlow: allTickerFlow.filter((row) => selectedReportDatesByInvestorType[row.investorType] === row.reportDate),
+    sectorExposure: allSectorExposure.filter((row) => selectedReportDatesByInvestorType[row.investorType] === row.reportDate && row.value !== null),
+    notices,
+    metadata: { selectedReportDatesByInvestorType, rejectedPeriodsByInvestorType }
   };
 }

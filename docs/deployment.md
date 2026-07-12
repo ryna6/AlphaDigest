@@ -247,10 +247,10 @@ The candle pipeline is intentionally split by responsibility:
 
 - **Scheduled dispatcher:** `refresh-daily-market-candles` is a small Netlify scheduled function. It logs `daily_candle_dispatch_started`, evaluates Toronto local time, records skipped telemetry with UTC and Toronto timestamps, invokes the worker, and returns immediately. It must not process the S&P 500 universe itself.
 - **Background worker:** `refresh-daily-market-candles-worker-background` is the long-running Netlify background function. It uses Finnhub only for the latest daily equity row, validates `market_daily_candles` and `sp500_daily_candles` before provider calls, logs progress by group, writes both tables, verifies each upsert in the same table, prunes only tables with successful writes, calculates breadth through the Markets snapshot refresh, and finishes the Status job run.
-- **Manual protected invocation:** POST `/.netlify/functions/refresh-daily-market-candles-worker-background` with `x-alphadigest-worker-token: $DAILY_CANDLE_WORKER_TOKEN` and a JSON body such as `{ "manual": true, "correlationId": "manual-YYYYMMDD" }`. Manual worker runs are not blocked by the 6:30 PM Toronto schedule guard.
+- **Manual protected invocation:** POST `/.netlify/functions/refresh-daily-market-candles-worker-background` with `x-alphadigest-worker-token: $DAILY_CANDLE_WORKER_TOKEN` and a JSON body such as `{ "manual": true, "correlationId": "manual-YYYYMMDD" }`. Manual worker runs are not blocked by the scheduled dispatcher cadence.
 - **Historical backfill:** `scripts/backfillDailyCandlesFromUnusualWhales.ts` remains the separate, resumable Unusual Whales maintenance path for one-year equity history. It is not part of the daily Finnhub worker.
 
-Netlify cron is UTC, so the dispatcher now wakes at `30 22,23 * * 1-5`. The runtime guard admits only 18:30 America/Toronto. This covers daylight and standard time without changing environment variables for tests; rejected invocations are logged and recorded as skipped job telemetry.
+Netlify cron is UTC, so the dispatcher wakes once at `0 23 * * 1-5`. This is 6:00 PM America/Toronto during standard time and 7:00 PM during daylight time; it is not exact Toronto wall-clock time year-round. Weekdays are enforced by cron, and the dispatcher no longer uses a Toronto runtime guard for automatic invocations.
 
 Required production environment variables for functions and server-side API routes are `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, the Finnhub feature keys used by `getDailyCandleFinnhubKeys()`, and `DAILY_CANDLE_WORKER_TOKEN` for protected manual/dispatcher worker calls. Diagnostics log only booleans, the distinct Finnhub key count, deployment context, deployment ID, site URL, and the Supabase project hostname; secrets are never logged. If the candle API and worker report different Supabase project hostnames, treat environment scoping as the root cause before changing code.
 
@@ -265,4 +265,11 @@ During this repair, `/api/markets/candles` responses are strict no-store (`Cache
 
 ### Daily Market Candles manual Netlify Run now
 
-Netlify → Functions → `refresh-daily-market-candles` → **Run now** is treated as a manual dispatcher invocation when the scheduled `next_run` body field is absent. Manual runs log `daily_candle_manual_override`, bypass the Toronto weekday and 6:30 p.m. guard, call the protected `refresh-daily-market-candles-worker-background` function, and send `manual: true` with trigger `manual_netlify_ui`. Automatic cron invocations still use the DST-safe `22:30/23:30 UTC` schedule plus the America/Toronto guard; the extra UTC wake-up is recorded as skipped. Verify outside the Toronto window by confirming no `outside_1830_toronto_window` dispatcher result and that the worker metadata contains `manual: true`.
+Netlify → Functions → `refresh-daily-market-candles` → **Run now** is treated as a manual dispatcher invocation when the scheduled `next_run` body field is absent. Manual runs call the protected `refresh-daily-market-candles-worker-background` function and send `manual: true` with trigger `manual_netlify_ui`. Automatic cron invocations use the single `0 23 * * 1-5` UTC schedule. Verify manual behavior by confirming the worker metadata contains `manual: true`.
+
+### Daily candle UTC schedules
+
+Netlify scheduled cron expressions execute in UTC. AlphaDigest therefore uses fixed UTC fallback schedules rather than claiming exact Toronto wall-clock times year-round:
+
+- `refresh-daily-market-candles`: `0 23 * * 1-5` (6:00 PM Toronto in standard time, 7:00 PM in daylight time). The dispatcher no longer skips automatic invocations with a Toronto runtime guard; Netlify cron enforces weekdays. Manual Run now remains supported and propagates `manual: true`.
+- `refresh-daily-crypto-candles`: `0 6 * * *` (1:00 AM Toronto in standard time, 2:00 AM in daylight time). Crypto has no weekday or market-hours guard.

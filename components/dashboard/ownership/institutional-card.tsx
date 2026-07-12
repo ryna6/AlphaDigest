@@ -87,6 +87,14 @@ type Payload = {
     options: OptionHolding[];
     activity: Activity[];
     notices: string[];
+    metadata?: {
+      latestAvailableReportDate: string | null;
+      latestProviderReportDate: string | null;
+      selectedReportDatesByInstitution: Record<string, string>;
+      institutionsUsingFallback: number;
+      incompleteNewerPeriods: string[];
+      fetchedAt: string | null;
+    };
   };
 };
 
@@ -219,7 +227,7 @@ export function InstitutionalCard({
   const [error, setError] = useState<string | null>(null);
   const [screen, setScreen] = useState<Screen>("Stock Holdings");
   useEffect(() => {
-    fetch("/api/ownership/institutional", { cache: "no-store" })
+    fetch("/api/ownership/institutional", { cache: "no-cache" })
       .then((res) =>
         res.ok
           ? res.json()
@@ -269,9 +277,11 @@ export function InstitutionalCard({
     );
   if (!payload)
     return (
-      <p className="rounded-none border border-borderStrong bg-sidebar p-3 text-sm text-textMuted">
-        Loading tracked institutions…
-      </p>
+      <div className="rounded-none border border-borderStrong bg-sidebar p-3" aria-busy="true" role="status">
+        <span className="sr-only">Loading tracked institutions</span>
+        <div className="mb-3 h-4 w-48 animate-pulse bg-panelHover/70" />
+        <div className="space-y-2">{Array.from({ length: 5 }).map((_, i) => <div key={i} className="grid grid-cols-4 gap-3"><span className="h-4 animate-pulse bg-panelHover/70" /><span className="h-4 animate-pulse bg-panelHover/70" /><span className="h-4 animate-pulse bg-panelHover/70" /><span className="h-4 animate-pulse bg-panelHover/70" /></div>)}</div>
+      </div>
     );
   if (!institutions.length)
     return (
@@ -304,6 +314,7 @@ export function InstitutionalCard({
           </Link>
         </div>
       )}
+      <FreshnessNotice metadata={tracked?.metadata ?? null} />
       <InstitutionTable rows={displayed} />
     </div>
   );
@@ -627,4 +638,13 @@ function DetailTable({
       ) : null}
     </div>
   );
+}
+
+function FreshnessNotice({ metadata }: { metadata: NonNullable<Payload["tracked"]>["metadata"] | null }) {
+  if (!metadata) return null;
+  const selected = Object.values(metadata.selectedReportDatesByInstitution ?? {});
+  const unique = Array.from(new Set(selected));
+  const period = unique.length === 1 ? `Latest available 13F report period: ${date(unique[0])}.` : "Each institution uses its latest complete available 13F filing.";
+  const fallback = metadata.incompleteNewerPeriods?.length ? " A newer reporting period is not yet complete; showing the latest complete filing." : "";
+  return <p className="mb-3 border border-borderStrong bg-sidebar p-3 text-xs text-textMuted">{period}{fallback}</p>;
 }

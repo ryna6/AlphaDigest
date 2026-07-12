@@ -15,6 +15,7 @@ export type TorontoRunWindowOptions = {
   intervalMinutes?: number;
   minuteOffset?: number;
   hours?: number[];
+  utcHours?: number[];
   minutes?: number[];
   enforceInterval?: boolean;
 };
@@ -112,6 +113,10 @@ export function shouldRunInTorontoWindow(options: TorontoRunWindowOptions = {}):
 
   if (options.hours?.length && !options.hours.includes(parts.hour)) {
     return { shouldRun: false, reason: "outside_toronto_hours", torontoTime: parts.label };
+  }
+
+  if (options.utcHours?.length && !options.utcHours.includes((options.now ?? new Date()).getUTCHours())) {
+    return { shouldRun: false, reason: "outside_utc_hours", torontoTime: parts.label };
   }
 
   if (options.minutes?.length && !options.minutes.includes(parts.minute)) {
