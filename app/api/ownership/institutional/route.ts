@@ -11,5 +11,5 @@ export async function GET() {
     getCachedInstitutionalSummary(),
     getCachedTrackedInstitutions()
   ]);
-  return NextResponse.json({ ...summary, tracked }, { headers: { "cache-control": "no-store" } });
+  return NextResponse.json({ ...summary, tracked }, { headers: { "Cache-Control": "no-cache", "CDN-Cache-Control": "s-maxage=900, stale-while-revalidate=21600", "Netlify-CDN-Cache-Control": "public, s-maxage=900, stale-while-revalidate=21600" } });
 }

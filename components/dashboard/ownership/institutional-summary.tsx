@@ -114,6 +114,7 @@ type TickerRow = {
   order: string;
   ticker: string;
   value: number | null;
+  reportDate: string;
   increasedPositions: number | null;
   decreasedPositions: number | null;
   holdingCount: number | null;
@@ -130,6 +131,10 @@ type InstitutionalPayload = {
   tickerFlow: TickerRow[];
   sectorExposure: SectorRow[];
   notices: string[];
+  metadata?: {
+    selectedReportDatesByInvestorType: Record<string, string>;
+    rejectedPeriodsByInvestorType: Record<string, Record<string, string[]>>;
+  };
 };
 
 const definitions = [
@@ -492,7 +497,7 @@ export function InstitutionalSummary() {
   const [modalOpen, setModalOpen] = useState(false);
   useEffect(() => {
     let active = true;
-    fetch("/api/ownership/institutional", { cache: "no-store" })
+    fetch("/api/ownership/institutional", { cache: "no-cache" })
       .then((res) =>
         res.ok
           ? res.json()
@@ -533,14 +538,14 @@ export function InstitutionalSummary() {
     () => (payload?.sectorExposure ?? []).filter((row) => row.investorType === investorType),
     [payload, investorType]
   );
-  const reportDate = sectors.reduce(
+  const reportDate = payload?.metadata?.selectedReportDatesByInvestorType?.[investorType] ?? sectors.reduce(
     (max, row) => (row.reportDate > max ? row.reportDate : max),
     ""
   );
   const state = error ? (
     <EmptyRows message={error} />
   ) : !payload ? (
-    <EmptyRows message="Loading cached institutional data…" />
+    <div className="rounded-none border border-borderStrong bg-sidebar p-3" aria-busy="true" role="status"><span className="sr-only">Loading cached institutional data</span><div className="h-40 animate-pulse bg-panelHover/70" /></div>
   ) : null;
   return (
     <>

@@ -2,6 +2,7 @@ create table if not exists public.unusual_whales_institutional_ticker_flow (
   investor_type text not null,
   "order" text not null,
   ticker text not null,
+  report_date date not null default date '1970-01-01',
   value numeric,
   increased_positions numeric,
   decreased_positions numeric,
@@ -11,9 +12,9 @@ create table if not exists public.unusual_whales_institutional_ticker_flow (
   fetched_at timestamptz not null default now(),
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
-  primary key (investor_type, "order", ticker)
+  primary key (investor_type, "order", ticker, report_date)
 );
-create index if not exists uw_institutional_ticker_flow_type_order_value_idx on public.unusual_whales_institutional_ticker_flow (investor_type, "order", value desc);
+create index if not exists uw_institutional_ticker_flow_type_order_report_value_idx on public.unusual_whales_institutional_ticker_flow (investor_type, "order", report_date desc, value desc);
 
 create table if not exists public.unusual_whales_institutional_sector_exposure (
   investor_type text not null,

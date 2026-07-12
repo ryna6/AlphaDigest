@@ -240,3 +240,7 @@ Market charts render real Supabase candle rows from `/api/markets/candles` with 
 Markets candle chart popups display the asset name before the ticker, for example `S&P 500 Futures ES=F`; if a configured asset uses the same text for name and ticker, the heading renders it only once. The S&P 500 Futures card is candle-enabled and opens the same TradingView Lightweight Charts popup as other indices. The futures chart reads cached Supabase rows only, retains provider Sunday candles, omits Saturdays, and shows unavailable volume as `—` rather than fabricating volume.
 
 Market Breadth always renders the canonical five rows in order: Participation, Advancers / Decliners, `% Above 50D MA`, `% Above 200D MA`, and `New 52W Highs / Lows`. When long-history candle-derived breadth values are not available, the final three rows display the ASCII hyphen placeholder `-` with neutral tone until real calculated values are present.
+
+### Loading and Ownership freshness
+
+AlphaDigest prioritizes the Today landing page, then warms other dashboard routes one at a time after browser idle. Dashboard route loading boundaries show page-shaped skeletons, and navigation progress is visible without blocking clicks. Ownership displays the latest complete available 13F filing per institution and notes when a newer reporting period is incomplete instead of showing an empty panel.

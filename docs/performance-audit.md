@@ -275,3 +275,30 @@ SUPABASE_URL=... SUPABASE_SERVICE_ROLE_KEY=... npm exec tsx scripts/performance/
 ```
 
 Run the SQL files in Supabase SQL Editor or a read-only psql session. Do not paste service-role keys into browser code or logs.
+
+## 16. 2026-07-12 continuation: Today-first loading
+
+Repository changes now make `/overview/today` the critical route. Visible navigation links set `prefetch={false}` so the Today shell does not compete with eager prefetches for Markets, News & Calendar, Flow, Ownership, Economy, Sentiment, or Status during hydration. The shared dashboard shell mounts a client-side deferred prefetcher that waits for the browser load event (or an already-complete document), an idle callback/fallback timer, and an additional quiet period before warming one route at a time in this order: Markets, News & Calendar, Flow, Ownership, Economy, Sentiment, Status.
+
+The prefetcher reads the central navigation configuration, excludes the active route, deduplicates warmed routes during the browser session, pauses on hidden documents, and skips background work when Save-Data, `slow-2g`, or `2g` is detected. Hover, keyboard focus, pointer down, or touch start can prioritize a user-selected route without blocking navigation. In production, `router.prefetch()` should be treated as warming route code/RSC/loading boundaries only unless network traces prove that reusable snapshot data is warmed; it must not trigger provider refreshes from the browser.
+
+Production browser measurements remain pending because this execution environment was not provided `PERF_BASE_URL`, a deployed preview URL, Netlify logs, or Supabase metrics access. Use the commands in §3 with the same browser/network/cache profile before and after deploy.
+
+## 17. Loading feedback and navigation progress
+
+Primary dashboard routes now have App Router loading boundaries backed by reusable skeleton components. The persistent shell includes a thin, `pointer-events-none` progress indicator with `aria-live="polite"` and `aria-busy="true"`; it clears when the pathname changes or after a failure timeout. The indicator does not cover the page, disable body pointer events, or block mobile/desktop navigation.
+
+## 18. Schedule corrections
+
+Netlify Scheduled Functions documentation states cron expressions run in UTC. Because native timezone-aware schedules were not documented, AlphaDigest uses the UTC fallback schedules:
+
+- Daily Market Candles: `0 23 * * 1-5`, once Monday-Friday. This is 6:00 PM America/Toronto during standard time and 7:00 PM during daylight time.
+- Daily Crypto Candles: `0 6 * * *`, once daily. This is 1:00 AM America/Toronto during standard time and 2:00 AM during daylight time.
+
+The old dual market wake plus 6:30 PM Toronto guard and the old 6:45 PM crypto schedule are removed. Manual Netlify Run now still classifies invocations without `next_run` as manual and propagates `manual: true` to the market background worker.
+
+## 19. Ownership latest-complete 13F selection
+
+Tracked institutional ownership now selects the latest complete report period per institution. Completeness requires an institution summary/info row, a valid report date, and at least one stock holding for the same report date. Activity and options are optional and cannot erase a complete stock filing. If a newer provider period exists without holdings, the UI serves the previous complete filing and reports safe metadata: latest available report date, latest provider report date, selected dates by institution, fallback institution count, incomplete newer periods, and fetched timestamp.
+
+For July 12, 2026 fixtures, March 31, 2026 is selected when June 30, 2026 has no complete holdings. Holdings are grouped by institution, the selected complete period is determined before sorting, and displayed top holdings are filtered to that exact report date to prevent quarter mixing.

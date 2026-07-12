@@ -299,3 +299,15 @@ Historical Markets charts use a frontend-safe API over Supabase candle tables: `
 S&P 500 Futures (`ES=F`) chart history is candle-enabled through the server-only Unusual Whales futures endpoint `https://phx.unusualwhales.com/api/futures_eod_history/09abc102-cb07-420e-92c6-e220f44c1e81`. The live futures card quote remains separate from historical candles. Futures OHLC rows are stored in `market_daily_candles` with null volume, one-year retention, `America/New_York` date handling, provider Sundays preserved, Saturdays excluded, and no fabricated Sunday rows. Diagnostic and targeted backfill commands are available as `npx tsx scripts/debugUnusualWhalesFuturesCandles.ts` and `npm run backfill:futures-candles`.
 
 Markets chart headings use name-first order and avoid repeating duplicate name/ticker labels. Market Breadth always shows the five canonical rows; unavailable 50D, 200D, and 52W metrics display `-`.
+
+## Performance loading model
+
+AlphaDigest keeps App Router pages split by dashboard route. The Today route loads first; visible navigation disables eager prefetch; after load and browser idle a sequential, network-aware route warmer prefetches Markets, News & Calendar, Flow, Ownership, Economy, Sentiment, and Status. Save-Data, 2G, hidden tabs, and user interaction priority are respected. Route-level skeletons and a non-blocking shell progress bar keep the interface visibly responsive.
+
+## Daily candle schedules
+
+Netlify scheduled functions run cron expressions in UTC. Daily Market Candles run `0 23 * * 1-5` (6:00 PM Toronto standard time, 7:00 PM daylight time). Daily Crypto Candles run `0 6 * * *` (1:00 AM Toronto standard time, 2:00 AM daylight time). Manual Netlify Run now remains supported for the market dispatcher/background worker path.
+
+## Ownership 13F freshness
+
+Ownership selects each institution's latest complete available 13F period. A complete period requires a summary row and stock holdings for the same report date; newer incomplete quarters are reported as metadata and do not delete or hide previous complete filings.
