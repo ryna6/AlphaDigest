@@ -108,6 +108,36 @@ export const todayPayloadSchema = z.object({
   sourceMeta: z.array(sourceMetaSchema)
 });
 
+
+export const marketWatchSignalSchema = z.enum(["new_high", "new_low", "crossed_above", "crossed_below", "at"]);
+export const marketWatchItemSchema = z.object({
+  symbol: z.string(),
+  signal: marketWatchSignalSchema,
+  latestPrice: z.number(),
+  referenceValue: z.number(),
+  previousPrice: z.number().nullable(),
+  previousReferenceValue: z.number().nullable(),
+  eventDate: z.string(),
+  magnitudePct: z.number().nullable()
+});
+export const marketWatchSectionSchema = z.object({
+  available: z.boolean(),
+  items: z.array(marketWatchItemSchema),
+  eligibleSymbols: z.number(),
+  reason: z.string().nullable()
+});
+export const marketWatchPayloadSchema = z.object({
+  asOfDate: z.string().nullable(),
+  highs52Week: marketWatchSectionSchema,
+  lows52Week: marketWatchSectionSchema,
+  crosses200Day: marketWatchSectionSchema,
+  crosses200Week: marketWatchSectionSchema
+});
+export function emptyMarketWatchPayload(reason = "Unavailable") {
+  const section = { available: false, items: [], eligibleSymbols: 0, reason };
+  return { asOfDate: null, highs52Week: section, lows52Week: section, crosses200Day: section, crosses200Week: section };
+}
+
 export const marketsPayloadSchema = z.object({
   strip: z.array(metricSchema),
   heatmaps: z.object({
@@ -120,6 +150,7 @@ export const marketsPayloadSchema = z.object({
   heatmapKeyMessages: z.array(z.string()),
   breadth: z.array(metricSchema),
   movers: z.array(metricSchema),
+  marketWatch: marketWatchPayloadSchema.default(emptyMarketWatchPayload("Cached snapshot predates Market Watch")),
   sourceMeta: z.array(sourceMetaSchema),
   metadata: z.record(z.string(), z.unknown()).optional()
 });
@@ -324,6 +355,10 @@ export type EarningsMetadata = z.infer<typeof earningsMetadataSchema>;
 export type EconomicEvent = z.infer<typeof eventSchema>;
 export type NewsCalendarPayload = z.infer<typeof newsCalendarPayloadSchema>;
 export type TodayPayload = z.infer<typeof todayPayloadSchema>;
+export type MarketWatchSignal = z.infer<typeof marketWatchSignalSchema>;
+export type MarketWatchItem = z.infer<typeof marketWatchItemSchema>;
+export type MarketWatchSection = z.infer<typeof marketWatchSectionSchema>;
+export type MarketWatchPayload = z.infer<typeof marketWatchPayloadSchema>;
 export type MarketsPayload = z.infer<typeof marketsPayloadSchema>;
 export type DarkPoolFlowRow = z.infer<typeof darkPoolFlowRowSchema>;
 export type WhaleFeedRow = z.infer<typeof whaleFeedRowSchema>;

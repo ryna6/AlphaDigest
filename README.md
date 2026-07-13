@@ -311,3 +311,6 @@ Netlify scheduled functions run cron expressions in UTC. Daily Market Candles ru
 ## Ownership 13F freshness
 
 Ownership selects each institution's latest complete available 13F period. A complete period requires a summary row and stock holdings for the same report date; newer incomplete quarters are reported as metadata and do not delete or hide previous complete filings.
+
+### Markets: Market Watch
+The Markets page includes a server-calculated Market Watch card beside Market Breadth and Market Movers. Signals come from `sp500_daily_candles` and are stored compactly in `markets:latest`: 52W highs/lows compare the latest eligible session with the previous 252 sessions excluding the latest candle, 200D moving-average rows require a true latest-session cross or exact-at result with at least 201 closes, and 200W rows use final weekly closes and require at least 201 weekly observations. Current one-year candle pruning means 200W can remain visible as `Insufficient history` unless longer valid history exists. Rows are limited to five per section and sorted by breakout/cross magnitude with ticker tie-breakers. Advancers / Decliners display uses `▲` and `▼` text glyphs with accessible count labels.

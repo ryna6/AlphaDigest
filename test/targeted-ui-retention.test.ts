@@ -92,3 +92,25 @@ test("Institution holding absolute Change formatting signs only positive values"
   assert.equal(signedPositionChange(0), "0");
   assert.equal(signedPositionChange(null), "—");
 });
+
+test("Markets UI renders three desktop cards in order and Market Watch states", () => {
+  const source = new TextDecoder().decode(new Uint8Array(require("node:fs").readFileSync("components/dashboard/markets/markets-view.tsx")));
+  assert.match(source, /md:grid-cols-2 xl:grid-cols-3/);
+  assert.ok(source.indexOf('title="Market Breadth"') < source.indexOf('title="Market Movers"'));
+  assert.ok(source.indexOf('title="Market Movers"') < source.indexOf('<MarketWatchCard marketWatch={data.marketWatch} />'));
+  assert.match(source, /52W Highs/);
+  assert.match(source, /52W Lows/);
+  assert.match(source, /200D MA Crosses/);
+  assert.match(source, /200W MA Crosses/);
+  assert.match(source, /Insufficient history/);
+  assert.match(source, />—</);
+});
+
+test("Advancers and Decliners render accessible colored triangles with safe fallback", () => {
+  const source = new TextDecoder().decode(new Uint8Array(require("node:fs").readFileSync("components/dashboard/markets/markets-view.tsx")));
+  assert.match(source, /aria-label=\{`\$\{advancers\} advancers, \$\{decliners\} decliners`\}/);
+  assert.match(source, /className="text-positive">▲/);
+  assert.match(source, /className="text-negative">▼/);
+  assert.match(source, /aria-hidden="true"/);
+  assert.match(source, /if \(!match\) return <MetricRow metric=\{metric\} density="roomy" \/>/);
+});
