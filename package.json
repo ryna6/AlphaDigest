@@ -14,7 +14,10 @@
     "fetch:uw-earnings": "tsx scripts/fetchUnusualWhalesEarnings.ts",
     "test": "npm run typecheck && tsx --test test/*.test.ts",
     "validate:news-calendar": "sucrase-node scripts/validateNewsCalendarUi.tsx",
-    "backfill:futures-candles": "tsx scripts/backfillUnusualWhalesFuturesCandles.ts"
+    "backfill:futures-candles": "tsx scripts/backfillUnusualWhalesFuturesCandles.ts",
+    "audit:equity-candles": "tsx scripts/auditEquityCandleCoverage.ts",
+    "backfill:equity-candles": "tsx scripts/backfillEquityCandles.ts",
+    "verify:equity-candles": "tsx scripts/verifyEquityCandleHistory.ts"
   },
   "dependencies": {
     "@supabase/supabase-js": "latest",

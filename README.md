@@ -314,3 +314,7 @@ Ownership selects each institution's latest complete available 13F period. A com
 
 ### Markets: Market Watch
 The Markets page includes a server-calculated Market Watch card beside Market Breadth and Market Movers. Signals come from `sp500_daily_candles` and are stored compactly in `markets:latest`: 52W highs/lows compare the latest eligible session with the previous 252 sessions excluding the latest candle, 200D moving-average rows require a true latest-session cross or exact-at result with at least 201 closes, and 200W rows use final weekly closes and require at least 201 weekly observations. Current one-year candle pruning means 200W can remain visible as `Insufficient history` unless longer valid history exists. Rows are limited to five per section and sorted by breakout/cross magnitude with ticker tie-breakers. Advancers / Decliners display uses `▲` and `▼` text glyphs with accessible count labels.
+
+### Equity candle audit/backfill
+
+Run `npm run audit:equity-candles` to summarize `sp500_daily_candles` and `market_daily_candles` coverage without writes. Run targeted historical backfills with `npm run backfill:equity-candles -- --symbol AAPL --from 2021-01-01 --to YYYY-MM-DD` or use `--dry-run` to avoid writes. Equity history uses the configured Unusual Whales historical candle endpoint; Finnhub quotes are current-session data only. Jobs are globally capped at five symbols per batch with paced retries, while S&P 500 Futures keeps its dedicated futures endpoint.

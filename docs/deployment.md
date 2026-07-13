@@ -273,3 +273,7 @@ Netlify scheduled cron expressions execute in UTC. AlphaDigest therefore uses fi
 
 - `refresh-daily-market-candles`: `0 23 * * 1-5` (6:00 PM Toronto in standard time, 7:00 PM in daylight time). The dispatcher no longer skips automatic invocations with a Toronto runtime guard; Netlify cron enforces weekdays. Manual Run now remains supported and propagates `manual: true`.
 - `refresh-daily-crypto-candles`: `0 6 * * *` (1:00 AM Toronto in standard time, 2:00 AM in daylight time). Crypto has no weekday or market-hours guard.
+
+### Equity candle operations
+
+Before manual Netlify invocation or production repair, confirm `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, and `UNUSUAL_WHALES_API_KEY`/`UW_API_KEY` are configured. Use `npm run audit:equity-candles` for a read-only coverage summary, `npm run backfill:equity-candles -- --dry-run` to preview selected work, and `npm run verify:equity-candles` after a run. Logs report mode, batch size, delay, configured/attempted/success/failed symbols, fetched/parsed/upserted rows, provider/database errors, and highest observed concurrency without printing credentials.

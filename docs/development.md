@@ -352,3 +352,7 @@ Then compare Supabase rows with `/api/markets/candles?symbol=AAPL&range=1Y` or `
 ### Performance continuation checks
 
 Use production or deploy-preview browser traces to compare `/overview/today` before and after loading changes. Verify that navigation links render with `prefetch={false}`, deferred prefetch starts after load+idle, constrained networks skip background warming, loading skeletons appear on route transitions, and Ownership renders a table skeleton while `/api/ownership/institutional` is pending.
+
+### Local equity candle checks
+
+Use `npm run audit:equity-candles`, `npm run backfill:equity-candles`, and `npm run verify:equity-candles` for the equity candle workflow. Backfill supports `--table`, `--symbol`, `--from`, `--to`, `--limit-symbols`, and `--dry-run`. Daily refresh must remain incremental and preserve existing rows on provider failure. Do not reintroduce Finnhub `/api/v1/quote` as a historical daily candle source.
