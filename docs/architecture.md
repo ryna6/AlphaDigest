@@ -294,3 +294,8 @@ The dashboard shell disables automatic Next.js link prefetch on visible navigati
 ### Ownership latest-complete filings
 
 Institutional ownership serves the latest complete 13F period per tracked institution. A complete period requires the cached institution summary/info row and at least one stock holding with the same report date. Newer incomplete quarters are metadata, not errors, and previous complete quarters remain available as last-known-good data.
+
+## Market Watch snapshot path
+Market Watch is calculated during the `markets:latest` build from `sp500_daily_candles` after the existing S&P 500 candle read used by Market Breadth. The data flow is: S&P 500 candle rows -> Market Breadth -> Market Watch -> compact Markets payload -> `dashboard_snapshots` row keyed by `markets:latest`. Raw S&P 500 candle arrays are not embedded in the payload and browser code does not fetch this history for Market Watch.
+
+Market Watch determines the latest common valid S&P 500 trading date, excludes stale symbols, duplicate trading dates, invalid OHLC rows, and symbols with insufficient history. It emits coverage metadata for configured symbols, eligible symbols, stale symbols, latest trading date, earliest retained candle date, daily row counts, and the maximum weekly observations available. 52W calculations compare latest high/low with the previous 252 sessions excluding the latest candle. 200D crosses require 201 closes. 200W crosses aggregate daily candles to final weekly closes and require 201 weekly observations; when retention is only the current trailing one-year window, the 200W section remains visible but unavailable with `Insufficient history`.

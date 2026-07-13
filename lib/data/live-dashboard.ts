@@ -1,6 +1,7 @@
 import type { FinnhubFeatureArea } from "./adapters/finnhub-key-router";
 import { getSp500CandleUniverse, readSp500CandlesForBreadth } from "./daily-candles";
 import { calculateMarketBreadthFromCandles } from "./market-breadth-candles";
+import { calculateMarketWatchFromCandles } from "./market-watch-candles";
 import {
   getSnapshotOrNull,
   isSnapshotFresh,
@@ -53,6 +54,7 @@ import {
   sortByMarketCapDesc
 } from "./earnings-utils";
 import type { HeatmapTile, Metric, SourceMeta } from "./schemas/common";
+import { marketsPayloadSchema } from "./schemas/dashboard";
 import type {
   EconomicEvent,
   EarningsEvent,
@@ -580,7 +582,9 @@ async function buildMarketsPayload(): Promise<{
   ]);
   const sp500IndexChangePercent = metricChangePercentValue(stripCandidates[0]);
   const candleBreadthRows = sp500Rows.length ? await readSp500CandlesForBreadth(sp500Rows.map((row) => row.ticker)) : [];
-  const candleBreadth = candleBreadthRows.length ? calculateMarketBreadthFromCandles(candleBreadthRows, sp500Rows.map((row) => row.ticker), sp500IndexChangePercent) : null;
+  const sp500Symbols = sp500Rows.map((row) => row.ticker);
+  const candleBreadth = candleBreadthRows.length ? calculateMarketBreadthFromCandles(candleBreadthRows, sp500Symbols, sp500IndexChangePercent) : null;
+  const marketWatchResult = candleBreadthRows.length ? calculateMarketWatchFromCandles(candleBreadthRows, sp500Symbols) : calculateMarketWatchFromCandles([], sp500Symbols);
   const strip = stripCandidates
     .map(
       (metric, index) =>
@@ -605,7 +609,8 @@ async function buildMarketsPayload(): Promise<{
         breadth: ensureCanonicalMarketBreadthMetrics(sp500Rows.length
           ? (candleBreadth?.metrics ?? sp500Breadth(sp500Rows, breadthMetrics, sp500IndexChangePercent))
           : [...fallback.breadth, ...breadthMetrics]),
-        movers: sp500Rows.length ? sp500Movers(sp500Rows) : fallback.movers
+        movers: sp500Rows.length ? sp500Movers(sp500Rows) : fallback.movers,
+        marketWatch: marketWatchResult.marketWatch
       },
       mode: "mock",
       notices: [
@@ -629,12 +634,20 @@ async function buildMarketsPayload(): Promise<{
         ? (candleBreadth?.metrics ?? sp500Breadth(sp500Rows, breadthMetrics, sp500IndexChangePercent))
         : [...fallback.breadth, ...breadthMetrics]),
       movers: sp500Rows.length ? sp500Movers(sp500Rows) : fallback.movers,
+      marketWatch: marketWatchResult.marketWatch,
       metadata: {
         refreshedBy: "builder",
         candleBreadthSource: candleBreadth ? "sp500_daily_candles" : "fallback",
         sp500ConfiguredSymbols: sp500Rows.length,
         sp500CandleSymbolsCovered: candleBreadth?.coverage.participation.eligible ?? 0,
         latestCandleTradingDate: candleBreadthRows.map((row) => row.tradingDate).sort().at(-1) ?? null,
+        marketWatchSource: candleBreadthRows.length ? "sp500_daily_candles" : "unavailable",
+        marketWatchConfiguredSymbols: marketWatchResult.coverage.configuredSymbols,
+        marketWatchEligibleSymbols: marketWatchResult.coverage.eligibleSymbols,
+        marketWatchStaleSymbols: marketWatchResult.coverage.staleSymbols.length,
+        marketWatchEarliestCandleDate: marketWatchResult.coverage.earliestTradingDate,
+        marketWatchMaxWeeklyCloses: marketWatchResult.coverage.maxWeeklyClosesPerSymbol,
+        marketWatch200WeekAvailable: marketWatchResult.marketWatch.crosses200Week.available,
         usedMockStrip: stripCandidates.every((metric) => !metric),
         usedMockHeatmaps: Object.entries(liveHeatmaps).filter(([, value]) => !value).map(([key]) => key)
       },
@@ -962,7 +975,7 @@ export async function refreshDashboardSnapshot(
 async function isUsableMarketsSnapshot(snapshot: { mode?: string | null; payload?: any; metadata?: Record<string, unknown> | null }) {
   if (snapshot.mode === "mock") return false;
   const metadata = (snapshot.metadata ?? snapshot.payload?.metadata ?? {}) as Record<string, unknown>;
-  if (metadata.candleBreadthSource === "sp500_daily_candles") return true;
+  if (metadata.candleBreadthSource === "sp500_daily_candles" && metadata.marketWatchSource === "sp500_daily_candles") return true;
   const expected = await getSp500CandleUniverse().catch(() => [] as string[]);
   if (!expected.length) return true;
   const rows = await readSp500CandlesForBreadth(expected).catch(() => []);
@@ -1035,7 +1048,8 @@ export function ensureCanonicalMarketBreadthMetrics(metrics: Metric[]): Metric[]
   );
 }
 async function ensureMarketsBreadthMetrics(payload: MarketsPayload): Promise<MarketsPayload> {
-  return { ...payload, breadth: ensureCanonicalMarketBreadthMetrics(payload.breadth) };
+  const normalized = marketsPayloadSchema.parse(payload);
+  return { ...normalized, breadth: ensureCanonicalMarketBreadthMetrics(normalized.breadth) };
 }
 
 

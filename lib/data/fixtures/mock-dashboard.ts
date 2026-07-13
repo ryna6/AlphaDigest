@@ -290,6 +290,13 @@ export const marketsMock = (): MarketsPayload => ({
     { label: "Laggard", value: "XLU -0.3%", tone: "negative" },
     { label: "Cross-asset watch", value: "WTI +0.5%", tone: "warning" }
   ],
+  marketWatch: {
+    asOfDate: null,
+    highs52Week: { available: false, items: [], eligibleSymbols: 0, reason: "Unavailable without S&P 500 candles" },
+    lows52Week: { available: false, items: [], eligibleSymbols: 0, reason: "Unavailable without S&P 500 candles" },
+    crosses200Day: { available: false, items: [], eligibleSymbols: 0, reason: "Unavailable without S&P 500 candles" },
+    crosses200Week: { available: false, items: [], eligibleSymbols: 0, reason: "Insufficient history" }
+  },
   sourceMeta: [
     mockMeta("Finnhub heatmap routes", "https://finnhub.io/docs/api"),
     mockMeta("CoinGecko crypto source", "https://docs.coingecko.com/")

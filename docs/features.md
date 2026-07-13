@@ -244,3 +244,11 @@ Market Breadth always renders the canonical five rows in order: Participation, A
 ### Loading and Ownership freshness
 
 AlphaDigest prioritizes the Today landing page, then warms other dashboard routes one at a time after browser idle. Dashboard route loading boundaries show page-shaped skeletons, and navigation progress is visible without blocking clicks. Ownership displays the latest complete available 13F filing per institution and notes when a newer reporting period is incomplete instead of showing an empty panel.
+
+### Market Watch technical levels
+- The Markets page includes a `Market Watch` card to the right of `Market Movers` on desktop. It shows `52W Highs`, `52W Lows`, `200D MA Crosses`, and `200W MA Crosses` from server-side S&P 500 candle calculations only.
+- Source data is `sp500_daily_candles`. The snapshot builder shares the same S&P 500 candle read used for Market Breadth, so the browser receives only compact signals in `markets:latest`, never raw candle arrays.
+- 52-week highs/lows use the latest eligible trading session against the prior 252 valid sessions; the latest candle is excluded from the benchmark. A high qualifies when latest high is greater than or equal to the previous 52-week high. A low qualifies when latest low is less than or equal to the previous 52-week low.
+- 200D and 200W moving-average sections require actual latest-session crosses or an exact-at state after normal price rounding/tolerance. 200W uses final valid session close per market week and requires at least 201 weekly closes; with current one-year candle retention it is expected to show `Insufficient history` unless longer valid history already exists.
+- Sections return at most five rows. 52W sections sort by largest breakout magnitude, then ticker. MA crosses sort confirmed crosses before exact-at events, then largest absolute crossing magnitude, then ticker.
+- Advancers / Decliners now renders as `312 ▲ / 188 ▼` with green/red decorative glyphs and an accessible label containing both counts.
