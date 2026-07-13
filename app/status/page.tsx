@@ -2,6 +2,7 @@ import { Fragment } from "react";
 import { PageTitle } from "@/components/dashboard/page-title";
 import { Panel } from "@/components/ui/panel";
 import { StatusAutoRefresh } from "@/components/status/status-auto-refresh";
+import { RouteDataReady } from "@/components/shell/route-data-ready";
 import { StatusBreakdownButton } from "@/components/status/status-breakdown-button";
 import { getStatusRowsWithDiagnostics, STATUS_GROUPS, type StatusValue } from "@/lib/status/jobs";
 
@@ -47,6 +48,7 @@ export default async function StatusPage() {
   return (
     <>
       <StatusAutoRefresh />
+      <RouteDataReady routeKey="/status" />
       <PageTitle title="Status" />
       <Panel>
         <div className="mb-3 flex min-h-7 items-center gap-2">

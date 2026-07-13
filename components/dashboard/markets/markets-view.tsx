@@ -24,7 +24,28 @@ const labels = {
 const participationInfoText =
   "Participation shows the percentage of stocks in the S&P 500 that are moving in the same direction as the index. Higher participation % indicates a broader, stronger market move, while lower participation % suggests the index is being driven by a smaller number of stocks.";
 
+function AdvancersDeclinersRow({ metric }: { metric: MarketsPayload["breadth"][number] }) {
+  const match = /^\s*([0-9,]+)\s*\/\s*([0-9,]+)\s*$/.exec(metric.value);
+  if (!match) return <MetricRow metric={metric} density="roomy" />;
+  const advancers = match[1];
+  const decliners = match[2];
+  return (
+    <div className="flex items-center justify-between gap-3 border-b border-borderStrong/60 py-2 last:border-b-0">
+      <p className="truncate text-sm text-textMuted">{metric.label}</p>
+      <div className="shrink-0 text-right tabular">
+        <p className="text-base font-semibold text-textPrimary" aria-label={`${advancers} advancers, ${decliners} decliners`}>
+          <span>{advancers}</span> <span aria-hidden="true" className="text-xs text-positive">▲</span>
+          <span className="px-1 text-textSecondary">/</span>
+          <span>{decliners}</span> <span aria-hidden="true" className="text-xs text-negative">▼</span>
+        </p>
+        {metric.change ? <p className="text-sm text-textSecondary">{metric.change}</p> : null}
+      </div>
+    </div>
+  );
+}
+
 function MarketBreadthRow({ metric }: { metric: MarketsPayload["breadth"][number] }) {
+  if (metric.label === "Advancers / Decliners") return <AdvancersDeclinersRow metric={metric} />;
   if (metric.label !== "Participation") return <MetricRow metric={metric} density="roomy" />;
 
   return (
@@ -106,6 +127,22 @@ function MarketMoverSection({ metric }: { metric: MarketsPayload["movers"][numbe
           </div>
         )}
       </div>
+    </div>
+  );
+}
+
+
+function formatDistance(item: MarketsPayload["marketWatch"]["near52WeekHigh"]["items"][number]) {
+  return `${Math.abs(item.distancePct).toFixed(1)}% ${item.position}`;
+}
+function MarketWatchSection({ title, section, accent }: { title: string; section: MarketsPayload["marketWatch"]["near52WeekHigh"]; accent: "positive" | "negative" | "auto" }) {
+  return (
+    <div className="rounded-none border border-borderStrong/70 bg-sidebar/45 px-3 py-3">
+      <div className="mb-2 flex items-center justify-between gap-3 border-b border-borderStrong/60 pb-2 text-[10px] font-semibold uppercase tracking-[0.16em] text-textMuted"><span>{title}</span><span>Distance</span></div>
+      {section.items.length ? <div className="space-y-1.5">{section.items.map((item) => {
+        const tone = accent === "auto" ? (item.position === "above" ? "text-positive" : item.position === "below" ? "text-negative" : "text-textSecondary") : accent === "positive" ? "text-positive" : "text-negative";
+        return <div key={`${title}-${item.symbol}`} className="flex items-center justify-between gap-4 border-b border-borderStrong/30 pb-1.5 last:border-b-0 last:pb-0"><span className="text-sm font-medium text-textPrimary">{item.symbol}</span><span className={cn("text-sm font-semibold tabular", tone)}>{formatDistance(item)}</span></div>;
+      })}</div> : <div className="text-sm text-textSecondary">—{section.reason ? <span className="ml-2 text-xs">{section.reason}</span> : null}</div>}
     </div>
   );
 }
@@ -215,7 +252,7 @@ export function MarketsView({ data }: { data: MarketsPayload }) {
           onSelect={(tile) => setChart({ symbol: tile.symbol, label: tile.label })}
         />
       </Panel>
-      <div className="mt-4 grid gap-4 xl:grid-cols-2">
+      <div className="mt-4 grid gap-4 xl:grid-cols-3">
         <Panel>
           <SectionHeader title="Market Breadth" />
           {data.breadth.map((m) => (
@@ -227,6 +264,15 @@ export function MarketsView({ data }: { data: MarketsPayload }) {
           {data.movers.map((m) => (
             <MarketMoverSection key={m.label} metric={m} />
           ))}
+        </Panel>
+        <Panel>
+          <SectionHeader title="Market Watch" />
+          <div className="grid gap-3">
+            <MarketWatchSection title="Near 52W High" section={data.marketWatch.near52WeekHigh} accent="positive" />
+            <MarketWatchSection title="Near 52W Low" section={data.marketWatch.near52WeekLow} accent="negative" />
+            <MarketWatchSection title="Near 200D MA" section={data.marketWatch.near200DayMa} accent="auto" />
+            <MarketWatchSection title="Near 200W MA" section={data.marketWatch.near200WeekMa} accent="auto" />
+          </div>
         </Panel>
       </div>
       {chart ? <MarketChartModal symbol={chart.symbol} label={chart.label} onClose={() => setChart(null)} /> : null}

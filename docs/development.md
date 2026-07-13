@@ -352,3 +352,9 @@ Then compare Supabase rows with `/api/markets/candles?symbol=AAPL&range=1Y` or `
 ### Performance continuation checks
 
 Use production or deploy-preview browser traces to compare `/overview/today` before and after loading changes. Verify that navigation links render with `prefetch={false}`, deferred prefetch starts after load+idle, constrained networks skip background warming, loading skeletons appear on route transitions, and Ownership renders a table skeleton while `/api/ownership/institutional` is pending.
+
+## Loading and Market Watch development notes
+
+Use `RouteDataReady` for primary tabs after the real payload-backed view has rendered. Do not clear `NavigationProgress` from `usePathname()` alone and do not add route-specific client waterfalls for snapshot-backed pages. Loading shells should be route-specific compositions from `components/ui/dashboard-loading-skeleton.tsx`.
+
+Market Watch calculations belong in `lib/data/market-watch-candles.ts` and are persisted through `markets:latest`. Keep `MARKET_WATCH_DISTANCE_THRESHOLD_PCT` as the single threshold constant. Do not fabricate 200W MA values without at least 200 complete weekly closes.

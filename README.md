@@ -311,3 +311,9 @@ Netlify scheduled functions run cron expressions in UTC. Daily Market Candles ru
 ## Ownership 13F freshness
 
 Ownership selects each institution's latest complete available 13F period. A complete period requires a summary row and stock holdings for the same report date; newer incomplete quarters are reported as metadata and do not delete or hide previous complete filings.
+
+### Market Watch and loading behavior
+
+The Markets tab includes a server-calculated Market Watch card for the tracked S&P 500 universe. It uses a 2% distance threshold for Near 52W High, Near 52W Low, Near 200D MA, and true Near 200W MA. The 200W section requires at least 200 complete weekly closes; with the current one-year S&P candle retention it reports insufficient history instead of fabricated values.
+
+Primary dashboard tabs share a route-loading coordinator. Navigation remains clickable, route-specific skeleton shells appear immediately, and the top progress bar finishes only after the active route reports settled data or a handled empty/error state.

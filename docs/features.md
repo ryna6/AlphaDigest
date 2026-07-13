@@ -244,3 +244,11 @@ Market Breadth always renders the canonical five rows in order: Participation, A
 ### Loading and Ownership freshness
 
 AlphaDigest prioritizes the Today landing page, then warms other dashboard routes one at a time after browser idle. Dashboard route loading boundaries show page-shaped skeletons, and navigation progress is visible without blocking clicks. Ownership displays the latest complete available 13F filing per institution and notes when a newer reporting period is incomplete instead of showing an empty panel.
+
+### Market Watch and loading update
+
+Markets now includes a `Market Watch` card beside `Market Movers`. It is calculated server-side from `sp500_daily_candles` during `markets:latest` snapshot generation with `MARKET_WATCH_DISTANCE_THRESHOLD_PCT = 2`. Sections are Near 52W High, Near 52W Low, Near 200D MA, and Near 200W MA. The 52-week sections use trailing retained high/low values, 200D requires 200 valid daily closes, and 200W requires 200 complete weekly closes aggregated from final daily closes per market week. Current one-year S&P candle retention is insufficient for true 200W coverage, so that section remains unavailable with an insufficient-history reason unless a future S&P-only backfill supplies at least 200 weekly closes.
+
+Advancers / Decliners now renders as `advancers ▲ / decliners ▼` with CSS-colored text glyphs and an accessible label. Malformed stored values fall back to the generic metric row.
+
+Primary tabs use route-specific loading shells and shared route-ready signals so the thin progress bar is completed by settled route data rather than pathname changes.

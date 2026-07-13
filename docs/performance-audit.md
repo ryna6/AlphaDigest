@@ -302,3 +302,11 @@ The old dual market wake plus 6:30 PM Toronto guard and the old 6:45 PM crypto s
 Tracked institutional ownership now selects the latest complete report period per institution. Completeness requires an institution summary/info row, a valid report date, and at least one stock holding for the same report date. Activity and options are optional and cannot erase a complete stock filing. If a newer provider period exists without holdings, the UI serves the previous complete filing and reports safe metadata: latest available report date, latest provider report date, selected dates by institution, fallback institution count, incomplete newer periods, and fetched timestamp.
 
 For July 12, 2026 fixtures, March 31, 2026 is selected when June 30, 2026 has no complete holdings. Holdings are grouped by institution, the selected complete period is determined before sorting, and displayed top holdings are filtered to that exact report date to prevent quarter mixing.
+
+## 2026-07-13 loading and Market Watch audit
+
+Implemented shared route-loading coordination: starts on primary navigation, keeps the shell/sidebar interactive, shows route-specific skeleton structure immediately, and completes only when `RouteDataReady` reports the active route settled. Pathname changes alone no longer hide the progress bar. Economy's separate `/api/economy` client waterfall was removed in favor of server-first payload rendering, eliminating duplicate page/API fetch risk and visible `Loading...` card text.
+
+Local build verification shows `/markets` first-load JS at 111 kB and `/economy` at 209 kB. Production/deploy-preview timing measurements still need a Netlify deploy with production Supabase credentials; local build emitted expected missing-Supabase warnings for snapshot reads during static generation.
+
+Market Watch uses retained S&P daily candles in `sp500_daily_candles`; current retention is approximately one year, which is enough for 52W and often 200D calculations but not true 200W MA. No retention or backfill change was made in this focused patch.

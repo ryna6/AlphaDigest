@@ -294,3 +294,9 @@ The dashboard shell disables automatic Next.js link prefetch on visible navigati
 ### Ownership latest-complete filings
 
 Institutional ownership serves the latest complete 13F period per tracked institution. A complete period requires the cached institution summary/info row and at least one stock holding with the same report date. Newer incomplete quarters are metadata, not errors, and previous complete quarters remain available as last-known-good data.
+
+## Shared primary-tab loading lifecycle
+
+The dashboard shell wraps navigation in `RouteLoadingProvider`. Primary navigation clicks and browser history starts create a new route-loading token; `RouteDataReady` marks the destination route settled after its server payload or handled client state has rendered. `NavigationProgress` is `pointer-events-none`, indeterminate, and no longer clears solely on `usePathname()` changes, preventing superseded route completions from stopping a newer navigation. Route `loading.tsx` files compose route-specific skeleton shells for recognizable layout and lower layout shift.
+
+Markets snapshot generation reads S&P candle rows once for candle breadth and Market Watch. The browser receives only compact Market Watch result sections and coverage metadata in `markets:latest`; historical S&P candles remain server-side except for explicit chart modal candle APIs.
