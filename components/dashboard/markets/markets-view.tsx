@@ -24,12 +24,19 @@ const labels = {
 const participationInfoText =
   "Participation shows the percentage of stocks in the S&P 500 that are moving in the same direction as the index. Higher participation % indicates a broader, stronger market move, while lower participation % suggests the index is being driven by a smaller number of stocks.";
 
+export function parseAdvancersDeclinersValue(value: string) {
+  const match = /^\s*([\d,]+)\s*\/\s*([\d,]+)\s*$/.exec(value);
+  if (!match) return null;
+  const [advancers, decliners] = [match[1], match[2]];
+  if (![advancers, decliners].every((part) => /^\d{1,3}(,\d{3})*$|^\d+$/.test(part))) return null;
+  return { advancers, decliners };
+}
 
-function MarketBreadthAdvancersRow({ metric }: { metric: MarketsPayload["breadth"][number] }) {
-  const match = /^\s*([\d,]+)\s*\/\s*([\d,]+)\s*$/.exec(metric.value);
+
+export function MarketBreadthAdvancersRow({ metric }: { metric: MarketsPayload["breadth"][number] }) {
+  const match = parseAdvancersDeclinersValue(metric.value);
   if (!match) return <MetricRow metric={metric} density="roomy" />;
-  const advancers = match[1];
-  const decliners = match[2];
+  const { advancers, decliners } = match;
   return (
     <div className="flex items-center justify-between gap-3 border-b border-borderStrong/60 py-2 last:border-b-0">
       <div className="min-w-0">
