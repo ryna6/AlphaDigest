@@ -2,9 +2,12 @@ import { AppMobileNav, AppSidebar } from "./app-sidebar";
 import { AppLogo } from "./app-logo";
 import { DeferredRoutePrefetch } from "./deferred-route-prefetch";
 import { NavigationProgress } from "./navigation-progress";
+import { RouteLoadingProvider } from "./route-loading-provider";
+import { PendingRouteShell } from "./pending-route-shell";
 
 export function DashboardShell({ children }: { children: React.ReactNode }) {
   return (
+    <RouteLoadingProvider>
     <div className="min-h-screen bg-page text-textPrimary">
       <div className="flex min-h-screen">
         <AppSidebar />
@@ -25,10 +28,11 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
             <AppMobileNav />
           </div>
           <NavigationProgress />
-          <div className="p-4 lg:p-6">{children}</div>
+          <div className="p-4 lg:p-6"><PendingRouteShell>{children}</PendingRouteShell></div>
           <DeferredRoutePrefetch />
         </main>
       </div>
     </div>
+    </RouteLoadingProvider>
   );
 }

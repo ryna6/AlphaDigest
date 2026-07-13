@@ -1,2 +1,2 @@
-import { DashboardLoadingSkeleton } from "@/components/ui/dashboard-loading-skeleton";
-export default function Loading() { return <DashboardLoadingSkeleton />; }
+import { NewsCalendarShell } from "@/components/loading/shells/route-shells";
+export default function Loading() { return <NewsCalendarShell />; }

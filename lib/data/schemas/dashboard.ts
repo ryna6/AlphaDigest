@@ -108,6 +108,36 @@ export const todayPayloadSchema = z.object({
   sourceMeta: z.array(sourceMetaSchema)
 });
 
+
+export const marketWatchItemSchema = z.object({
+  symbol: z.string(),
+  signal: z.enum(["new_high", "new_low", "crossed_above", "crossed_below", "at"]),
+  latestPrice: z.number(),
+  referenceValue: z.number(),
+  latestTradingDate: z.string(),
+  magnitudePct: z.number().nullable()
+});
+export const marketWatchSectionSchema = z.object({
+  available: z.boolean(),
+  items: z.array(marketWatchItemSchema),
+  eligibleSymbols: z.number(),
+  reason: z.string().nullable()
+});
+export const marketWatchSchema = z.object({
+  asOfDate: z.string().nullable(),
+  highs52Week: marketWatchSectionSchema,
+  lows52Week: marketWatchSectionSchema,
+  crosses200Day: marketWatchSectionSchema,
+  crosses200Week: marketWatchSectionSchema,
+  coverage: z.object({
+    configuredSymbols: z.number(),
+    staleSymbols: z.array(z.string()),
+    earliestTradingDate: z.string().nullable(),
+    maxWeeklyObservations: z.number(),
+    staleDateRule: z.string()
+  })
+});
+
 export const marketsPayloadSchema = z.object({
   strip: z.array(metricSchema),
   heatmaps: z.object({
@@ -120,6 +150,7 @@ export const marketsPayloadSchema = z.object({
   heatmapKeyMessages: z.array(z.string()),
   breadth: z.array(metricSchema),
   movers: z.array(metricSchema),
+  marketWatch: marketWatchSchema.optional(),
   sourceMeta: z.array(sourceMetaSchema),
   metadata: z.record(z.string(), z.unknown()).optional()
 });

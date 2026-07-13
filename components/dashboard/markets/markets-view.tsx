@@ -24,7 +24,17 @@ const labels = {
 const participationInfoText =
   "Participation shows the percentage of stocks in the S&P 500 that are moving in the same direction as the index. Higher participation % indicates a broader, stronger market move, while lower participation % suggests the index is being driven by a smaller number of stocks.";
 
+function AdvancersDeclinersValue({ value }: { value: string }) {
+  const match = /^\s*([\d,]+)\s*\/\s*([\d,]+)\s*$/.exec(value);
+  if (!match) return null;
+  const adv = match[1];
+  const dec = match[2];
+  return <p className="text-base font-semibold text-textPrimary tabular" aria-label={`${adv} advancers, ${dec} decliners`}>{adv} <span aria-hidden="true" className="text-positive">▲</span> <span className="text-textMuted">/</span> {dec} <span aria-hidden="true" className="text-negative">▼</span></p>;
+}
 function MarketBreadthRow({ metric }: { metric: MarketsPayload["breadth"][number] }) {
+  if (metric.label === "Advancers / Decliners" && /^\s*[\d,]+\s*\/\s*[\d,]+\s*$/.test(metric.value)) {
+    return <div className="flex items-center justify-between gap-3 border-b border-borderStrong/60 py-2 last:border-b-0"><div className="min-w-0"><p className="truncate text-sm text-textMuted">{metric.label}</p>{metric.subtext ? <p className="mt-0.5 text-xs text-textMuted">{metric.subtext}</p> : null}</div><div className="shrink-0 text-right"><AdvancersDeclinersValue value={metric.value} /></div></div>;
+  }
   if (metric.label !== "Participation") return <MetricRow metric={metric} density="roomy" />;
 
   return (
@@ -64,6 +74,40 @@ function signedValueClass(value?: string) {
   if (/^-|\s-/.test(value)) return "text-negative";
   if (/^\+|\s\+/.test(value)) return "text-positive";
   return "text-textSecondary";
+}
+
+
+function formatMoney(value: number) {
+  return `$${value.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+}
+const signalLabel: Record<string, string> = { new_high: "New High", new_low: "New Low", crossed_above: "Crossed Above", crossed_below: "Crossed Below", at: "At" };
+function MarketWatchSection({ title, section, suffix }: { title: string; section?: NonNullable<MarketsPayload["marketWatch"]>["highs52Week"]; suffix?: string }) {
+  return (
+    <div className="rounded-none border border-borderStrong/70 bg-sidebar/45 px-3 py-3">
+      <div className="mb-2 flex items-center justify-between gap-3 border-b border-borderStrong/60 pb-2 text-[10px] font-semibold uppercase tracking-[0.16em] text-textMuted">
+        <span>{title}</span><span>{section?.eligibleSymbols ?? 0} eligible</span>
+      </div>
+      {!section?.available ? <div className="text-sm text-textMuted"><span className="text-textPrimary">—</span><p className="mt-1 text-xs">{section?.reason ?? "Insufficient history"}</p></div> : section.items.length ? (
+        <div className="space-y-1.5">{section.items.slice(0,5).map((item)=>(
+          <div key={`${title}-${item.symbol}`} className="border-b border-borderStrong/30 pb-1.5 last:border-b-0 last:pb-0">
+            <div className="flex items-center justify-between gap-3"><span className="font-semibold text-textPrimary">{item.symbol}</span><span className={cn("text-xs font-semibold", item.signal === "new_low" || item.signal === "crossed_below" ? "text-negative" : item.signal === "at" ? "text-textSecondary" : "text-positive")}>{signalLabel[item.signal]}{suffix ? ` ${suffix}` : ""}</span></div>
+            <div className="mt-0.5 text-xs text-textMuted tabular">{formatMoney(item.latestPrice)} vs {formatMoney(item.referenceValue)}</div>
+          </div>
+        ))}</div>
+      ) : <div className="text-sm text-textPrimary">—</div>}
+    </div>
+  );
+}
+function MarketWatchCard({ marketWatch }: { marketWatch?: MarketsPayload["marketWatch"] }) {
+  return <Panel><SectionHeader title="Market Watch" />
+    <div className="mb-2 text-xs text-textMuted">As of {marketWatch?.asOfDate ?? "—"}</div>
+    <div className="space-y-3">
+      <MarketWatchSection title="52W Highs" section={marketWatch?.highs52Week} />
+      <MarketWatchSection title="52W Lows" section={marketWatch?.lows52Week} />
+      <MarketWatchSection title="200D MA Crosses" section={marketWatch?.crosses200Day} suffix="200D" />
+      <MarketWatchSection title="200W MA Crosses" section={marketWatch?.crosses200Week} suffix="200W" />
+    </div>
+  </Panel>;
 }
 
 function MarketMoverSection({ metric }: { metric: MarketsPayload["movers"][number] }) {
@@ -215,7 +259,7 @@ export function MarketsView({ data }: { data: MarketsPayload }) {
           onSelect={(tile) => setChart({ symbol: tile.symbol, label: tile.label })}
         />
       </Panel>
-      <div className="mt-4 grid gap-4 xl:grid-cols-2">
+      <div className="mt-4 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
         <Panel>
           <SectionHeader title="Market Breadth" />
           {data.breadth.map((m) => (
@@ -228,6 +272,7 @@ export function MarketsView({ data }: { data: MarketsPayload }) {
             <MarketMoverSection key={m.label} metric={m} />
           ))}
         </Panel>
+        <MarketWatchCard marketWatch={data.marketWatch} />
       </div>
       {chart ? <MarketChartModal symbol={chart.symbol} label={chart.label} onClose={() => setChart(null)} /> : null}
     </>

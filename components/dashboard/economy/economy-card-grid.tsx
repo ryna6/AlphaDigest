@@ -290,7 +290,7 @@ function ChartPanel({ metric, loading = false }: { metric: EconomyMetricSnapshot
       </div>
       {!data.length ? (
         <div className="flex h-72 items-center justify-center rounded-none border border-dashed border-borderStrong bg-background/40 text-sm text-textMuted">
-          {loading ? "Loading..." : "—"}
+          {loading ? "—" : "—"}
         </div>
       ) : (
         <div className="h-72 sm:h-80">
@@ -470,7 +470,7 @@ function EconomyMetricCard({ card, loading = false }: { card: EconomyCardSnapsho
                       <span className="block min-w-0 text-sm text-textMuted">{metric.label}</span>
                       <span className="mt-2 flex min-w-0 items-center gap-x-1.5">
                         <span className="shrink-0 text-xl font-semibold text-textPrimary">
-                          {loading ? "Loading..." : formatMetricCardValue(metric, metric.latestValue)}
+                          {loading ? "—" : formatMetricCardValue(metric, metric.latestValue)}
                         </span>
                         {metricUnitLabel(metric) ? (
                           <span className="min-w-0 max-w-[8.75rem] overflow-hidden text-[11px] leading-3 text-textMuted">
@@ -482,11 +482,11 @@ function EconomyMetricCard({ card, loading = false }: { card: EconomyCardSnapsho
                     <span className="grid grid-cols-2 gap-x-3 text-xs leading-5">
                       <span className="text-textMuted">QoQ</span>
                       <span className={changeTone(metric.qoqChange)}>
-                        {loading ? "Loading..." : formatChange(metric.qoqChange)}
+                        {loading ? "—" : formatChange(metric.qoqChange)}
                       </span>
                       <span className="text-textMuted">YoY</span>
                       <span className={changeTone(metric.yoyChange)}>
-                        {loading ? "Loading..." : formatChange(metric.yoyChange)}
+                        {loading ? "—" : formatChange(metric.yoyChange)}
                       </span>
                     </span>
                   </span>

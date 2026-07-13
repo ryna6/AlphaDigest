@@ -1,6 +1,7 @@
 import type { FinnhubFeatureArea } from "./adapters/finnhub-key-router";
 import { getSp500CandleUniverse, readSp500CandlesForBreadth } from "./daily-candles";
 import { calculateMarketBreadthFromCandles } from "./market-breadth-candles";
+import { calculateMarketWatchFromCandles } from "./market-watch-candles";
 import {
   getSnapshotOrNull,
   isSnapshotFresh,
@@ -580,7 +581,9 @@ async function buildMarketsPayload(): Promise<{
   ]);
   const sp500IndexChangePercent = metricChangePercentValue(stripCandidates[0]);
   const candleBreadthRows = sp500Rows.length ? await readSp500CandlesForBreadth(sp500Rows.map((row) => row.ticker)) : [];
-  const candleBreadth = candleBreadthRows.length ? calculateMarketBreadthFromCandles(candleBreadthRows, sp500Rows.map((row) => row.ticker), sp500IndexChangePercent) : null;
+  const candleSymbols = sp500Rows.map((row) => row.ticker);
+  const candleBreadth = candleBreadthRows.length ? calculateMarketBreadthFromCandles(candleBreadthRows, candleSymbols, sp500IndexChangePercent) : null;
+  const marketWatch = candleBreadthRows.length ? calculateMarketWatchFromCandles(candleBreadthRows, candleSymbols) : fallback.marketWatch;
   const strip = stripCandidates
     .map(
       (metric, index) =>
@@ -605,7 +608,8 @@ async function buildMarketsPayload(): Promise<{
         breadth: ensureCanonicalMarketBreadthMetrics(sp500Rows.length
           ? (candleBreadth?.metrics ?? sp500Breadth(sp500Rows, breadthMetrics, sp500IndexChangePercent))
           : [...fallback.breadth, ...breadthMetrics]),
-        movers: sp500Rows.length ? sp500Movers(sp500Rows) : fallback.movers
+        movers: sp500Rows.length ? sp500Movers(sp500Rows) : fallback.movers,
+        marketWatch
       },
       mode: "mock",
       notices: [
@@ -629,12 +633,15 @@ async function buildMarketsPayload(): Promise<{
         ? (candleBreadth?.metrics ?? sp500Breadth(sp500Rows, breadthMetrics, sp500IndexChangePercent))
         : [...fallback.breadth, ...breadthMetrics]),
       movers: sp500Rows.length ? sp500Movers(sp500Rows) : fallback.movers,
+      marketWatch,
       metadata: {
         refreshedBy: "builder",
         candleBreadthSource: candleBreadth ? "sp500_daily_candles" : "fallback",
         sp500ConfiguredSymbols: sp500Rows.length,
         sp500CandleSymbolsCovered: candleBreadth?.coverage.participation.eligible ?? 0,
         latestCandleTradingDate: candleBreadthRows.map((row) => row.tradingDate).sort().at(-1) ?? null,
+        marketWatchAsOfDate: marketWatch?.asOfDate ?? null,
+        marketWatchMaxWeeklyObservations: marketWatch?.coverage.maxWeeklyObservations ?? 0,
         usedMockStrip: stripCandidates.every((metric) => !metric),
         usedMockHeatmaps: Object.entries(liveHeatmaps).filter(([, value]) => !value).map(([key]) => key)
       },
