@@ -305,3 +305,6 @@ Market Watch determines the latest common valid S&P 500 trading date, excludes s
 `refresh-daily-market-candles` now treats historical equity candles as a dedicated OHLC ingestion problem rather than normalizing Finnhub current quotes. Fixed market/index ETF assets and S&P 500 constituents share a bounded Unusual Whales equity historical path; S&P 500 Futures continues through the Unusual Whales futures EOD adapter. The global provider-request cap is five active symbols total, not five per API key, with a configurable inter-batch delay derived from requests-per-minute and configured key count. Supabase writes are chunked independently from provider concurrency and remain idempotent on `(symbol, trading_date)`.
 
 Historical backfill state is represented by `equity_candle_backfill_state` so operations can checkpoint per symbol/table/range and resume after a timeout without deleting existing candles. Daily refresh stays incremental by using the latest stored date plus a small overlap window and does not download full history for every configured symbol.
+
+
+AlphaDigest does not use an Unusual Whales API key for candle ingestion. Public provider requests originate only in server-side ingestion modules, send no authorization header, persist normalized candles in Supabase, and frontend charts read cached AlphaDigest data rather than provider URLs.

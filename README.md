@@ -318,3 +318,6 @@ The Markets page includes a server-calculated Market Watch card beside Market Br
 ### Equity candle audit/backfill
 
 Run `npm run audit:equity-candles` to summarize `sp500_daily_candles` and `market_daily_candles` coverage without writes. Run targeted historical backfills with `npm run backfill:equity-candles -- --symbol AAPL --from 2021-01-01 --to YYYY-MM-DD` or use `--dry-run` to avoid writes. Equity history uses the configured Unusual Whales historical candle endpoint; Finnhub quotes are current-session data only. Jobs are globally capped at five symbols per batch with paced retries, while S&P 500 Futures keeps its dedicated futures endpoint.
+
+
+AlphaDigest does not use an Unusual Whales API key for candle ingestion. Public provider requests originate only in server-side ingestion modules, send no authorization header, persist normalized candles in Supabase, and frontend charts read cached AlphaDigest data rather than provider URLs.
