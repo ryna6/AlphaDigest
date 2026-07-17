@@ -413,3 +413,11 @@ create index if not exists idx_crypto_daily_candles_symbol_date_desc on public.c
 create index if not exists idx_crypto_daily_candles_date_symbol on public.crypto_daily_candles (trading_date desc, symbol);
 create table if not exists public.equity_candle_backfill_state (job_key text not null, symbol text not null, table_name text not null check (table_name in ('sp500_daily_candles','market_daily_candles')), requested_from date not null, requested_to date not null, latest_completed_date date, status text not null default 'pending' check (status in ('pending','running','completed','failed')), attempt_count integer not null default 0, last_error text, lock_token uuid, locked_at timestamptz, started_at timestamptz, completed_at timestamptz, updated_at timestamptz not null default now(), primary key (job_key, symbol, table_name));
 create index if not exists idx_equity_candle_backfill_state_status on public.equity_candle_backfill_state (job_key, status, updated_at);
+
+-- Atomic state claim used by the Netlify equity historical backfill worker.
+create or replace function public.claim_equity_candle_backfill_batch(p_job_key text, p_limit integer, p_lock_token uuid, p_lock_timeout_minutes integer default 30) returns setof public.equity_candle_backfill_state language plpgsql security definer set search_path = public as $$
+begin
+  update public.equity_candle_backfill_state set status='pending', lock_token=null, locked_at=null, updated_at=now(), last_error=coalesce(last_error,'stale lock released') where job_key=p_job_key and status='running' and locked_at < now()-make_interval(mins=>p_lock_timeout_minutes);
+  return query with candidates as (select job_key,symbol,table_name from public.equity_candle_backfill_state where job_key=p_job_key and status in ('pending','failed') order by requested_to,updated_at,symbol for update skip locked limit greatest(1,least(p_limit,5))) update public.equity_candle_backfill_state s set status='running',lock_token=p_lock_token,locked_at=now(),started_at=coalesce(s.started_at,now()),attempt_count=s.attempt_count+1,updated_at=now() from candidates c where (s.job_key,s.symbol,s.table_name)=(c.job_key,c.symbol,c.table_name) returning s.*;
+end $$;
+grant execute on function public.claim_equity_candle_backfill_batch(text,integer,uuid,integer) to service_role;
