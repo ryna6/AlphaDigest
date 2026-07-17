@@ -334,7 +334,7 @@ npx tsx scripts/verifyDailyCandles.ts
 
 Use `npx tsx scripts/debugUnusualWhalesCryptoCandles.ts --symbol=BTCUSD` for the configured BTC endpoint, or omit `--symbol` for all eight uppercase mappings (`BTCUSD/BTC-USD`, `ETHUSD/ETH-USD`, `SOLUSD/SOL-USD`, `XRPUSD/XRP-USD`, `BNBUSD/BNB-USD`, `TRXUSD/TRX-USD`, `ADAUSD/ADA-USD`, `DOGEUSD/DOGE-USD`). The temporary repair fetch start date is `2025-07-10`; return it to a dynamic one-year start only after Supabase coverage is confirmed in production. The script prints only sanitized diagnostics and requires no browser access to Unusual Whales.
 
-Before running `refresh-daily-crypto-candles`, apply migration `0037_daily_candle_volume.sql` so all candle tables include nullable `volume numeric`. The function uses `UNUSUAL_WHALES_API_KEY` or `UW_API_KEY` when present, `SUPABASE_URL`, and `SUPABASE_SERVICE_ROLE_KEY`. It fails before provider requests if `crypto_daily_candles` or `volume` is unavailable.
+Before running `refresh-daily-crypto-candles`, apply migration `0037_daily_candle_volume.sql` so all candle tables include nullable `volume numeric`. The function uses no Unusual Whales API key when present, `SUPABASE_URL`, and `SUPABASE_SERVICE_ROLE_KEY`. It fails before provider requests if `crypto_daily_candles` or `volume` is unavailable.
 
 ## Markets candle verification checklist
 
@@ -356,3 +356,6 @@ Use production or deploy-preview browser traces to compare `/overview/today` bef
 ### Local equity candle checks
 
 Use `npm run audit:equity-candles`, `npm run backfill:equity-candles`, and `npm run verify:equity-candles` for the equity candle workflow. Backfill supports `--table`, `--symbol`, `--from`, `--to`, `--limit-symbols`, and `--dry-run`. Daily refresh must remain incremental and preserve existing rows on provider failure. Do not reintroduce Finnhub `/api/v1/quote` as a historical daily candle source.
+
+
+AlphaDigest does not use an Unusual Whales API key for candle ingestion. Public provider requests originate only in server-side ingestion modules, send no authorization header, persist normalized candles in Supabase, and frontend charts read cached AlphaDigest data rather than provider URLs.

@@ -210,11 +210,17 @@ export function selectLatestCompleteInstitutionalSummaryPeriod({
   const dates = Array.from(
     new Set(
       [
-        ...tickerFlow.filter((row) => row.investorType === investorType).map((row) => row.reportDate),
-        ...sectorExposure.filter((row) => row.investorType === investorType).map((row) => row.reportDate)
+        ...tickerFlow
+          .filter((row) => row.investorType === investorType)
+          .map((row) => row.reportDate),
+        ...sectorExposure
+          .filter((row) => row.investorType === investorType)
+          .map((row) => row.reportDate)
       ].filter(Boolean)
     )
-  ).sort().reverse();
+  )
+    .sort()
+    .reverse();
   const rejected: Record<string, string[]> = {};
   for (const date of dates) {
     const reasons: string[] = [];
@@ -236,7 +242,9 @@ export function selectLatestCompleteInstitutionalSummaryPeriod({
         !!row.sector &&
         row.value !== null
     );
-    const uniqueSectors = new Set(sectors.map((row) => normalizeSectorLabel(row.sector) ?? row.sector));
+    const uniqueSectors = new Set(
+      sectors.map((row) => normalizeSectorLabel(row.sector) ?? row.sector)
+    );
     if (!sectors.length) reasons.push("missing sector rows");
     if (uniqueSectors.size < EXPECTED_SUMMARY_SECTOR_COUNT)
       reasons.push(`incomplete sector rows ${uniqueSectors.size}/${EXPECTED_SUMMARY_SECTOR_COUNT}`);
@@ -254,10 +262,7 @@ function sectorExposureUrl(slug: string) {
 }
 
 function uwHeaders(): Record<string, string> {
-  const token = process.env.UNUSUAL_WHALES_API_KEY ?? process.env.UW_API_KEY;
-  return token
-    ? { accept: "application/json", authorization: `Bearer ${token}` }
-    : { accept: "application/json" };
+  return { accept: "application/json" };
 }
 
 async function fetchJson(url: string) {
@@ -972,13 +977,20 @@ export function selectLatestCompleteInstitutionPeriod({
 }) {
   const validInfo = new Set(infoDates.filter(Boolean));
   const validHoldings = new Set(holdingDates.filter(Boolean));
-  const allDates = Array.from(new Set([...infoDates, ...holdingDates, ...activityDates, ...optionDates].filter(Boolean))).sort().reverse();
-  const selectedReportDate = allDates.find((date) => validInfo.has(date) && validHoldings.has(date)) ?? null;
+  const allDates = Array.from(
+    new Set([...infoDates, ...holdingDates, ...activityDates, ...optionDates].filter(Boolean))
+  )
+    .sort()
+    .reverse();
+  const selectedReportDate =
+    allDates.find((date) => validInfo.has(date) && validHoldings.has(date)) ?? null;
   const latestProviderReportDate = allDates[0] ?? null;
   return {
     selectedReportDate,
     latestProviderReportDate,
-    incompleteNewerPeriods: selectedReportDate ? allDates.filter((date) => date > selectedReportDate) : allDates
+    incompleteNewerPeriods: selectedReportDate
+      ? allDates.filter((date) => date > selectedReportDate)
+      : allDates
   };
 }
 
@@ -1099,16 +1111,23 @@ export async function getCachedTrackedInstitutions(): Promise<TrackedInstitution
   const selectedByInstitution = new Map<string, string>();
   const latestProviderByInstitution = new Map<string, string>();
   const incompleteNewerPeriods = new Set<string>();
-  const names = Array.from(new Set([...rawInfos.map((r) => r.name), ...holdingRows.map((r) => r.institutionName)]));
+  const names = Array.from(
+    new Set([...rawInfos.map((r) => r.name), ...holdingRows.map((r) => r.institutionName)])
+  );
   for (const name of names) {
     const selection = selectLatestCompleteInstitutionPeriod({
       infoDates: rawInfos.filter((r) => r.name === name).map((r) => r.date),
       holdingDates: holdingRows.filter((r) => r.institutionName === name).map((r) => r.date),
-      activityDates: activityRows.filter((r) => r.institutionName === name).map((r) => r.reportDate),
-      optionDates: (options.data ?? []).filter((r: any) => r.institution_name === name).map((r: any) => r.as_of_date)
+      activityDates: activityRows
+        .filter((r) => r.institutionName === name)
+        .map((r) => r.reportDate),
+      optionDates: (options.data ?? [])
+        .filter((r: any) => r.institution_name === name)
+        .map((r: any) => r.as_of_date)
     });
     if (selection.selectedReportDate) selectedByInstitution.set(name, selection.selectedReportDate);
-    if (selection.latestProviderReportDate) latestProviderByInstitution.set(name, selection.latestProviderReportDate);
+    if (selection.latestProviderReportDate)
+      latestProviderByInstitution.set(name, selection.latestProviderReportDate);
     selection.incompleteNewerPeriods.forEach((date) => incompleteNewerPeriods.add(date));
   }
   const infos = rawInfos.filter((row) => selectedByInstitution.get(row.name) === row.date);
@@ -1126,15 +1145,26 @@ export async function getCachedTrackedInstitutions(): Promise<TrackedInstitution
       callOi: r.call_oi == null ? null : Number(r.call_oi),
       fetchedAt: r.fetched_at
     })),
-    activity: activityRows.filter((row) => selectedByInstitution.get(row.institutionName) === row.reportDate),
+    activity: activityRows.filter(
+      (row) => selectedByInstitution.get(row.institutionName) === row.reportDate
+    ),
     notices,
     metadata: {
-      latestAvailableReportDate: Array.from(selectedByInstitution.values()).sort().reverse()[0] ?? null,
-      latestProviderReportDate: Array.from(latestProviderByInstitution.values()).sort().reverse()[0] ?? null,
+      latestAvailableReportDate:
+        Array.from(selectedByInstitution.values()).sort().reverse()[0] ?? null,
+      latestProviderReportDate:
+        Array.from(latestProviderByInstitution.values()).sort().reverse()[0] ?? null,
       selectedReportDatesByInstitution: Object.fromEntries(selectedByInstitution),
-      institutionsUsingFallback: Array.from(selectedByInstitution).filter(([name, date]) => latestProviderByInstitution.get(name) && latestProviderByInstitution.get(name) !== date).length,
+      institutionsUsingFallback: Array.from(selectedByInstitution).filter(
+        ([name, date]) =>
+          latestProviderByInstitution.get(name) && latestProviderByInstitution.get(name) !== date
+      ).length,
       incompleteNewerPeriods: Array.from(incompleteNewerPeriods).sort().reverse(),
-      fetchedAt: [...rawInfos.map((r) => r.fetchedAt), ...holdingRows.map((r) => r.fetchedAt)].filter(Boolean).sort().reverse()[0] ?? null
+      fetchedAt:
+        [...rawInfos.map((r) => r.fetchedAt), ...holdingRows.map((r) => r.fetchedAt)]
+          .filter(Boolean)
+          .sort()
+          .reverse()[0] ?? null
     }
   };
 }
@@ -1295,13 +1325,19 @@ export async function getCachedInstitutionalSummary(): Promise<InstitutionalSumm
       sectorExposure: allSectorExposure,
       investorType: investor.value
     });
-    if (selection.selectedReportDate) selectedReportDatesByInvestorType[investor.value] = selection.selectedReportDate;
+    if (selection.selectedReportDate)
+      selectedReportDatesByInvestorType[investor.value] = selection.selectedReportDate;
     rejectedPeriodsByInvestorType[investor.value] = selection.rejectedPeriods;
   }
   return {
     ...base,
-    tickerFlow: allTickerFlow.filter((row) => selectedReportDatesByInvestorType[row.investorType] === row.reportDate),
-    sectorExposure: allSectorExposure.filter((row) => selectedReportDatesByInvestorType[row.investorType] === row.reportDate && row.value !== null),
+    tickerFlow: allTickerFlow.filter(
+      (row) => selectedReportDatesByInvestorType[row.investorType] === row.reportDate
+    ),
+    sectorExposure: allSectorExposure.filter(
+      (row) =>
+        selectedReportDatesByInvestorType[row.investorType] === row.reportDate && row.value !== null
+    ),
     notices,
     metadata: { selectedReportDatesByInvestorType, rejectedPeriodsByInvestorType }
   };

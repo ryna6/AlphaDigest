@@ -137,10 +137,7 @@ export function normalizeSp500HeatmapPayload(
 }
 
 function headers(): Record<string, string> {
-  const token = process.env.UNUSUAL_WHALES_API_KEY ?? process.env.UW_API_KEY;
-  return token
-    ? { accept: "application/json", authorization: `Bearer ${token}` }
-    : { accept: "application/json" };
+  return { accept: "application/json" };
 }
 
 export async function fetchSp500HeatmapRows() {

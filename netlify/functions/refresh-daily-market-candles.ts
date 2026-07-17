@@ -1,11 +1,163 @@
 import { dailyCandleEnvironmentSummary } from "../../lib/data/daily-candle-refresh";
 import { finishJobRun, startJobRun } from "../../lib/status/job-runs";
 export const config = { schedule: "0 23 * * 1-5" };
-const json=(b:unknown,s=200)=>new Response(JSON.stringify(b),{status:s,headers:{"content-type":"application/json"}});
-function torontoLabel(now=new Date()){ const parts=Object.fromEntries(new Intl.DateTimeFormat("en-US",{timeZone:"America/Toronto",weekday:"short",hour:"2-digit",minute:"2-digit",hourCycle:"h23",year:"numeric",month:"2-digit",day:"2-digit"}).formatToParts(now).map(p=>[p.type,p.value])); return `${parts.year}-${parts.month}-${parts.day} ${parts.hour}:${parts.minute} America/Toronto`; }
-type DailyCandleInvocation={trigger:"scheduled"|"manual_netlify_ui";manual:boolean;nextRun:string|null};
-function safeHeaderSnapshot(req:Request){ const allow=["user-agent","x-nf-client-connection-ip","x-forwarded-proto","x-netlify-event","x-netlify-scheduled-function"]; return Object.fromEntries(allow.map(k=>[k,req.headers.get(k)]).filter(([,v])=>v)); }
-async function classifyDailyCandleInvocation(request:Request):Promise<DailyCandleInvocation>{ let body:any={}; let bodyKeys:string[]=[]; try{ const text=await request.clone().text(); if(text.trim()){ body=JSON.parse(text); if(body&&typeof body==="object"&&!Array.isArray(body)) bodyKeys=Object.keys(body).sort(); } }catch{ body={}; } const nextRun=typeof body?.next_run==="string"?body.next_run:typeof body?.nextRun==="string"?body.nextRun:null; const invocation:DailyCandleInvocation=nextRun?{trigger:"scheduled",manual:false,nextRun}:{trigger:"manual_netlify_ui",manual:true,nextRun:null}; console.info("daily_candle_invocation_classified",{method:request.method,bodyKeys,hasNextRun:!!nextRun,headers:safeHeaderSnapshot(request),...invocation}); return invocation; }
-async function invokeWorker(correlationId:string, invocation:DailyCandleInvocation, scheduledUtc:string, resolvedTorontoTime:string){ const site=process.env.URL || process.env.DEPLOY_URL; const workerPath="/.netlify/functions/refresh-daily-market-candles-worker-background"; const workerUrl=site?new URL(workerPath,site).toString():workerPath; console.info("daily_candle_worker_invocation_started",{correlationId,workerUrl,functionName:"refresh-daily-market-candles-worker-background",manual:invocation.manual,trigger:invocation.trigger,scheduledUtc,resolvedTorontoTime}); const res=await fetch(workerUrl,{method:"POST",headers:{"content-type":"application/json","x-alphadigest-worker-token":process.env.DAILY_CANDLE_WORKER_TOKEN || ""},body:JSON.stringify({correlationId,trigger:invocation.trigger,manual:invocation.manual,nextRun:invocation.nextRun,scheduledUtc,resolvedTorontoTime})}); console.info("daily_candle_worker_invoked",{correlationId,workerUrl,status:res.status,ok:res.ok,manual:invocation.manual,trigger:invocation.trigger}); if(!res.ok) throw new Error(`Worker invocation failed with HTTP ${res.status}`); return {workerUrl,status:res.status,manual:invocation.manual,trigger:invocation.trigger}; }
-export default async function handler(request:Request){ const startedAt=new Date().toISOString(); const scheduledUtc=startedAt; const resolvedTorontoTime=torontoLabel(new Date(startedAt)); const correlationId=crypto.randomUUID(); const invocation=await classifyDailyCandleInvocation(request); const meta={correlationId,executionMode:"dispatcher",trigger:invocation.trigger,scheduledUtc,resolvedTorontoTime,manual:invocation.manual,invocation}; console.info("daily_candle_dispatch_started",{...meta,environment:dailyCandleEnvironmentSummary()}); const run=await startJobRun({jobName:"Daily Market Candles",functionName:"refresh-daily-market-candles",source:"Finnhub",metadata:meta as any}); try{ const workerInvocation=await invokeWorker(correlationId,invocation,scheduledUtc,resolvedTorontoTime); await finishJobRun(run,{status:"success",metadata:{...meta,workerInvocation}}); return json({ok:true,correlationId,workerInvocation}); }catch(e){ const msg=(e as Error).message; console.error("daily_candle_worker_invocation_failed",{correlationId,error:msg,manual:invocation.manual,trigger:invocation.trigger}); await finishJobRun(run,{status:"error",errorMessage:msg,metadata:meta as any}); return json({ok:false,correlationId,error:msg},500); }}
+const json = (b: unknown, s = 200) =>
+  new Response(JSON.stringify(b), { status: s, headers: { "content-type": "application/json" } });
+function torontoLabel(now = new Date()) {
+  const parts = Object.fromEntries(
+    new Intl.DateTimeFormat("en-US", {
+      timeZone: "America/Toronto",
+      weekday: "short",
+      hour: "2-digit",
+      minute: "2-digit",
+      hourCycle: "h23",
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit"
+    })
+      .formatToParts(now)
+      .map((p) => [p.type, p.value])
+  );
+  return `${parts.year}-${parts.month}-${parts.day} ${parts.hour}:${parts.minute} America/Toronto`;
+}
+type DailyCandleInvocation = {
+  trigger: "scheduled" | "manual_netlify_ui";
+  manual: boolean;
+  nextRun: string | null;
+};
+function safeHeaderSnapshot(req: Request) {
+  const allow = [
+    "user-agent",
+    "x-nf-client-connection-ip",
+    "x-forwarded-proto",
+    "x-netlify-event",
+    "x-netlify-scheduled-function"
+  ];
+  return Object.fromEntries(allow.map((k) => [k, req.headers.get(k)]).filter(([, v]) => v));
+}
+async function classifyDailyCandleInvocation(request: Request): Promise<DailyCandleInvocation> {
+  let body: any = {};
+  let bodyKeys: string[] = [];
+  try {
+    const text = await request.clone().text();
+    if (text.trim()) {
+      body = JSON.parse(text);
+      if (body && typeof body === "object" && !Array.isArray(body))
+        bodyKeys = Object.keys(body).sort();
+    }
+  } catch {
+    body = {};
+  }
+  const nextRun =
+    typeof body?.next_run === "string"
+      ? body.next_run
+      : typeof body?.nextRun === "string"
+        ? body.nextRun
+        : null;
+  const invocation: DailyCandleInvocation = nextRun
+    ? { trigger: "scheduled", manual: false, nextRun }
+    : { trigger: "manual_netlify_ui", manual: true, nextRun: null };
+  console.info("daily_candle_invocation_classified", {
+    method: request.method,
+    bodyKeys,
+    hasNextRun: !!nextRun,
+    headers: safeHeaderSnapshot(request),
+    ...invocation
+  });
+  return invocation;
+}
+async function invokeWorker(
+  correlationId: string,
+  invocation: DailyCandleInvocation,
+  scheduledUtc: string,
+  resolvedTorontoTime: string
+) {
+  const site = process.env.URL || process.env.DEPLOY_URL;
+  const workerPath = "/.netlify/functions/refresh-daily-market-candles-worker-background";
+  const workerUrl = site ? new URL(workerPath, site).toString() : workerPath;
+  console.info("daily_candle_worker_invocation_started", {
+    correlationId,
+    workerUrl,
+    functionName: "refresh-daily-market-candles-worker-background",
+    manual: invocation.manual,
+    trigger: invocation.trigger,
+    scheduledUtc,
+    resolvedTorontoTime
+  });
+  const res = await fetch(workerUrl, {
+    method: "POST",
+    headers: {
+      "content-type": "application/json",
+      "x-alphadigest-worker-token": process.env.DAILY_CANDLE_WORKER_TOKEN || ""
+    },
+    body: JSON.stringify({
+      correlationId,
+      trigger: invocation.trigger,
+      manual: invocation.manual,
+      nextRun: invocation.nextRun,
+      scheduledUtc,
+      resolvedTorontoTime
+    })
+  });
+  console.info("daily_candle_worker_invoked", {
+    correlationId,
+    workerUrl,
+    status: res.status,
+    ok: res.ok,
+    manual: invocation.manual,
+    trigger: invocation.trigger
+  });
+  if (!res.ok) throw new Error(`Worker invocation failed with HTTP ${res.status}`);
+  return { workerUrl, status: res.status, manual: invocation.manual, trigger: invocation.trigger };
+}
+export default async function handler(request: Request) {
+  const startedAt = new Date().toISOString();
+  const scheduledUtc = startedAt;
+  const resolvedTorontoTime = torontoLabel(new Date(startedAt));
+  const correlationId = crypto.randomUUID();
+  const invocation = await classifyDailyCandleInvocation(request);
+  const meta = {
+    correlationId,
+    executionMode: "dispatcher",
+    trigger: invocation.trigger,
+    scheduledUtc,
+    resolvedTorontoTime,
+    manual: invocation.manual,
+    invocation
+  };
+  console.info("daily_candle_dispatch_started", {
+    ...meta,
+    environment: dailyCandleEnvironmentSummary()
+  });
+  const run = await startJobRun({
+    jobName: "Daily Market Candles",
+    functionName: "refresh-daily-market-candles",
+    source: "Finnhub",
+    metadata: meta as any
+  });
+  try {
+    const workerInvocation = await invokeWorker(
+      correlationId,
+      invocation,
+      scheduledUtc,
+      resolvedTorontoTime
+    );
+    await finishJobRun(run, {
+      status: "warning",
+      warningMessage: "Background worker accepted; await its authoritative result.",
+      metadata: { ...meta, dispatchStatus: "dispatched", workerInvocation }
+    });
+    return json({ ok: true, status: "dispatched", correlationId, workerInvocation }, 202);
+  } catch (e) {
+    const msg = (e as Error).message;
+    console.error("daily_candle_worker_invocation_failed", {
+      correlationId,
+      error: msg,
+      manual: invocation.manual,
+      trigger: invocation.trigger
+    });
+    await finishJobRun(run, { status: "error", errorMessage: msg, metadata: meta as any });
+    return json({ ok: false, correlationId, error: msg }, 500);
+  }
+}
 export { classifyDailyCandleInvocation, torontoLabel };
