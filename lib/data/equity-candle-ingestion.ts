@@ -26,8 +26,10 @@ export const EQUITY_CANDLE_BATCH_SIZE = Math.min(
   5,
   Math.max(1, Number(process.env.EQUITY_CANDLE_BATCH_SIZE ?? 5))
 );
-export const EQUITY_CANDLE_BACKFILL_START =
-  process.env.EQUITY_CANDLE_BACKFILL_START ?? "2021-01-01";
+export const EQUITY_CANDLE_BACKFILL_DAYS = Math.max(
+  370,
+  Number(process.env.EQUITY_CANDLE_BACKFILL_DAYS ?? 400)
+);
 export const EQUITY_CANDLE_DAILY_OVERLAP_DAYS = Number(
   process.env.EQUITY_CANDLE_DAILY_OVERLAP_DAYS ?? 7
 );
@@ -43,11 +45,19 @@ export function equityHistoricalProviderSymbol(symbol: string) {
 export function unusualWhalesEquityHistoricalUrl(symbol: string, from: string, to: string) {
   return `https://phx.unusualwhales.com/api/ticker_candles/${encodeURIComponent(equityHistoricalProviderSymbol(symbol))}/historic/v2?${new URLSearchParams({ interval: "1d", start_date: from, end_date: to, include_1m_data: "false" })}`;
 }
-export function incrementalFrom(latest: string | null, fallback = EQUITY_CANDLE_BACKFILL_START) {
+export function incrementalFrom(latest: string | null, fallback = "2021-01-01") {
   if (!latest) return fallback;
   const d = new Date(`${latest}T00:00:00Z`);
   d.setUTCDate(d.getUTCDate() - EQUITY_CANDLE_DAILY_OVERLAP_DAYS);
   return d.toISOString().slice(0, 10);
+}
+export function defaultBackfillRange(now = new Date()) {
+  const to = new Date(now);
+  // Public equity candles are only complete through the most recent weekday.
+  while (to.getUTCDay() === 0 || to.getUTCDay() === 6) to.setUTCDate(to.getUTCDate() - 1);
+  const from = new Date(to);
+  from.setUTCDate(from.getUTCDate() - EQUITY_CANDLE_BACKFILL_DAYS);
+  return { from: from.toISOString().slice(0, 10), to: to.toISOString().slice(0, 10) };
 }
 export function resolvedEquityBatchDelayMs(keyCount = 1) {
   return Number(
@@ -261,17 +271,22 @@ export async function initializeBackfillState(
     status: "pending"
   }));
   if (!rows.length) return 0;
+  // Do not update existing rows: completed checkpoints and their wider ranges are immutable.
   const { error } = await client
     .from("equity_candle_backfill_state")
-    .upsert(rows, { onConflict: "job_key,symbol,table_name", ignoreDuplicates: !resetFailed });
+    .upsert(rows, { onConflict: "job_key,symbol,table_name", ignoreDuplicates: true });
   if (error) throw new Error(`Backfill state initialization failed: ${error.message}`);
   if (resetFailed) {
-    const { error: e } = await client
-      .from("equity_candle_backfill_state")
-      .update({ status: "pending", last_error: null, lock_token: null, locked_at: null })
-      .eq("job_key", JOB_KEY)
-      .eq("status", "failed");
-    if (e) throw new Error(e.message);
+    for (const job of jobs) {
+      const { error: resetError } = await client
+        .from("equity_candle_backfill_state")
+        .update({ status: "pending", last_error: null, lock_token: null, locked_at: null })
+        .eq("job_key", JOB_KEY)
+        .eq("symbol", job.symbol)
+        .eq("table_name", job.table)
+        .eq("status", "failed");
+      if (resetError) throw new Error(`Backfill failed-state reset failed: ${resetError.message}`);
+    }
   }
   const { count, error: readError } = await client
     .from("equity_candle_backfill_state")
@@ -284,13 +299,20 @@ export async function initializeBackfillState(
   if (readError) throw new Error(`Backfill state verification failed: ${readError.message}`);
   return count ?? 0;
 }
-export async function claimBackfillBatch(client: SupabaseClient, limit: number) {
+export async function claimBackfillBatch(
+  client: SupabaseClient,
+  limit: number,
+  table?: CandleTable,
+  symbols?: string[]
+) {
   const token = crypto.randomUUID();
   const { data, error } = await client.rpc("claim_equity_candle_backfill_batch", {
     p_job_key: JOB_KEY,
     p_limit: Math.min(5, limit),
     p_lock_token: token,
-    p_lock_timeout_minutes: LOCK_TIMEOUT_MINUTES
+    p_lock_timeout_minutes: LOCK_TIMEOUT_MINUTES,
+    p_table_name: table ?? null,
+    p_symbols: symbols?.length ? symbols : null
   });
   if (error) throw new Error(`Backfill claim failed: ${error.message}`);
   return (data ?? []) as State[];
@@ -327,7 +349,7 @@ async function verifyStored(
     latestStoredDate: dates.at(-1) ?? null,
     duplicateCount,
     coverageSatisfied:
-      dates.length > 0 &&
+      dates.length >= 253 &&
       dates.at(-1) !== undefined &&
       dates.at(-1)! >= latestParsed &&
       duplicateCount === 0
@@ -338,6 +360,7 @@ export async function runEquityCandleRefresh(
     mode: "daily" | "backfill";
     table?: "market_daily_candles" | "sp500_daily_candles";
     symbol?: string;
+    symbols?: string[];
     from?: string;
     to?: string;
     limitSymbols?: number;
@@ -357,10 +380,12 @@ export async function runEquityCandleRefresh(
   let selected = all.filter(
     (j) =>
       (!options.table || j.table === options.table) &&
-      (!options.symbol || j.symbol === options.symbol)
+      (!options.symbol || j.symbol === options.symbol) &&
+      (!options.symbols?.length || options.symbols.includes(j.symbol))
   );
-  const to = options.to ?? new Date().toISOString().slice(0, 10),
-    from = options.from ?? EQUITY_CANDLE_BACKFILL_START;
+  const defaultRange = defaultBackfillRange();
+  const to = options.to ?? defaultRange.to,
+    from = options.from ?? defaultRange.from;
   let initialized = 0,
     claimed: State[] = [];
   if (options.mode === "backfill") {
@@ -373,7 +398,9 @@ export async function runEquityCandleRefresh(
     );
     claimed = await claimBackfillBatch(
       db.supabase,
-      options.limitSymbols ?? EQUITY_CANDLE_BATCH_SIZE
+      options.limitSymbols ?? EQUITY_CANDLE_BATCH_SIZE,
+      options.table,
+      options.symbols ?? (options.symbol ? [options.symbol] : undefined)
     );
     selected = claimed
       .map((s) => all.find((j) => j.symbol === s.symbol && j.table === s.table_name)!)
@@ -412,7 +439,10 @@ export async function runEquityCandleRefresh(
                 ? incrementalFrom(state.latest_completed_date, state.requested_from)
                 : (state?.requested_from ?? from)
               : (options.from ??
-                incrementalFrom(coverageByTable.get(`${job.table}:${job.symbol}`)?.latest));
+                incrementalFrom(
+                  coverageByTable.get(`${job.table}:${job.symbol}`)?.latest,
+                  defaultRange.from
+                ));
           const x = await fetchUnusualWhalesEquityHistoricalCandles(job, requestFrom, to);
           fetched += x.rawCount;
           parsed += x.parsedCount;
@@ -486,11 +516,33 @@ export async function runEquityCandleRefresh(
     );
     if (i + EQUITY_CANDLE_BATCH_SIZE < selected.length) await sleep(resolvedEquityBatchDelayMs());
   }
-  const { count: remaining } = await db.supabase
-    .from("equity_candle_backfill_state")
-    .select("*", { count: "exact", head: true })
-    .eq("job_key", JOB_KEY)
-    .neq("status", "completed");
+  // Daily mode deliberately does not touch checkpoint state; it only reports coverage debt.
+  let remaining = 0;
+  if (options.mode === "backfill") {
+    const { count } = await db.supabase
+      .from("equity_candle_backfill_state")
+      .select("*", { count: "exact", head: true })
+      .eq("job_key", JOB_KEY)
+      .neq("status", "completed");
+    remaining = count ?? 0;
+  }
+  const dailyCoverage =
+    options.mode === "daily"
+      ? await Promise.all(
+          (["market_daily_candles", "sp500_daily_candles"] as const).map(async (table) =>
+            readEquityCoverage(
+              table,
+              all.filter((job) => job.table === table).map((job) => job.symbol),
+              db.supabase
+            )
+          )
+        )
+      : [];
+  const dailyRows = dailyCoverage.flat();
+  const symbolsHistoricallyComplete = dailyRows.filter((row) => row.rowCount >= 253).length;
+  const symbolsRequiringBackfill = dailyRows.filter((row) => row.rowCount < 253).length;
+  const symbolsWithOneRow = dailyRows.filter((row) => row.rowCount === 1).length;
+  const symbolsWithFewerThan200Rows = dailyRows.filter((row) => row.rowCount < 200).length;
   return {
     mode: options.mode,
     batchSize: EQUITY_CANDLE_BATCH_SIZE,
@@ -514,6 +566,12 @@ export async function runEquityCandleRefresh(
     providerErrors: failures.filter((x) => x.classification !== "database_error"),
     databaseErrors: failures.filter((x) => x.classification === "database_error"),
     verificationErrors: failures.filter((x) => x.classification === "verification_error"),
-    highestObservedConcurrentRequests: maxActive
+    highestObservedConcurrentRequests: maxActive,
+    symbolsCurrent: options.mode === "daily" ? selected.length - failed : 0,
+    symbolsHistoricallyComplete,
+    symbolsRequiringBackfill,
+    symbolsStale: 0,
+    symbolsWithOneRow,
+    symbolsWithFewerThan200Rows
   };
 }

@@ -500,3 +500,7 @@ Run `npm run audit:equity-candles` before and after repair. Expected minimum cov
 
 
 AlphaDigest does not use an Unusual Whales API key for candle ingestion. Public provider requests originate only in server-side ingestion modules, send no authorization header, persist normalized candles in Supabase, and frontend charts read cached AlphaDigest data rather than provider URLs.
+
+### Equity historical candles
+
+Historical equity candles are retrieved only server-side from the public Unusual Whales candle URL. AlphaDigest does not read, send, or require an Unusual Whales API key, authorization header, or browser cookie for this source.

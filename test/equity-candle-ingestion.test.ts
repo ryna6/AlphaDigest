@@ -63,3 +63,12 @@ test("client source contains no Unusual Whales credentials or bearer authorizati
   }))).join("\n");
   assert.doesNotMatch(clientFiles, /UNUSUAL_WHALES_API_KEY|UW_API_KEY|Authorization:\s*Bearer|phx\.unusualwhales\.com/i);
 });
+
+test("backfill dispatcher validates controlled filters and caps manual claims", async () => {
+  const { parseBackfillControls } = await import("../netlify/functions/backfill-equity-candles");
+  const controls = parseBackfillControls({ symbols: ["SPY", "AAPL"], table: "sp500_daily_candles", from: "2025-07-01", to: "2026-07-23", limitSymbols: 5, continue: false, resetFailed: false, dryRun: true });
+  assert.deepEqual(controls.symbols, ["SPY", "AAPL"]);
+  assert.equal(controls.limitSymbols, 5);
+  assert.throws(() => parseBackfillControls({ table: "arbitrary_table" }));
+  assert.throws(() => parseBackfillControls({ limitSymbols: 6 }));
+});
