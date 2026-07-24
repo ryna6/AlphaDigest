@@ -308,3 +308,7 @@ Historical backfill state is represented by `equity_candle_backfill_state` so op
 
 
 AlphaDigest does not use an Unusual Whales API key for candle ingestion. Public provider requests originate only in server-side ingestion modules, send no authorization header, persist normalized candles in Supabase, and frontend charts read cached AlphaDigest data rather than provider URLs.
+
+### Equity candle workflows
+
+Daily candle refresh writes only a recent overlap. Historical equity coverage is repaired by the protected backfill dispatcher and its separately deployed background worker. Checkpoints in `equity_candle_backfill_state` are claimed by a Supabase RPC so concurrent workers cannot process the same symbol.

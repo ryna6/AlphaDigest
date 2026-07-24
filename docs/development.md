@@ -359,3 +359,7 @@ Use `npm run audit:equity-candles`, `npm run backfill:equity-candles`, and `npm 
 
 
 AlphaDigest does not use an Unusual Whales API key for candle ingestion. Public provider requests originate only in server-side ingestion modules, send no authorization header, persist normalized candles in Supabase, and frontend charts read cached AlphaDigest data rather than provider URLs.
+
+### Equity-candle backfill development
+
+Use the read-only `npm run audit:equity-candles` before a repair. Historical backfill is separate from the daily refresh: it uses checkpoint rows, atomic five-symbol claims, post-write coverage verification (at least 253 daily rows), and public server-side Unusual Whales requests without credentials. Do not call provider URLs from client modules.

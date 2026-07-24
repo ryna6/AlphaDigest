@@ -284,3 +284,11 @@ Historical equity ingestion is run only by `backfill-equity-candles` and its pro
 ### Public candle ingestion
 
 AlphaDigest does not use an Unusual Whales API key. Equity and ETF history is requested only server-side from `https://phx.unusualwhales.com/api/ticker_candles/{SYMBOL}/historic/v2` with `interval=1d`, `start_date`, and `end_date`; futures uses `https://phx.unusualwhales.com/api/futures_eod_history/{ID}`. Requests use `Accept: application/json` and a server user agent, never an authorization header. The backfill dispatcher records `dispatched` after the worker is accepted; the background worker is authoritative, claims at most five checkpoint rows, verifies stored coverage, and can be invoked again to continue.
+
+### Resumable equity candle backfill
+
+The daily `refresh-daily-market-candles` worker is incremental only and never initializes or claims `equity_candle_backfill_state`. Use the protected `backfill-equity-candles` dispatcher for historical repair. It validates `symbols`, `table`, `from`, `to`, `limitSymbols` (1–5), `continue`, `resetFailed`, and `dryRun`, then returns **202 dispatched**; that response is not a completion result. The authoritative result is written by `backfill-equity-candles-worker-background` to job runs.
+
+Apply migrations through `0040_filter_equity_candle_backfill_claim.sql` before invoking it. The RPC claims at most five pending symbols atomically, including filtered manual runs, and releases stale locks after 30 minutes. Completed rows are never reset; failed rows are retried only with `resetFailed: true`. Provider requests use the public Unusual Whales endpoint server-side with no API key or Authorization header. A `continue: true` request dispatches a bounded next worker after the current batch has persisted its result.
+
+Start with `SPY`, `QQQ`, `AAPL`, `MSFT`, and `NVDA`, then run `npm run audit:equity-candles` before and after. Ensure `DAILY_CANDLE_WORKER_TOKEN`, `SUPABASE_URL`, and `SUPABASE_SERVICE_ROLE_KEY` are configured; no Unusual Whales secret is required.

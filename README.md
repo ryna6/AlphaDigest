@@ -321,3 +321,7 @@ Run `npm run audit:equity-candles` to summarize `sp500_daily_candles` and `marke
 
 
 AlphaDigest does not use an Unusual Whales API key for candle ingestion. Public provider requests originate only in server-side ingestion modules, send no authorization header, persist normalized candles in Supabase, and frontend charts read cached AlphaDigest data rather than provider URLs.
+
+## Equity candle operations
+
+Daily market candle refresh is incremental. Historical equity repair is dispatched through the protected Netlify `backfill-equity-candles` function and processed by `backfill-equity-candles-worker-background` in atomic batches of at most five symbols. Run `npm run audit:equity-candles` for read-only coverage checks. The historical Unusual Whales endpoint is public and used server-side only—no Unusual Whales API key is configured or used.
