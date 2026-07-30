@@ -29,7 +29,7 @@ import {
 } from "./adapters/unusual-whales-news";
 import {
   buildInvestingEconomicCalendarWeekRange,
-  fetchInvestingEconomicCalendar,
+  getCachedInvestingEconomicCalendar,
   investingEconomicSources,
   type InvestingEconomicEvent
 } from "./adapters/investing-economic-calendar";
@@ -267,6 +267,7 @@ function earningsSnapshotFromUnusualWhales(events: UnusualWhalesEarningsEvent[])
   return sortByMarketCapDesc(events)
     .slice(0, 20)
     .map((event) => ({
+      id: event.id,
       ticker: event.symbol,
       company: event.companyName ?? event.symbol,
       time: earningsTimingFromReportTime(event.reportTime),
@@ -275,6 +276,7 @@ function earningsSnapshotFromUnusualWhales(events: UnusualWhalesEarningsEvent[])
       actualEps: "—",
       actualRevenue: "—",
       marketCap: compactMoneyOrDash(event.marketCap),
+      reportDate: event.reportDate,
       ...(event.logo ? { logoUrl: event.logo } : {})
     }));
 }
@@ -365,7 +367,7 @@ function addDaysToDateKey(dateKey: string, days: number) {
 }
 
 export async function getEconomicCalendarEvents(dateKey = todayDateKey()) {
-  const result = await fetchInvestingEconomicCalendar(dateKey);
+  const result = await getCachedInvestingEconomicCalendar(dateKey);
   return {
     events: result.events
       .map(dashboardEventFromInvestingEvent)
@@ -376,8 +378,19 @@ export async function getEconomicCalendarEvents(dateKey = todayDateKey()) {
 }
 
 export async function getEconomicCalendarWeekEvents(dateKey = todayDateKey()) {
-  const result = await fetchInvestingEconomicCalendar(dateKey);
   const { startDate, endDate } = buildInvestingEconomicCalendarWeekRange(dateKey);
+  const results = await Promise.all(
+    Array.from({ length: 7 }, (_, index) =>
+      getCachedInvestingEconomicCalendar(addDaysToDateKey(startDate, index))
+    )
+  );
+  const result = {
+    events: results.flatMap((item) => item.events),
+    mode: results.some((item) => item.mode === "live")
+      ? ("live" as const)
+      : ("unavailable" as const),
+    message: results.find((item) => item.message)?.message
+  };
   return {
     events: result.events
       .map(dashboardEventFromInvestingEvent)
@@ -581,10 +594,16 @@ async function buildMarketsPayload(): Promise<{
     fetchYahooMarketQuote("ES=F").then((quote) => yahooQuoteMetric(quote, "S&P 500 Futures"))
   ]);
   const sp500IndexChangePercent = metricChangePercentValue(stripCandidates[0]);
-  const candleBreadthRows = sp500Rows.length ? await readSp500CandlesForBreadth(sp500Rows.map((row) => row.ticker)) : [];
+  const candleBreadthRows = sp500Rows.length
+    ? await readSp500CandlesForBreadth(sp500Rows.map((row) => row.ticker))
+    : [];
   const sp500Symbols = sp500Rows.map((row) => row.ticker);
-  const candleBreadth = candleBreadthRows.length ? calculateMarketBreadthFromCandles(candleBreadthRows, sp500Symbols, sp500IndexChangePercent) : null;
-  const marketWatchResult = candleBreadthRows.length ? calculateMarketWatchFromCandles(candleBreadthRows, sp500Symbols) : calculateMarketWatchFromCandles([], sp500Symbols);
+  const candleBreadth = candleBreadthRows.length
+    ? calculateMarketBreadthFromCandles(candleBreadthRows, sp500Symbols, sp500IndexChangePercent)
+    : null;
+  const marketWatchResult = candleBreadthRows.length
+    ? calculateMarketWatchFromCandles(candleBreadthRows, sp500Symbols)
+    : calculateMarketWatchFromCandles([], sp500Symbols);
   const strip = stripCandidates
     .map(
       (metric, index) =>
@@ -606,9 +625,12 @@ async function buildMarketsPayload(): Promise<{
         ...fallback,
         strip: strip.length ? strip : fallback.strip,
         heatmaps: { ...fallback.heatmaps, sp500 },
-        breadth: ensureCanonicalMarketBreadthMetrics(sp500Rows.length
-          ? (candleBreadth?.metrics ?? sp500Breadth(sp500Rows, breadthMetrics, sp500IndexChangePercent))
-          : [...fallback.breadth, ...breadthMetrics]),
+        breadth: ensureCanonicalMarketBreadthMetrics(
+          sp500Rows.length
+            ? (candleBreadth?.metrics ??
+                sp500Breadth(sp500Rows, breadthMetrics, sp500IndexChangePercent))
+            : [...fallback.breadth, ...breadthMetrics]
+        ),
         movers: sp500Rows.length ? sp500Movers(sp500Rows) : fallback.movers,
         marketWatch: marketWatchResult.marketWatch
       },
@@ -630,9 +652,12 @@ async function buildMarketsPayload(): Promise<{
         macro: macro ?? fallback.heatmaps.macro,
         sp500
       },
-      breadth: ensureCanonicalMarketBreadthMetrics(sp500Rows.length
-        ? (candleBreadth?.metrics ?? sp500Breadth(sp500Rows, breadthMetrics, sp500IndexChangePercent))
-        : [...fallback.breadth, ...breadthMetrics]),
+      breadth: ensureCanonicalMarketBreadthMetrics(
+        sp500Rows.length
+          ? (candleBreadth?.metrics ??
+              sp500Breadth(sp500Rows, breadthMetrics, sp500IndexChangePercent))
+          : [...fallback.breadth, ...breadthMetrics]
+      ),
       movers: sp500Rows.length ? sp500Movers(sp500Rows) : fallback.movers,
       marketWatch: marketWatchResult.marketWatch,
       metadata: {
@@ -640,7 +665,11 @@ async function buildMarketsPayload(): Promise<{
         candleBreadthSource: candleBreadth ? "sp500_daily_candles" : "fallback",
         sp500ConfiguredSymbols: sp500Rows.length,
         sp500CandleSymbolsCovered: candleBreadth?.coverage.participation.eligible ?? 0,
-        latestCandleTradingDate: candleBreadthRows.map((row) => row.tradingDate).sort().at(-1) ?? null,
+        latestCandleTradingDate:
+          candleBreadthRows
+            .map((row) => row.tradingDate)
+            .sort()
+            .at(-1) ?? null,
         marketWatchSource: candleBreadthRows.length ? "sp500_daily_candles" : "unavailable",
         marketWatchConfiguredSymbols: marketWatchResult.coverage.configuredSymbols,
         marketWatchEligibleSymbols: marketWatchResult.coverage.eligibleSymbols,
@@ -649,13 +678,14 @@ async function buildMarketsPayload(): Promise<{
         marketWatchMaxWeeklyCloses: marketWatchResult.coverage.maxWeeklyClosesPerSymbol,
         marketWatch200WeekAvailable: marketWatchResult.marketWatch.crosses200Week.available,
         usedMockStrip: stripCandidates.every((metric) => !metric),
-        usedMockHeatmaps: Object.entries(liveHeatmaps).filter(([, value]) => !value).map(([key]) => key)
+        usedMockHeatmaps: Object.entries(liveHeatmaps)
+          .filter(([, value]) => !value)
+          .map(([key]) => key)
       },
       heatmapKeyMessages: [
         ...(sp500Result.message
           ? [`S&P 500 heatmap cache unavailable: ${sp500Result.message}`]
-          : []),
-
+          : [])
       ]
     },
     mode: "live",
@@ -734,7 +764,7 @@ async function buildTodayPayload(): Promise<{
   const [featuredNewsResult, unusualWhalesEarningsResult, todayKeyStats, economicCalendarResult] =
     await Promise.all([
       fetchUnusualWhalesFeaturedNews(50),
-      getCachedUnusualWhalesEarnings({ limit: 250, order: "oi" }),
+      getCachedUnusualWhalesEarnings({ limit: 250, order: "market_cap", supabaseOnly: true }),
       todayMarketOverviewMetrics(cryptoQuotesResult),
       getEconomicCalendarEvents(todayDateKey())
     ]);
@@ -753,12 +783,17 @@ async function buildTodayPayload(): Promise<{
 
   return {
     payload: {
-      ...todayMock,
+      summary: todayMock.summary,
       marketSummary: [
         {
           label: "Leading Sectors",
           value: leading.map((item) => sectorShortNames[item.symbol] ?? item.label).join(", "),
           change: leading.map((item) => formatPercent(item.changePercent)).join(" / "),
+          leadingSectors: leading.map((item) => ({
+            symbol: item.symbol,
+            label: sectorShortNames[item.symbol] ?? item.label,
+            changePercent: Number.isFinite(item.changePercent) ? item.changePercent : null
+          })),
           tone: leading[0]?.changePercent >= 0 ? "positive" : "negative"
         },
         {
@@ -839,10 +874,11 @@ async function buildTodayPayload(): Promise<{
             ? undefined
             : "Risk ratio requires valid positive Yahoo Finance ^VIX and ^VIX3M values."
         ),
-        ...todayMock.sourceMeta.filter(
-          (meta) =>
-            meta.source !== "Unusual Whales Featured News" &&
-            meta.source !== "Unusual Whales Economic Calendar"
+        liveMeta(
+          "Unusual Whales Earnings Cache",
+          "https://phx.unusualwhales.com/api/companies_earnings/upcoming_earnings_v2",
+          unusualWhalesEarningsResult.mode === "supabase" ? "live" : "unavailable",
+          unusualWhalesEarningsResult.message
         )
       ]
     },
@@ -943,7 +979,10 @@ export async function refreshDashboardSnapshot(
     metadata: {
       refreshedBy: "netlify-function",
       ...(key === "flow:latest" ? ((result.payload as FlowPayload).diagnostics ?? {}) : {}),
-      ...(key === "markets:latest" ? (((result.payload as MarketsPayload).metadata as Record<string, unknown> | undefined) ?? {}) : {})
+      ...(key === "markets:latest"
+        ? (((result.payload as MarketsPayload).metadata as Record<string, unknown> | undefined) ??
+          {})
+        : {})
     }
   });
   const supabase = createServerSupabaseClient();
@@ -960,7 +999,10 @@ export async function refreshDashboardSnapshot(
         persisted: write.persisted ?? false,
         refreshedBy: "netlify-function",
         ...(key === "flow:latest" ? ((result.payload as FlowPayload).diagnostics ?? {}) : {}),
-      ...(key === "markets:latest" ? (((result.payload as MarketsPayload).metadata as Record<string, unknown> | undefined) ?? {}) : {})
+        ...(key === "markets:latest"
+          ? (((result.payload as MarketsPayload).metadata as Record<string, unknown> | undefined) ??
+            {})
+          : {})
       }
     }).catch((error) =>
       console.warn("dashboard_snapshot_metadata_write_failed", {
@@ -972,10 +1014,21 @@ export async function refreshDashboardSnapshot(
   return { ...write, key, mode: result.mode, notices: result.notices };
 }
 
-async function isUsableMarketsSnapshot(snapshot: { mode?: string | null; payload?: any; metadata?: Record<string, unknown> | null }) {
+async function isUsableMarketsSnapshot(snapshot: {
+  mode?: string | null;
+  payload?: any;
+  metadata?: Record<string, unknown> | null;
+}) {
   if (snapshot.mode === "mock") return false;
-  const metadata = (snapshot.metadata ?? snapshot.payload?.metadata ?? {}) as Record<string, unknown>;
-  if (metadata.candleBreadthSource === "sp500_daily_candles" && metadata.marketWatchSource === "sp500_daily_candles") return true;
+  const metadata = (snapshot.metadata ?? snapshot.payload?.metadata ?? {}) as Record<
+    string,
+    unknown
+  >;
+  if (
+    metadata.candleBreadthSource === "sp500_daily_candles" &&
+    metadata.marketWatchSource === "sp500_daily_candles"
+  )
+    return true;
   const expected = await getSp500CandleUniverse().catch(() => [] as string[]);
   if (!expected.length) return true;
   const rows = await readSp500CandlesForBreadth(expected).catch(() => []);
@@ -991,10 +1044,13 @@ async function getSnapshotFirstPayload<T>(
 ): Promise<{ payload: T; mode: "mock" | "live" | "cached"; notices: string[] }> {
   const cached = await getSnapshotOrNull<T>(key);
   if (cached.snapshot && isSnapshotFresh(cached.snapshot)) {
-    if (key !== "markets:latest" || await isUsableMarketsSnapshot(cached.snapshot)) {
+    if (key !== "markets:latest" || (await isUsableMarketsSnapshot(cached.snapshot))) {
       return { payload: cached.snapshot.payload, mode: "cached", notices: cached.snapshot.notices };
     }
-    console.warn("dashboard_snapshot_bypassed", { key, reason: "fresh markets snapshot is mock or lacks candle breadth metadata" });
+    console.warn("dashboard_snapshot_bypassed", {
+      key,
+      reason: "fresh markets snapshot is mock or lacks candle breadth metadata"
+    });
   }
   if (cached.message) console.warn("dashboard_snapshot_read", { key, message: cached.message });
 
@@ -1027,8 +1083,13 @@ async function getSnapshotFirstPayload<T>(
   }
 }
 
-
-export const CANONICAL_MARKET_BREADTH_LABELS = ["Participation", "Advancers / Decliners", "% Above 50D MA", "% Above 200D MA", "New 52W Highs / Lows"] as const;
+export const CANONICAL_MARKET_BREADTH_LABELS = [
+  "Participation",
+  "Advancers / Decliners",
+  "% Above 50D MA",
+  "% Above 200D MA",
+  "New 52W Highs / Lows"
+] as const;
 const BREADTH_ALIAS: Record<string, string> = {
   "New Highs / Lows": "New 52W Highs / Lows",
   "New highs / lows": "New 52W Highs / Lows",
@@ -1043,15 +1104,14 @@ export function ensureCanonicalMarketBreadthMetrics(metrics: Metric[]): Metric[]
     if (!CANONICAL_MARKET_BREADTH_LABELS.includes(label as any)) continue;
     if (!byLabel.has(label)) byLabel.set(label, { ...metric, label });
   }
-  return CANONICAL_MARKET_BREADTH_LABELS.map((label) =>
-    byLabel.get(label) ?? { label, value: "-", tone: "neutral" as const }
+  return CANONICAL_MARKET_BREADTH_LABELS.map(
+    (label) => byLabel.get(label) ?? { label, value: "-", tone: "neutral" as const }
   );
 }
 async function ensureMarketsBreadthMetrics(payload: MarketsPayload): Promise<MarketsPayload> {
   const normalized = marketsPayloadSchema.parse(payload);
   return { ...normalized, breadth: ensureCanonicalMarketBreadthMetrics(normalized.breadth) };
 }
-
 
 export async function getMarketsPayload(): Promise<{
   payload: MarketsPayload;

@@ -35,26 +35,26 @@ supabase/                    Schema and migrations
 
 ### User pages
 
-| Route                             | Purpose                                                | Main component/data source                                                   |
-| --------------------------------- | ------------------------------------------------------ | ---------------------------------------------------------------------------- |
-| `/`                               | Redirects to Today.                                    | `app/page.tsx` redirects to `/overview/today`.                               |
-| `/overview/today`                 | Daily briefing.                                        | `getTodayPayload()` and `TodayView`.                                         |
-| `/overview/today/top-news`        | Paginated featured article list.                       | `getTodayPayload()` and `TopNewsListClient`.                                 |
-| `/overview/today/top-news/[slug]` | Featured article detail.                               | Today featured article payload.                                              |
-| `/markets`                        | Market strip and heatmaps.                             | `getMarketsPayload()` and `MarketsView`.                                     |
-| `/news-calendar`                  | Latest news, economic calendar, and earnings calendar. | `getNewsCalendarPayload()` and `NewsCalendarView`.                           |
-| `/news-calendar/news`             | Expanded latest-news list.                             | `AllNewsView`.                                                               |
-| `/news-calendar/earnings`         | Expanded earnings calendar.                            | `AllEarningsView`.                                                           |
-| `/flow`                           | Flow dashboard.                                        | `getFlowPayload()` reads `flow:latest`, Flow source tables, then fixtures.   |
-| `/ownership`                      | Ownership dashboard.                                   | `ownershipMock` fixture / optional `ownership:latest`.                       |
-| `/flow-ownership`                 | Legacy redirect.                                       | Redirects to `/flow`.                                                        |
-| `/economy`                        | Economy dashboard.                                      | `getEconomyPayload()` and `EconomyView`.                                     |
-| `/sentiment`                      | Sentiment dashboard.                                    | `SentimentView` fixture-backed sentiment metrics.                            |
-| `/sentiment/market-expectations`  | Sentiment subpage placeholder.                          | `MarketExpectationsView`.                                                    |
+| Route                             | Purpose                                                             | Main component/data source                                                         |
+| --------------------------------- | ------------------------------------------------------------------- | ---------------------------------------------------------------------------------- |
+| `/`                               | Redirects to Today.                                                 | `app/page.tsx` redirects to `/overview/today`.                                     |
+| `/overview/today`                 | Daily briefing.                                                     | `getTodayPayload()` and `TodayView`.                                               |
+| `/overview/today/top-news`        | Paginated featured article list.                                    | `getTodayPayload()` and `TopNewsListClient`.                                       |
+| `/overview/today/top-news/[slug]` | Featured article detail.                                            | Today featured article payload.                                                    |
+| `/markets`                        | Market strip and heatmaps.                                          | `getMarketsPayload()` and `MarketsView`.                                           |
+| `/news-calendar`                  | Latest news, economic calendar, and earnings calendar.              | `getNewsCalendarPayload()` and `NewsCalendarView`.                                 |
+| `/news-calendar/news`             | Expanded latest-news list.                                          | `AllNewsView`.                                                                     |
+| `/news-calendar/earnings`         | Expanded earnings calendar.                                         | `AllEarningsView`.                                                                 |
+| `/flow`                           | Flow dashboard.                                                     | `getFlowPayload()` reads `flow:latest`, Flow source tables, then fixtures.         |
+| `/ownership`                      | Ownership dashboard.                                                | `ownershipMock` fixture / optional `ownership:latest`.                             |
+| `/flow-ownership`                 | Legacy redirect.                                                    | Redirects to `/flow`.                                                              |
+| `/economy`                        | Economy dashboard.                                                  | `getEconomyPayload()` and `EconomyView`.                                           |
+| `/sentiment`                      | Sentiment dashboard.                                                | `SentimentView` fixture-backed sentiment metrics.                                  |
+| `/sentiment/market-expectations`  | Sentiment subpage placeholder.                                      | `MarketExpectationsView`.                                                          |
 | `/economy-sentiment`              | Legacy compatibility redirect retained to avoid breaking old links. | Redirects to `/economy`; retained intentionally because it is a public route path. |
-| `/sources-methodology`            | Source reference table.                                | Static page-level source list.                                               |
-| `/status`                         | Job/component monitoring page.                         | Server-rendered status rows from `lib/status/jobs.ts` and Supabase metadata. |
-| `/settings`                       | Legacy redirect.                                       | Redirects to `/status`.                                                      |
+| `/sources-methodology`            | Source reference table.                                             | Static page-level source list.                                                     |
+| `/status`                         | Job/component monitoring page.                                      | Server-rendered status rows from `lib/status/jobs.ts` and Supabase metadata.       |
+| `/settings`                       | Legacy redirect.                                                    | Redirects to `/status`.                                                            |
 
 The Status page groups automated jobs by dashboard tab and uses `lib/status/jobs.ts` as the central registry for user-facing names, Netlify function/job names, metadata keys, confirmed schedules, and freshness windows. Its visible columns are Job, Status, Source, Schedule, Last Run, and Next Run, with the Status content center-aligned and Source limited to short safe provider names. Last Run and health use fresh Supabase `job_runs` telemetry queried at request/refetch time as the source of truth; Next Run is calculated from the registry schedule rule when the automatic schedule is known. Status times are rendered with America/Toronto calculations without per-cell ET/EST/EDT suffixes. Netlify cron wakes in UTC for several jobs, so `lib/schedule/toronto.ts` guards provider fetches inside the intended Eastern/Toronto windows without fixed EST offsets. `refresh-news-feed` runs every 30 minutes every day on the hour and half-hour. Flow source jobs run hourly Monday-Friday where guarded, while `refresh-flow` wakes at five minutes after the hour and runs inside the Monday-Friday Toronto guard to support source-to-snapshot sequencing. TBD rows represent planned or unimplemented jobs and remain Unknown until a real schedule and metadata source exist.
 
@@ -70,21 +70,21 @@ All API responses that use `dashboardJson()` are wrapped with:
 - `timezone`
 - `generatedAt`
 
-| Route                                         | Current behavior                                                                        |
-| --------------------------------------------- | --------------------------------------------------------------------------------------- |
-| `/api/today`                                  | Calls `getTodayPayload()` and validates with `todayPayloadSchema`.                      |
-| `/api/markets`                                | Calls `getMarketsPayload()` and validates with `marketsPayloadSchema`.                  |
-| `/api/news-calendar`                          | Calls `getNewsCalendarPayload()` and validates with `newsCalendarPayloadSchema`.        |
-| `/api/news-calendar/economic?date=YYYY-MM-DD` | Fetches an economic-calendar week for the requested date and returns normalized events. |
-| `/api/uw-earnings`                            | Frontend-safe earnings endpoint around `getCachedUnusualWhalesEarnings()`.              |
-| `/api/flow`                                   | Reads `flow:latest`, source Flow tables, then fixtures.                                 |
-| `/api/ownership`                              | Returns Ownership fixture/snapshot payload.                                             |
-| `/api/flow/insider-trades`                    | Returns up to top 50 cached insider company aggregates.                                 |
-| `/api/flow/insider-trades/[ticker]`           | Returns cached insider detail rows for one ticker.                                      |
-| `/api/flow-ownership`                         | Legacy redirect to `/api/flow`.                                                         |
-| `/api/economy`                                | Calls `getEconomyPayload()` and validates with `economyPayloadSchema`.                 |
+| Route                                         | Current behavior                                                                                      |
+| --------------------------------------------- | ----------------------------------------------------------------------------------------------------- |
+| `/api/today`                                  | Calls `getTodayPayload()` and validates with `todayPayloadSchema`.                                    |
+| `/api/markets`                                | Calls `getMarketsPayload()` and validates with `marketsPayloadSchema`.                                |
+| `/api/news-calendar`                          | Calls `getNewsCalendarPayload()` and validates with `newsCalendarPayloadSchema`.                      |
+| `/api/news-calendar/economic?date=YYYY-MM-DD` | Fetches an economic-calendar week for the requested date and returns normalized events.               |
+| `/api/uw-earnings`                            | Frontend-safe earnings endpoint around `getCachedUnusualWhalesEarnings()`.                            |
+| `/api/flow`                                   | Reads `flow:latest`, source Flow tables, then fixtures.                                               |
+| `/api/ownership`                              | Returns Ownership fixture/snapshot payload.                                                           |
+| `/api/flow/insider-trades`                    | Returns up to top 50 cached insider company aggregates.                                               |
+| `/api/flow/insider-trades/[ticker]`           | Returns cached insider detail rows for one ticker.                                                    |
+| `/api/flow-ownership`                         | Legacy redirect to `/api/flow`.                                                                       |
+| `/api/economy`                                | Calls `getEconomyPayload()` and validates with `economyPayloadSchema`.                                |
 | `/api/economy-sentiment`                      | Legacy compatibility endpoint that re-exports `/api/economy`; retained to avoid breaking old clients. |
-| `/api/sources/status`                         | Returns configured/missing booleans for environment variables, never secret values.     |
+| `/api/sources/status`                         | Returns configured/missing booleans for environment variables, never secret values.                   |
 
 ## Data orchestration
 
@@ -296,6 +296,7 @@ The dashboard shell disables automatic Next.js link prefetch on visible navigati
 Institutional ownership serves the latest complete 13F period per tracked institution. A complete period requires the cached institution summary/info row and at least one stock holding with the same report date. Newer incomplete quarters are metadata, not errors, and previous complete quarters remain available as last-known-good data.
 
 ## Market Watch snapshot path
+
 Market Watch is calculated during the `markets:latest` build from `sp500_daily_candles` after the existing S&P 500 candle read used by Market Breadth. The data flow is: S&P 500 candle rows -> Market Breadth -> Market Watch -> compact Markets payload -> `dashboard_snapshots` row keyed by `markets:latest`. Raw S&P 500 candle arrays are not embedded in the payload and browser code does not fetch this history for Market Watch.
 
 Market Watch determines the latest common valid S&P 500 trading date, excludes stale symbols, duplicate trading dates, invalid OHLC rows, and symbols with insufficient history. It emits coverage metadata for configured symbols, eligible symbols, stale symbols, latest trading date, earliest retained candle date, daily row counts, and the maximum weekly observations available. 52W calculations compare latest high/low with the previous 252 sessions excluding the latest candle. 200D crosses require 201 closes. 200W crosses aggregate daily candles to final weekly closes and require 201 weekly observations; when retention is only the current trailing one-year window, the 200W section remains visible but unavailable with `Insufficient history`.
@@ -306,9 +307,14 @@ Market Watch determines the latest common valid S&P 500 trading date, excludes s
 
 Historical backfill state is represented by `equity_candle_backfill_state` so operations can checkpoint per symbol/table/range and resume after a timeout without deleting existing candles. Daily refresh stays incremental by using the latest stored date plus a small overlap window and does not download full history for every configured symbol.
 
-
 AlphaDigest does not use an Unusual Whales API key for candle ingestion. Public provider requests originate only in server-side ingestion modules, send no authorization header, persist normalized candles in Supabase, and frontend charts read cached AlphaDigest data rather than provider URLs.
 
 ### Equity candle workflows
 
 Daily candle refresh writes only a recent overlap. Historical equity coverage is repaired by the protected backfill dispatcher and its separately deployed background worker. Checkpoints in `equity_candle_backfill_state` are claimed by a Supabase RPC so concurrent workers cannot process the same symbol.
+
+### Today and economic-cache integrity
+
+`today:latest` is built explicitly rather than spreading the Today fixture. Its structured `leadingSectors` values retain numeric sign through rendering. Today earnings flow from `unusual_whales_earnings_events` through `getCachedUnusualWhalesEarnings({ supabaseOnly: true })` and `getMajorEarningsForDate`; no provider/static fixture fallback is admitted. Markets movers use the distinct `MarketsPayload.movers` field and cache key.
+
+The economic calendar follows scheduled fetch -> normalization -> `investing_economic_events` upsert -> range read-back -> dashboard cache reads. Ordinary Today and News & Calendar builders do not call Investing.com.

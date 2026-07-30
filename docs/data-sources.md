@@ -302,11 +302,11 @@ The Today card uses Yahoo Finance `^VIX` from the existing VIX flow and Yahoo Fi
 
 The active tab APIs now prefer Supabase `dashboard_snapshots` before provider-specific live fetches. The snapshot layer is intentionally separate from normalized source tables:
 
-| Snapshot key           | Producer                                                                                                                              | Consumer                                            | Fallback                                                                                                |
-| ---------------------- | ------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------- | ------------------------------------------------------------------------------------------------------- |
-| `today:latest`         | `netlify/functions/refresh-today.ts`                                                                                                  | `getTodayPayload()` and `/api/today`                | Existing live Today builder, then mock/static fallbacks already present in adapters                     |
+| Snapshot key           | Producer                                                                                                                                    | Consumer                                            | Fallback                                                                                                |
+| ---------------------- | ------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------- | ------------------------------------------------------------------------------------------------------- |
+| `today:latest`         | `netlify/functions/refresh-today.ts`                                                                                                        | `getTodayPayload()` and `/api/today`                | Existing live Today builder, then mock/static fallbacks already present in adapters                     |
 | `markets:latest`       | `netlify/functions/refresh-markets.ts`, `netlify/functions/refresh-markets-heatmap.ts`, `netlify/functions/refresh-daily-market-candles.ts` | `getMarketsPayload()` and `/api/markets`            | Existing market quote/crypto/live builder plus cached S&P 500 heatmap/breadth, then mock market fixture |
-| `news-calendar:latest` | `netlify/functions/refresh-news.ts`                                                                                                   | `getNewsCalendarPayload()` and `/api/news-calendar` | Existing UW news, UW earnings, Investing calendar, and fixture fallback behavior                        |
+| `news-calendar:latest` | `netlify/functions/refresh-news.ts`                                                                                                         | `getNewsCalendarPayload()` and `/api/news-calendar` | Existing UW news, UW earnings, Investing calendar, and fixture fallback behavior                        |
 
 Source-specific cache status remains mixed: Unusual Whales earnings and Cboe put/call are active Supabase-backed flows; Unusual Whales news/articles, Yahoo quotes, and Investing economic events have adapter-level Supabase helpers but are only dashboard-fast after the scheduled snapshot job writes the combined payload. `refresh-economy` is implemented as the FRED Economy data refresh; generic `refresh-flow` and `refresh-sources-status` remain placeholders until implemented. Economy has server-side FRED wiring: `fetchFredSeries(seriesId, options)` reads server-only `FRED_API_KEY`, calls `https://api.stlouisfed.org/fred/series/observations`, normalizes `{ date, value }` points, skips FRED `.` missing values, and supports optional units/frequency/start/end parameters for later transforms. The `refresh-economy` function runs daily at midnight UTC (`0 0 * * *`), reads the latest saved observation date per configured series from `fred_economy`, fetches only observations after that date, skips cleanly when FRED returns no new data, and upserts new rows with a unique `(provider, series_id, date)` constraint so refreshes do not duplicate rows. Empty or brand-new series still backfill the configured 30-year history window where available. The Economy page/API reads all matching Supabase-stored observations first with paginated reads so daily 10-year series are not truncated by API row limits, falls back to server-side FRED only when cache rows are unavailable, defaults the chart display to 10 years, computes latest values plus QoQ/YoY changes using reusable frequency-aware offsets, caches the frontend payload in `dashboard_snapshots` with key `economy:latest`, and never exposes the FRED key to browser code. Rate/spread/percentage metrics use percentage-point changes, while level series use percent changes unless configured otherwise. The former CoinGecko API-key env var, SEC API-key env var, and Hormuz tracker feature flag are removed and unused.
 
@@ -316,17 +316,17 @@ The production failure mode was metadata drift: `data_refresh_metadata` could re
 
 Active source refresh functions:
 
-| Function                    | Table                                                 | Schedule                                              |
-| --------------------------- | ----------------------------------------------------- | ----------------------------------------------------- |
-| `fetch-uw-earnings`         | `unusual_whales_earnings_events`                      | `0 */6 * * *`                                         |
-| `refresh-news-feed`         | `unusual_whales_news_feed`                            | `*/30 * * * *`                                        |
-| `refresh-featured-articles` | `unusual_whales_featured_articles`                    | `*/30 * * * *`                                        |
-| `refresh-economic-events`   | `investing_economic_events`                           | `0 */6 * * *`                                         |
-| `refresh-market-quotes`     | `market_quotes`                                       | `*/5 * * * *` with Toronto Sun–Fri guard              |
-| `refresh-markets`           | `market_quotes`, `dashboard_snapshots`                | `*/5 * * * 1-5` with Toronto weekday guard            |
-| `refresh-markets-heatmap`   | `unusual_whales_sp500_heatmap`, `dashboard_snapshots` | `*/10 * * * 1-5` with Toronto weekday guard           |
-| `refresh-daily-market-candles`    | `sp500_daily_candles, market_daily_candles, `dashboard_snapshots`   | `*/15 * * * 1-5` with Toronto weekday/15-minute guard |
-| `refresh-put-call`          | `put_call_observations`                               | `*/30 * * * 1-5`                                      |
+| Function                       | Table                                                             | Schedule                                              |
+| ------------------------------ | ----------------------------------------------------------------- | ----------------------------------------------------- |
+| `fetch-uw-earnings`            | `unusual_whales_earnings_events`                                  | `0 */6 * * *`                                         |
+| `refresh-news-feed`            | `unusual_whales_news_feed`                                        | `*/30 * * * *`                                        |
+| `refresh-featured-articles`    | `unusual_whales_featured_articles`                                | `*/30 * * * *`                                        |
+| `refresh-economic-events`      | `investing_economic_events`                                       | `0 */6 * * *`                                         |
+| `refresh-market-quotes`        | `market_quotes`                                                   | `*/5 * * * *` with Toronto Sun–Fri guard              |
+| `refresh-markets`              | `market_quotes`, `dashboard_snapshots`                            | `*/5 * * * 1-5` with Toronto weekday guard            |
+| `refresh-markets-heatmap`      | `unusual_whales_sp500_heatmap`, `dashboard_snapshots`             | `*/10 * * * 1-5` with Toronto weekday guard           |
+| `refresh-daily-market-candles` | `sp500_daily_candles, market_daily_candles, `dashboard_snapshots` | `*/15 * * * 1-5` with Toronto weekday/15-minute guard |
+| `refresh-put-call`             | `put_call_observations`                                           | `*/30 * * * 1-5`                                      |
 
 ## Cache schema expectation map
 
@@ -416,7 +416,6 @@ Markets S&P 500 heatmap data comes from the server-side Unusual Whales PHX endpo
 
 Daily Market Candles use Finnhub quote OHLC fields for S&P 500 and fixed Markets assets after the temporary Unusual Whales historical backfill is complete. Daily Crypto Candles use the Unusual Whales crypto candle endpoint for the eight configured crypto heatmap assets. The stock/market Unusual Whales candle endpoint is isolated to `scripts/backfillDailyCandlesFromUnusualWhales.ts` and must not be called by pages, chart APIs, or recurring stock refresh jobs.
 
-
 ### Market Breadth structured providers
 
 52-week highs and lows use Yahoo Finance screener `POST https://query1.finance.yahoo.com/v1/finance/screener?formatted=true&useRecordsResponse=true&lang=en-CA&region=CA`. The high and low requests are distinguished by the JSON body `scrIds` value: `recent_52_week_highs` or `recent_52_week_lows`. The confirmed Yahoo response shape is `finance.result[0].total` with `finance.error: null`; the refresh reads only that `total` field and does not count returned records, page `count`, or pagination lengths. The example crumb from observed browser traffic is not hardcoded. The request first tries without a crumb and, if needed, refreshes a server-side crumb from Yahoo before retrying. Yahoo's predefined screener universe has not been verified as S&P 500-only, so the stored metadata labels it as Yahoo predefined screeners rather than S&P 500 constituent highs/lows. Each provider validates and writes independently to its own single-row `id = 'sp500'` cache table with an `upsert` on the primary-key conflict target, followed by `.select().single()` so Supabase write errors or empty write results fail that provider instead of being treated as success. Overall job success requires both providers; partial failures record provider statuses and preserve the failed provider's latest cached row.
@@ -474,7 +473,6 @@ Required environment variables are `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, 
 
 Crypto daily candles continue to use the existing Unusual Whales crypto ingestion into `crypto_daily_candles`. Historical equity backfill is a separate Unusual Whales maintenance process using `ticker_candles/{TICKER}/historic/v2` and parses `date/c/h/l/o/v`. Permanent equity daily updates use Finnhub quote data only for the latest row and write `market_daily_candles` for fixed Markets assets and `sp500_daily_candles` for S&P constituents. The daily worker must not fall back to mock, fixture, or synthetic candle rows.
 
-
 ### Candle API range model
 
 `readCandlesForApi` first finds the latest stored Supabase candle for the symbol, then queries rows inside an asset-aware calendar window. Crypto daily candles use a `24/7` UTC calendar and preserve provider dates including weekends. Equity and ETF candle tables use exchange-session rows stored by date; calendar boundaries select the window, but missing weekends and exchange holidays are not synthesized. API candle objects expose `time` for future intraday timestamps while daily rows keep date-only values to avoid timezone shifts. Accepted chart ranges are `1W`, `1M`, `3M`, `YTD`, and `1Y`; `1W` is the default, and there is no `1D` range even though the current response resolution remains `1d`. The UI uses a narrower centered modal with a fixed, non-draggable price/volume split and a top-left OHLCV legend; it no longer displays the source/calendar metadata line in the chart header.
@@ -486,6 +484,7 @@ The Markets S&P 500 Futures live quote card continues to use the existing Yahoo 
 Only the trailing one calendar year from the latest valid provider row is retained for `ES=F`. Futures dates use the `America/New_York` calendar: Sunday rows returned by the provider are preserved, Saturday rows are skipped, and no Sunday candle is fabricated if the provider does not return one. Use `npx tsx scripts/debugUnusualWhalesFuturesCandles.ts` to inspect the sanitized response shape and `npx tsx scripts/backfillUnusualWhalesFuturesCandles.ts` to backfill the one-year futures history without running the full daily equity worker.
 
 ### Market Watch data source
+
 Market Watch uses only server-side rows from `sp500_daily_candles`; it does not use heatmap percentage changes, browser provider requests, current quote-only data, TradingView-hosted data, mock rows, or synthetic values. `buildMarketsPayload()` shares the same `readSp500CandlesForBreadth()` result with Market Breadth and Market Watch, avoiding a duplicate S&P candle-history query while building `markets:latest`.
 
 The compact `marketWatch` object in `markets:latest` contains four structured sections: `52W Highs`, `52W Lows`, `200D MA Crosses`, and `200W MA Crosses`. Each section is capped at five deterministically sorted rows. Older cached snapshots that predate Market Watch are normalized with unavailable empty sections at read time.
@@ -498,9 +497,14 @@ Daily refresh and historical backfill are operationally separate. Daily refresh 
 
 Run `npm run audit:equity-candles` before and after repair. Expected minimum coverage is 253 daily rows for eligible S&P 500 symbols and fixed-market ETF/proxy assets. Market Watch 200W signals require about five years / 201 weekly closes; therefore `sp500_daily_candles` retention must preserve sufficient history when that feature is expected to be available. `crypto_daily_candles` remains on the existing one-year crypto design unless separately changed.
 
-
 AlphaDigest does not use an Unusual Whales API key for candle ingestion. Public provider requests originate only in server-side ingestion modules, send no authorization header, persist normalized candles in Supabase, and frontend charts read cached AlphaDigest data rather than provider URLs.
 
 ### Equity historical candles
 
 Historical equity candles are retrieved only server-side from the public Unusual Whales candle URL. AlphaDigest does not read, send, or require an Unusual Whales API key, authorization header, or browser cookie for this source.
+
+### Verified data-path contracts
+
+- **Earnings:** `unusual_whales_earnings_events.report_date`, `market_cap`, and `report_time` are the canonical Today fields. Current-ET-date rows at or above $4B are sorted by `market_cap` descending and limited to five for display. Empty Supabase results remain empty; fixture/static/provider fallbacks are disallowed in the Today builder.
+- **Economic events:** the Investing endpoint may expose rows directly or nested under `data`, `events`, `occurrences`, `results`, or `rows`; separate event metadata and occurrences are linked with string-normalized event IDs. Only US medium/high endpoint results matching the included-event configuration are retained. Scheduled jobs write `investing_economic_events`; dashboard builders read that cache.
+- Refresh diagnostics report safe wrapper keys/array paths, raw/normalized/deduplicated/upserted/verified counts, skip reasons, and bounded timestamp samples. Persistence is true only after read-back verification. Raw-provider/non-normalized failures do not delete cached data.

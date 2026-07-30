@@ -49,6 +49,7 @@ export const eventSchema = z.object({
 });
 
 export const earningsSchema = z.object({
+  id: z.string().optional(),
   ticker: z.string(),
   company: z.string(),
   time: z.enum(["BMO", "AMC", "TBD"]),
@@ -57,6 +58,7 @@ export const earningsSchema = z.object({
   actualEps: z.string().optional(),
   actualRevenue: z.string().optional(),
   marketCap: z.string().optional(),
+  reportDate: z.string().optional(),
   logoUrl: z.string().url().optional()
 });
 
@@ -108,8 +110,13 @@ export const todayPayloadSchema = z.object({
   sourceMeta: z.array(sourceMetaSchema)
 });
 
-
-export const marketWatchSignalSchema = z.enum(["new_high", "new_low", "crossed_above", "crossed_below", "at"]);
+export const marketWatchSignalSchema = z.enum([
+  "new_high",
+  "new_low",
+  "crossed_above",
+  "crossed_below",
+  "at"
+]);
 export const marketWatchItemSchema = z.object({
   symbol: z.string(),
   signal: marketWatchSignalSchema,
@@ -135,7 +142,13 @@ export const marketWatchPayloadSchema = z.object({
 });
 export function emptyMarketWatchPayload(reason = "Unavailable") {
   const section = { available: false, items: [], eligibleSymbols: 0, reason };
-  return { asOfDate: null, highs52Week: section, lows52Week: section, crosses200Day: section, crosses200Week: section };
+  return {
+    asOfDate: null,
+    highs52Week: section,
+    lows52Week: section,
+    crosses200Day: section,
+    crosses200Week: section
+  };
 }
 
 export const marketsPayloadSchema = z.object({
@@ -150,7 +163,9 @@ export const marketsPayloadSchema = z.object({
   heatmapKeyMessages: z.array(z.string()),
   breadth: z.array(metricSchema),
   movers: z.array(metricSchema),
-  marketWatch: marketWatchPayloadSchema.default(emptyMarketWatchPayload("Cached snapshot predates Market Watch")),
+  marketWatch: marketWatchPayloadSchema.default(
+    emptyMarketWatchPayload("Cached snapshot predates Market Watch")
+  ),
   sourceMeta: z.array(sourceMetaSchema),
   metadata: z.record(z.string(), z.unknown()).optional()
 });

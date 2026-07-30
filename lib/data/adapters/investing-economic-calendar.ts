@@ -38,6 +38,16 @@ type FetchResult = {
   events: InvestingEconomicEvent[];
   mode: "live" | "unavailable";
   message?: string;
+  diagnostics?: Record<string, unknown>;
+};
+
+export type EconomicSkipReasons = {
+  missingEventName: number;
+  unsupportedImportance: number;
+  excludedByIncludedEventRules: number;
+  missingTimestamp: number;
+  outsideRequestedRange: number;
+  malformedRow: number;
 };
 
 const memoryCache = new Map<string, InvestingEconomicEvent[]>();
@@ -197,7 +207,7 @@ function mergeInvestingEventsWithOccurrences(payload: UnknownRecord): UnknownRec
   });
 }
 
-function extractRows(payload: unknown): UnknownRecord[] {
+export function extractInvestingEconomicRows(payload: unknown): UnknownRecord[] {
   if (Array.isArray(payload)) return payload.filter(isRecord);
   if (!isRecord(payload)) return [];
 
@@ -208,11 +218,29 @@ function extractRows(payload: unknown): UnknownRecord[] {
     const value = payload[key];
     if (Array.isArray(value)) return value.filter(isRecord);
     if (isRecord(value)) {
-      const nested = extractRows(value);
+      const nested = extractInvestingEconomicRows(value);
       if (nested.length) return nested;
     }
   }
   return [];
+}
+
+export function inspectInvestingEconomicPayload(payload: unknown) {
+  const arrays: Array<{ path: string; count: number }> = [];
+  const visit = (value: unknown, path: string, depth: number) => {
+    if (depth > 6 || !isRecord(value)) return;
+    for (const [key, child] of Object.entries(value)) {
+      const childPath = `${path}.${key}`;
+      if (Array.isArray(child)) arrays.push({ path: childPath, count: child.length });
+      else if (isRecord(child)) visit(child, childPath, depth + 1);
+    }
+  };
+  visit(payload, "$", 0);
+  return {
+    topLevelKeys: isRecord(payload) ? Object.keys(payload).slice(0, 30) : [],
+    arrays: arrays.slice(0, 30),
+    rawRows: extractInvestingEconomicRows(payload).length
+  };
 }
 
 function formatEconomicValue(row: UnknownRecord, paths: string[][]) {
@@ -268,12 +296,21 @@ function normalizeInvestingEconomicRow(
       ["time"],
       ["timestamp"],
       ["occurrence_time"],
-      ["occurrenceTime"]
+      ["occurrenceTime"],
+      ["occurrence", "datetime"],
+      ["occurrence", "timestamp"]
     ]),
     dateKey
   );
   const importance = normalizeImportance(
-    getPath(row, [["importance"], ["importance_level"], ["impact"], ["volatility"]])
+    getPath(row, [
+      ["importance"],
+      ["importance_level"],
+      ["impact"],
+      ["volatility"],
+      ["event", "importance"],
+      ["event", "importance_level"]
+    ])
   );
   if (importance === "low") return null;
 
@@ -315,10 +352,101 @@ export function normalizeInvestingEconomicCalendarPayload(
   dateKey: string,
   fetchedAt = new Date().toISOString()
 ) {
-  return extractRows(payload)
+  return extractInvestingEconomicRows(payload)
     .map((row) => normalizeInvestingEconomicRow(row, dateKey, fetchedAt))
     .filter((event): event is InvestingEconomicEvent => Boolean(event))
     .sort((a, b) => new Date(a.timestamp ?? 0).getTime() - new Date(b.timestamp ?? 0).getTime());
+}
+
+export function diagnoseInvestingEconomicCalendarPayload(
+  payload: unknown,
+  dateKey: string,
+  fetchedAt = new Date().toISOString()
+) {
+  const rows = extractInvestingEconomicRows(payload);
+  const range = buildInvestingEconomicCalendarWeekRange(dateKey);
+  const skipReasons: EconomicSkipReasons = {
+    missingEventName: 0,
+    unsupportedImportance: 0,
+    excludedByIncludedEventRules: 0,
+    missingTimestamp: 0,
+    outsideRequestedRange: 0,
+    malformedRow: 0
+  };
+  const events: InvestingEconomicEvent[] = [];
+  for (const row of rows) {
+    if (!isRecord(row)) {
+      skipReasons.malformedRow += 1;
+      continue;
+    }
+    const name = asString(
+      getPath(row, [
+        ["event_name"],
+        ["eventName"],
+        ["event", "name"],
+        ["event", "title"],
+        ["event_translated"],
+        ["event_meta_title"],
+        ["long_name"],
+        ["short_name"],
+        ["name"],
+        ["title"]
+      ])
+    );
+    if (!name) {
+      skipReasons.missingEventName += 1;
+      continue;
+    }
+    if (!shouldIncludeEconomicEvent(name)) {
+      skipReasons.excludedByIncludedEventRules += 1;
+      continue;
+    }
+    const importance = normalizeImportance(
+      getPath(row, [
+        ["importance"],
+        ["importance_level"],
+        ["impact"],
+        ["volatility"],
+        ["event", "importance"],
+        ["event", "importance_level"]
+      ])
+    );
+    if (!importance || importance === "low") {
+      skipReasons.unsupportedImportance += 1;
+      continue;
+    }
+    const event = normalizeInvestingEconomicRow(row, dateKey, fetchedAt);
+    if (!event) {
+      skipReasons.malformedRow += 1;
+      continue;
+    }
+    if (!event.timestamp) skipReasons.missingTimestamp += 1;
+    if (event.eventDate < range.startDate || event.eventDate > range.endDate) {
+      skipReasons.outsideRequestedRange += 1;
+      continue;
+    }
+    events.push(event);
+  }
+  const deduped = Array.from(new Map(events.map((event) => [event.id, event])).values()).sort(
+    (a, b) => new Date(a.timestamp ?? 0).getTime() - new Date(b.timestamp ?? 0).getTime()
+  );
+  return {
+    events: deduped,
+    diagnostics: {
+      ...inspectInvestingEconomicPayload(payload),
+      rowsWithEventNames: rows.length - skipReasons.missingEventName,
+      rowsPassingIncludedEventRules: events.length + skipReasons.outsideRequestedRange,
+      normalizedRows: events.length,
+      deduplicatedRows: deduped.length,
+      skipReasons,
+      timestampSamples: deduped
+        .slice(0, 3)
+        .map((event) => ({
+          raw: event.raw.datetime ?? event.raw.timestamp ?? event.raw.date ?? null,
+          easternDate: event.eventDate
+        }))
+    }
+  };
 }
 
 function sleep(ms: number) {
@@ -349,7 +477,26 @@ async function fetchPayload(url: string) {
   for (let attempt = 0; attempt <= ECONOMIC_CALENDAR_RETRIES; attempt += 1) {
     try {
       const response = await fetchWithTimeout(url);
-      if (response.ok) return (await response.json()) as unknown;
+      if (response.ok) {
+        const text = await response.text();
+        let payload: unknown;
+        try {
+          payload = JSON.parse(text);
+        } catch {
+          throw new Error(
+            `Investing.com economic calendar returned non-JSON ${response.headers.get("content-type") ?? "content"}`
+          );
+        }
+        return {
+          payload,
+          response: {
+            httpStatus: response.status,
+            finalUrl: response.url,
+            contentType: response.headers.get("content-type"),
+            responseBytes: new TextEncoder().encode(text).length
+          }
+        };
+      }
       if (![429, 500, 502, 503, 504].includes(response.status)) {
         throw new Error(`Investing.com economic calendar responded ${response.status}`);
       }
@@ -378,14 +525,26 @@ export async function fetchInvestingEconomicCalendar(
   debugEconomicCalendar("fetch", { dateKey, cacheKey, investingCalendarUrl: url });
 
   try {
-    const payload = await fetchPayload(url);
+    const fetched = await fetchPayload(url);
     const { startDate, endDate } = buildInvestingEconomicCalendarWeekRange(dateKey);
-    const events = normalizeInvestingEconomicCalendarPayload(payload, dateKey, fetchedAt).filter(
+    const analyzed = diagnoseInvestingEconomicCalendarPayload(fetched.payload, dateKey, fetchedAt);
+    const events = analyzed.events.filter(
       (event) => event.eventDate >= startDate && event.eventDate <= endDate
     );
     memoryCache.set(cacheKey, events);
     debugEconomicCalendar("fetched", { dateKey, cacheKey, numberOfEventsFetched: events.length });
-    return { events, mode: "live" };
+    return {
+      events,
+      mode: "live",
+      diagnostics: {
+        ...fetched.response,
+        ...analyzed.diagnostics,
+        requestedDateKey: dateKey,
+        requestedWeekStart: startDate,
+        requestedWeekEnd: endDate,
+        url
+      }
+    };
   } catch (error) {
     return {
       events: cached ?? [],
@@ -426,7 +585,7 @@ function eventContentHash(event: InvestingEconomicEvent) {
     forecast: event.forecast,
     previous: event.previous,
     isHighlighted: event.isHighlighted,
-    highlightReason: event.highlightReason,
+    highlightReason: event.highlightReason
   });
 }
 
@@ -498,6 +657,8 @@ export function defaultEconomicRefreshDateKeys(date = new Date()) {
 }
 
 export async function refreshInvestingEconomicEvents(dateKeys = defaultEconomicRefreshDateKeys()) {
+  const correlationId = crypto.randomUUID();
+  const refreshStarted = Date.now();
   const uniqueDateKeys = Array.from(
     new Set(
       dateKeys
@@ -511,9 +672,43 @@ export async function refreshInvestingEconomicEvents(dateKeys = defaultEconomicR
 
   for (const dateKey of uniqueDateKeys) {
     const url = buildInvestingEconomicCalendarUrl(dateKey);
-    console.log("force_refresh_fetch", { source: INVESTING_METADATA_SOURCE, date: dateKey, url });
+    console.log("economic_refresh_started", {
+      correlationId,
+      source: INVESTING_METADATA_SOURCE,
+      date: dateKey,
+      url
+    });
     const result = await fetchInvestingEconomicCalendar(dateKey);
-    fetchMeta.push({ date: dateKey, mode: result.mode, count: result.events.length, url });
+    fetchMeta.push({
+      date: dateKey,
+      mode: result.mode,
+      count: result.events.length,
+      url,
+      diagnostics: result.diagnostics,
+      message: result.message
+    });
+    console.log("economic_endpoint_response", {
+      correlationId,
+      date: dateKey,
+      ...result.diagnostics
+    });
+    console.log("economic_payload_inspected", {
+      correlationId,
+      date: dateKey,
+      topLevelKeys: result.diagnostics?.topLevelKeys,
+      arrays: result.diagnostics?.arrays
+    });
+    console.log("economic_rows_extracted", {
+      correlationId,
+      date: dateKey,
+      rawRows: result.diagnostics?.rawRows
+    });
+    console.log("economic_rows_filtered", {
+      correlationId,
+      date: dateKey,
+      normalizedRows: result.diagnostics?.normalizedRows,
+      skipReasons: result.diagnostics?.skipReasons
+    });
     const { startDate, endDate } = buildInvestingEconomicCalendarWeekRange(dateKey);
     events.push(
       ...result.events.filter((event) => event.eventDate >= startDate && event.eventDate <= endDate)
@@ -525,7 +720,8 @@ export async function refreshInvestingEconomicEvents(dateKeys = defaultEconomicR
   const contentHash = payloadContentHash(
     rows.map(({ fetched_at: _fetchedAt, updated_at: _updatedAt, ...row }) => row)
   );
-  console.log("force_refresh_normalized", {
+  console.log("economic_rows_normalized", {
+    correlationId,
     source: INVESTING_METADATA_SOURCE,
     fetched: events.length,
     normalized: rows.length
@@ -539,10 +735,18 @@ export async function refreshInvestingEconomicEvents(dateKeys = defaultEconomicR
       contentHash,
       persisted: false,
       error: supabase.message,
-      meta: { dates: uniqueDateKeys }
+      meta: { dates: uniqueDateKeys, fetches: fetchMeta, rowsFetched: events.length, rowsNormalized: rows.length, rowsUpserted: 0, rowsVerified: 0 }
     });
 
   try {
+    const providerRawRows = fetchMeta.reduce((total, item) => {
+      const diagnostics = item.diagnostics as Record<string, unknown> | undefined;
+      return total + (typeof diagnostics?.rawRows === "number" ? diagnostics.rawRows : 0);
+    }, 0);
+    if (providerRawRows > 0 && rows.length === 0)
+      throw new Error(
+        `Investing.com returned ${providerRawRows} raw rows but zero rows normalized; existing cache preserved.`
+      );
     const { data: metadata } = await supabase.client
       .from("data_refresh_metadata")
       .select("content_hash")
@@ -557,22 +761,69 @@ export async function refreshInvestingEconomicEvents(dateKeys = defaultEconomicR
       if (error) throw new Error(`Supabase economic events upsert failed: ${error.message}`);
       upserted = rows.length;
     }
+    console.log("economic_rows_upserted", { correlationId, upserted });
+    let verifiedRows: UnknownRecord[] = [];
+    if (rows.length) {
+      const earliest = rows.map((row) => String(row.event_date)).sort()[0];
+      const latest = rows
+        .map((row) => String(row.event_date))
+        .sort()
+        .at(-1)!;
+      const { data: verified, error: verifyError } = await supabase.client
+        .from("investing_economic_events")
+        .select(
+          "id,event_id,event_name,event_date,importance,stars,actual,forecast,previous,fetched_at,updated_at"
+        )
+        .gte("event_date", earliest)
+        .lte("event_date", latest);
+      if (verifyError)
+        throw new Error(`Supabase economic events verification failed: ${verifyError.message}`);
+      const expectedIds = new Set(rows.map((row) => row.id));
+      verifiedRows = (verified ?? []).filter((row) => expectedIds.has(row.id)) as UnknownRecord[];
+      if (verifiedRows.length !== rows.length)
+        throw new Error(
+          `Supabase economic events verification mismatch: expected ${rows.length}, read ${verifiedRows.length}`
+        );
+    }
+    const persisted = rows.length > 0 && verifiedRows.length === rows.length;
+    const diagnostics = {
+      dates: uniqueDateKeys,
+      fetches: fetchMeta,
+      rowsFetched: events.length,
+      rowsNormalized: rows.length,
+      rowsUpserted: upserted,
+      rowsVerified: verifiedRows.length,
+      persisted
+    };
+    console.log("economic_rows_verified", {
+      correlationId,
+      rowsVerified: verifiedRows.length,
+      persisted
+    });
     await updateRefreshMetadata(supabase.client, INVESTING_METADATA_SOURCE, {
       ok: true,
       changed,
       rowCount: rows.length,
       contentHash,
-      meta: { dates: uniqueDateKeys, fetches: fetchMeta }
+      meta: diagnostics
     });
-    console.log("force_refresh_upserted", { source: INVESTING_METADATA_SOURCE, upserted, changed });
+    console.log("economic_refresh_completed", {
+      correlationId,
+      source: INVESTING_METADATA_SOURCE,
+      upserted,
+      rowsVerified: verifiedRows.length,
+      persisted,
+      changed,
+      elapsedMs: Date.now() - refreshStarted
+    });
     return sourceResult({
       ok: true,
       count: rows.length,
       changed,
       contentHash,
       upserted,
-      persisted: false,
-      meta: { dates: uniqueDateKeys }
+      persisted,
+      meta: diagnostics
     });
   } catch (error) {
     const message =
@@ -585,7 +836,12 @@ export async function refreshInvestingEconomicEvents(dateKeys = defaultEconomicR
       error: message,
       meta: { dates: uniqueDateKeys, fetches: fetchMeta }
     });
-    console.error("force_refresh_error", { source: INVESTING_METADATA_SOURCE, error: message });
+    console.error("economic_refresh_failed", {
+      correlationId,
+      source: INVESTING_METADATA_SOURCE,
+      error: message,
+      elapsedMs: Date.now() - refreshStarted
+    });
     return sourceResult({
       ok: false,
       count: rows.length,

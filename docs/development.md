@@ -357,9 +357,12 @@ Use production or deploy-preview browser traces to compare `/overview/today` bef
 
 Use `npm run audit:equity-candles`, `npm run backfill:equity-candles`, and `npm run verify:equity-candles` for the equity candle workflow. Backfill supports `--table`, `--symbol`, `--from`, `--to`, `--limit-symbols`, and `--dry-run`. Daily refresh must remain incremental and preserve existing rows on provider failure. Do not reintroduce Finnhub `/api/v1/quote` as a historical daily candle source.
 
-
 AlphaDigest does not use an Unusual Whales API key for candle ingestion. Public provider requests originate only in server-side ingestion modules, send no authorization header, persist normalized candles in Supabase, and frontend charts read cached AlphaDigest data rather than provider URLs.
 
 ### Equity-candle backfill development
 
 Use the read-only `npm run audit:equity-candles` before a repair. Historical backfill is separate from the daily refresh: it uses checkpoint rows, atomic five-symbol claims, post-write coverage verification (at least 253 daily rows), and public server-side Unusual Whales requests without credentials. Do not call provider URLs from client modules.
+
+### Focused dashboard checks
+
+Use structured numeric `leadingSectors`; never reconstruct signs from its display string. Keep Today earnings on the Supabase-only adapter option and avoid fixture object spreads in production payload construction. Economic calendar UI builders must use `getCachedInvestingEconomicCalendar`; direct provider access belongs to scheduled refresh code. Parser changes require current/legacy wrapper, event-occurrence linkage, skip-reason, timezone, and persistence verification tests.
