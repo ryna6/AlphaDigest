@@ -232,7 +232,6 @@ The Economy tab stores FRED observations in `fred_economy`, refreshes them daily
 
 Markets chart modals display cached daily OHLC candlesticks plus a lower volume pane when Supabase candle rows include volume. Crypto chart history comes from the eight configured Unusual Whales crypto mappings and is exposed to the UI only through `/api/markets/candles`.
 
-
 ### Markets OHLCV charts
 
 Market charts render real Supabase candle rows from `/api/markets/candles` with TradingView Lightweight Charts. The modal uses a candlestick price pane and a lower volume histogram pane, includes TradingView attribution, and does not use TradingView-hosted market data. Available ranges are `1W`, `1M`, `3M`, `YTD`, and `1Y`, with `1W` selected by default and no `1D` range. Ranges are calculated from the latest stored candle using calendar boundaries: `1W` latest minus six calendar days, `1M` latest minus one calendar month, `3M` latest minus three calendar months, `YTD` January 1 of the latest candle year, and `1Y` latest minus one calendar year. Daily resolution remains supported today, and future intraday bars can render within the `1W` range without changing the range label. Crypto uses a 24/7 calendar, so Saturday and Sunday rows remain; equity tables return only stored market sessions and do not fabricate weekends or holidays. The popup is narrower on desktop, omits the old source/calendar metadata line, centers candle data after load, locks the price/volume pane separator with a fixed split, and shows OHLCV in a fixed top-left legend instead of a cursor-following tooltip.
@@ -246,9 +245,16 @@ Market Breadth always renders the canonical five rows in order: Participation, A
 AlphaDigest prioritizes the Today landing page, then warms other dashboard routes one at a time after browser idle. Dashboard route loading boundaries show page-shaped skeletons, and navigation progress is visible without blocking clicks. Ownership displays the latest complete available 13F filing per institution and notes when a newer reporting period is incomplete instead of showing an empty panel.
 
 ### Market Watch technical levels
+
 - The Markets page includes a `Market Watch` card to the right of `Market Movers` on desktop. It shows `52W Highs`, `52W Lows`, `200D MA Crosses`, and `200W MA Crosses` from server-side S&P 500 candle calculations only.
 - Source data is `sp500_daily_candles`. The snapshot builder shares the same S&P 500 candle read used for Market Breadth, so the browser receives only compact signals in `markets:latest`, never raw candle arrays.
 - 52-week highs/lows use the latest eligible trading session against the prior 252 valid sessions; the latest candle is excluded from the benchmark. A high qualifies when latest high is greater than or equal to the previous 52-week high. A low qualifies when latest low is less than or equal to the previous 52-week low.
 - 200D and 200W moving-average sections require actual latest-session crosses or an exact-at state after normal price rounding/tolerance. 200W uses final valid session close per market week and requires at least 201 weekly closes; with current one-year candle retention it is expected to show `Insufficient history` unless longer valid history already exists.
 - Sections return at most five rows. 52W sections sort by largest breakout magnitude, then ticker. MA crosses sort confirmed crosses before exact-at events, then largest absolute crossing magnitude, then ticker.
 - Advancers / Decliners now renders as `312 ▲ / 188 ▼` with green/red decorative glyphs and an accessible label containing both counts.
+
+### Today card correctness
+
+Leading Sectors preserves descending performance order and at most three structured sector records. Positive, negative, zero, and unavailable percentages use `text-positive`, `text-negative`, `text-textSecondary`, and `text-textMuted` independently, with a non-colour direction description for assistive technology.
+
+Today's Earnings uses the same current-Eastern-date, >=$4B, market-cap-descending set for its summary and detail list (five detail rows). BMO, AMC, and TBD survive mapping, and empty live data displays `No earnings` without fixture substitution.

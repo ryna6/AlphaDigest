@@ -574,6 +574,7 @@ function filterAndSortEvents(
     sp500Only?: boolean;
     limit?: number;
     order?: string;
+    supabaseOnly?: boolean;
   }
 ) {
   const orderValue = (event: UnusualWhalesEarningsEvent) => {
@@ -640,6 +641,7 @@ export async function getCachedUnusualWhalesEarnings(
     sp500Only?: boolean;
     limit?: number;
     order?: string;
+    supabaseOnly?: boolean;
   } = {}
 ): Promise<CachedEarningsResult> {
   const range = { minDate: options.minDate, maxDate: options.maxDate };
@@ -649,6 +651,8 @@ export async function getCachedUnusualWhalesEarnings(
   const resolvedRange = { minDate, maxDate };
   const supabase = createServerSupabaseClient();
   if (!supabase.ok) {
+    if (options.supabaseOnly)
+      return { events: [], metadata: null, mode: "unavailable", message: supabase.message };
     try {
       return await getLiveServerEarnings(resolvedRange, options);
     } catch (error) {
@@ -681,6 +685,13 @@ export async function getCachedUnusualWhalesEarnings(
   });
   const { data, error } = await query;
   if (error) {
+    if (options.supabaseOnly)
+      return {
+        events: [],
+        metadata: null,
+        mode: "unavailable",
+        message: `Supabase earnings read failed: ${error.message}`
+      };
     try {
       return await getLiveServerEarnings(resolvedRange, options);
     } catch {
@@ -689,7 +700,7 @@ export async function getCachedUnusualWhalesEarnings(
     }
   }
 
-  if (!data?.length) {
+  if (!data?.length && !options.supabaseOnly) {
     try {
       return await getLiveServerEarnings(resolvedRange, options);
     } catch (error) {

@@ -52,6 +52,28 @@ function signedValueClass(value?: string) {
   return "text-textSecondary";
 }
 
+export function sectorChangeClass(value: number | null) {
+  if (value === null || !Number.isFinite(value)) return "text-textMuted";
+  if (value > 0) return "text-positive";
+  if (value < 0) return "text-negative";
+  return "text-textSecondary";
+}
+
+export function sectorChangeText(value: number | null) {
+  if (value === null || !Number.isFinite(value)) return "—";
+  return `${value > 0 ? "+" : ""}${value.toFixed(2)}%`;
+}
+
+export function leadingSectorsDescription(sectors: NonNullable<Metric["leadingSectors"]>) {
+  return sectors
+    .map(({ label, changePercent }) => {
+      if (changePercent === null || !Number.isFinite(changePercent)) return `${label} unavailable`;
+      const direction = changePercent > 0 ? "up" : changePercent < 0 ? "down" : "unchanged";
+      return `${label} ${direction} ${Math.abs(changePercent).toFixed(2)} percent`;
+    })
+    .join(", ");
+}
+
 function change24hText(metric: Metric) {
   return metric.changePercent && metric.changePercent.trim() ? metric.changePercent : "—";
 }
@@ -149,7 +171,7 @@ function EarningsPanel({ earnings }: { earnings: EarningsEvent[] }) {
         <div className="divide-y divide-borderStrong/60">
           {earnings.slice(0, 5).map((event) => (
             <div
-              key={`${event.ticker}-${event.time}`}
+              key={event.id ?? `${event.ticker}:${event.reportDate ?? "unknown"}:${event.time}`}
               className="flex items-center justify-between gap-4 py-3"
             >
               <div className="flex min-w-0 items-center gap-3">
@@ -284,14 +306,24 @@ export function TodayView({ data }: { data: TodayPayload }) {
                       <p className="min-w-0 truncate text-2xl font-semibold text-textPrimary">
                         {putCallValue(metric)}
                       </p>
-                      <span className={cn("shrink-0 text-right text-sm font-semibold", signedValueClass(change24hText(metric)))}>
+                      <span
+                        className={cn(
+                          "shrink-0 text-right text-sm font-semibold",
+                          signedValueClass(change24hText(metric))
+                        )}
+                      >
                         {change24hText(metric)}
                       </span>
                     </div>
                   ) : isRiskOnRiskOff ? (
                     <div className="flex min-w-0 items-center justify-between gap-3">
                       <p className="text-2xl font-semibold text-textPrimary">{metric.value}</p>
-                      <span className={cn("shrink-0 text-right text-sm font-semibold", signedValueClass(change24hText(metric)))}>
+                      <span
+                        className={cn(
+                          "shrink-0 text-right text-sm font-semibold",
+                          signedValueClass(change24hText(metric))
+                        )}
+                      >
                         {change24hText(metric)}
                       </span>
                     </div>
@@ -305,12 +337,33 @@ export function TodayView({ data }: { data: TodayPayload }) {
                       {metric.value}
                     </p>
                   )}
-                  {explanation ? (
+                  {isLeadingSectors && metric.leadingSectors ? (
+                    <p
+                      className="mt-2 text-[0.7rem] tabular-nums"
+                      aria-label={leadingSectorsDescription(metric.leadingSectors)}
+                    >
+                      {metric.leadingSectors.map((sector, index) => (
+                        <span key={`${sector.symbol}:${sector.label}`}>
+                          {index ? (
+                            <span aria-hidden="true" className="text-textMuted">
+                              {" "}
+                              /{" "}
+                            </span>
+                          ) : null}
+                          <span className={sectorChangeClass(sector.changePercent)}>
+                            {sectorChangeText(sector.changePercent)}
+                          </span>
+                        </span>
+                      ))}
+                    </p>
+                  ) : explanation ? (
                     <p
                       className={cn(
                         "mt-2",
                         isLeadingSectors ? "text-[0.7rem]" : "text-sm",
-                        isPutCallRatio ? putCallSentimentClass(explanation) : signedValueClass(explanation)
+                        isPutCallRatio
+                          ? putCallSentimentClass(explanation)
+                          : signedValueClass(explanation)
                       )}
                     >
                       {explanation}

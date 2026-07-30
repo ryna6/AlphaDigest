@@ -25,6 +25,16 @@ export const metricSchema = z.object({
   putCallRatios: putCallRatiosSchema.optional(),
   putCallAsOf: z.string().nullable().optional(),
   putCallFreshness: z.string().optional(),
+  leadingSectors: z
+    .array(
+      z.object({
+        symbol: z.string(),
+        label: z.string(),
+        changePercent: z.number().finite().nullable()
+      })
+    )
+    .max(3)
+    .optional(),
   href: z.string().optional(),
   subtext: z.string().optional(),
   purchaseValue: z.number().optional(),

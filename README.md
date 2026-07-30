@@ -73,16 +73,16 @@ sequenceDiagram
 
 Only providers present in the codebase are listed here:
 
-| Provider/source | Current role |
-| --- | --- |
-| FRED | Economy time-series ingestion through `FRED_API_KEY`, stored in `fred_economy`, and cached under `economy:latest`. |
-| Unusual Whales | Featured articles, news feed, earnings calendar, dark pool, whale feed, insider trades, institutional data, and congressional data where adapters/functions are wired. |
-| Cboe | Server-side put/call market-statistics parser with optional Supabase persistence in `put_call_observations`. |
-| Yahoo Finance public endpoints | Selected quotes, VIX-related metrics, market quote cache helpers, and SPY comparison data. |
-| Finnhub | Market/heatmap quote flows and company/logo support when configured. |
-| Investing.com economic calendar endpoint | Economic calendar events normalized into app event shapes and optional Supabase cache rows. |
-| Supabase | Postgres persistence, dashboard snapshot cache, source metadata, and refresh telemetry. |
-| Static fixtures/fallback files | Used only for specific fallback or not-yet-live areas; responses label fallback/mock modes where applicable. |
+| Provider/source                          | Current role                                                                                                                                                           |
+| ---------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| FRED                                     | Economy time-series ingestion through `FRED_API_KEY`, stored in `fred_economy`, and cached under `economy:latest`.                                                     |
+| Unusual Whales                           | Featured articles, news feed, earnings calendar, dark pool, whale feed, insider trades, institutional data, and congressional data where adapters/functions are wired. |
+| Cboe                                     | Server-side put/call market-statistics parser with optional Supabase persistence in `put_call_observations`.                                                           |
+| Yahoo Finance public endpoints           | Selected quotes, VIX-related metrics, market quote cache helpers, and SPY comparison data.                                                                             |
+| Finnhub                                  | Market/heatmap quote flows and company/logo support when configured.                                                                                                   |
+| Investing.com economic calendar endpoint | Economic calendar events normalized into app event shapes and optional Supabase cache rows.                                                                            |
+| Supabase                                 | Postgres persistence, dashboard snapshot cache, source metadata, and refresh telemetry.                                                                                |
+| Static fixtures/fallback files           | Used only for specific fallback or not-yet-live areas; responses label fallback/mock modes where applicable.                                                           |
 
 ## Database schema overview
 
@@ -182,27 +182,27 @@ Important constraints/indexes: status is limited to `running`, `success`, `warni
 
 ## API and scheduled function reference
 
-| Route/function | Purpose | Method/schedule | Source/provider | Cache behavior |
-| --- | --- | --- | --- | --- |
-| `/api/today` | Today dashboard payload | `GET` | Supabase snapshot/source rows plus market/news/calendar providers | Validates with `todayPayloadSchema`; reads cached/snapshot data where available. |
-| `/api/markets` | Markets strip/heatmap payload | `GET` | Yahoo Finance, Finnhub, fixtures where needed | Uses `markets:latest`/quote cache paths where supported. |
-| `/api/news-calendar` | News, economic calendar, and earnings payload | `GET` | Unusual Whales, Investing.com, Supabase | Reads normalized source rows and fallback paths. |
-| `/api/economy` | Economy payload | `GET` | FRED + Supabase `fred_economy`/`economy:latest` | Cache-first snapshot with live/server fallback. |
-| `/api/economy-sentiment` | Legacy Economy compatibility endpoint | `GET` | Same as `/api/economy` | Retained intentionally to avoid breaking old clients; new code should use `/api/economy`. |
-| `/api/flow` | Flow payload | `GET` | Supabase Flow source tables | Reads `flow:latest`, then source tables, then fixtures where necessary. |
-| `/api/ownership` | Ownership payload | `GET` | Supabase ownership data and fixtures | Reads ownership cache/snapshot paths where implemented. |
-| `/api/ownership/institutional` | Institutional summary/holdings | `GET` | Supabase tracked institutional tables | Browser-safe cached response. |
-| `/api/ownership/congressional` | Congressional holdings/trades | `GET` | Supabase congressional tables | Browser-safe cached response with SPY comparison support. |
-| `/api/sources/status` | Environment/source readiness | `GET` | Environment metadata only | Returns configured/missing booleans; never returns secret values. |
-| `/api/cache/status` | Cache diagnostics | `GET` | Supabase metadata/source tables | Reports row counts, freshness, and metadata diagnostics. |
-| `refresh-economy` | FRED ingestion and Economy snapshot | Daily at 00:00 UTC | FRED | Incremental `fred_economy` upserts and `economy:latest` snapshot. |
-| `refresh-markets` / `refresh-market-quotes` | Market quote cache and Markets snapshot | Frequent weekday schedules | Yahoo Finance, Finnhub | Upserts quote rows and dashboard snapshots. |
-| `refresh-news`, `refresh-news-feed`, `refresh-featured-articles` | News source rows and News & Calendar snapshot | Every 30 minutes | Unusual Whales | Upserts feed/article rows and snapshot payloads. |
-| `fetch-uw-earnings` | Earnings calendar source cache | Every 6 hours | Unusual Whales | Upserts active-window rows and prunes outside-window rows. |
-| `refresh-economic-events` | Economic calendar cache | Every 6 hours | Investing.com | Upserts normalized economic events. |
-| `refresh-put-call` | Put/call observation cache | Every 30 minutes Monday-Friday | Cboe | Upserts latest put/call observation. |
-| `refresh-flow`, `refresh-dark-pool`, `refresh-whale-feed`, `refresh-insider-trades` | Flow source rows and snapshot | Hourly/weekday guarded schedules | Unusual Whales + Supabase | Refreshes source tables and composes `flow:latest`. |
-| `refresh-institutional-*`, `refresh-congressional-portfolios` | Ownership source rows | Daily schedules | Unusual Whales, Yahoo Finance SPY comparison | Upserts normalized ownership/institutional/congressional caches. |
+| Route/function                                                                      | Purpose                                       | Method/schedule                  | Source/provider                                                   | Cache behavior                                                                            |
+| ----------------------------------------------------------------------------------- | --------------------------------------------- | -------------------------------- | ----------------------------------------------------------------- | ----------------------------------------------------------------------------------------- |
+| `/api/today`                                                                        | Today dashboard payload                       | `GET`                            | Supabase snapshot/source rows plus market/news/calendar providers | Validates with `todayPayloadSchema`; reads cached/snapshot data where available.          |
+| `/api/markets`                                                                      | Markets strip/heatmap payload                 | `GET`                            | Yahoo Finance, Finnhub, fixtures where needed                     | Uses `markets:latest`/quote cache paths where supported.                                  |
+| `/api/news-calendar`                                                                | News, economic calendar, and earnings payload | `GET`                            | Unusual Whales, Investing.com, Supabase                           | Reads normalized source rows and fallback paths.                                          |
+| `/api/economy`                                                                      | Economy payload                               | `GET`                            | FRED + Supabase `fred_economy`/`economy:latest`                   | Cache-first snapshot with live/server fallback.                                           |
+| `/api/economy-sentiment`                                                            | Legacy Economy compatibility endpoint         | `GET`                            | Same as `/api/economy`                                            | Retained intentionally to avoid breaking old clients; new code should use `/api/economy`. |
+| `/api/flow`                                                                         | Flow payload                                  | `GET`                            | Supabase Flow source tables                                       | Reads `flow:latest`, then source tables, then fixtures where necessary.                   |
+| `/api/ownership`                                                                    | Ownership payload                             | `GET`                            | Supabase ownership data and fixtures                              | Reads ownership cache/snapshot paths where implemented.                                   |
+| `/api/ownership/institutional`                                                      | Institutional summary/holdings                | `GET`                            | Supabase tracked institutional tables                             | Browser-safe cached response.                                                             |
+| `/api/ownership/congressional`                                                      | Congressional holdings/trades                 | `GET`                            | Supabase congressional tables                                     | Browser-safe cached response with SPY comparison support.                                 |
+| `/api/sources/status`                                                               | Environment/source readiness                  | `GET`                            | Environment metadata only                                         | Returns configured/missing booleans; never returns secret values.                         |
+| `/api/cache/status`                                                                 | Cache diagnostics                             | `GET`                            | Supabase metadata/source tables                                   | Reports row counts, freshness, and metadata diagnostics.                                  |
+| `refresh-economy`                                                                   | FRED ingestion and Economy snapshot           | Daily at 00:00 UTC               | FRED                                                              | Incremental `fred_economy` upserts and `economy:latest` snapshot.                         |
+| `refresh-markets` / `refresh-market-quotes`                                         | Market quote cache and Markets snapshot       | Frequent weekday schedules       | Yahoo Finance, Finnhub                                            | Upserts quote rows and dashboard snapshots.                                               |
+| `refresh-news`, `refresh-news-feed`, `refresh-featured-articles`                    | News source rows and News & Calendar snapshot | Every 30 minutes                 | Unusual Whales                                                    | Upserts feed/article rows and snapshot payloads.                                          |
+| `fetch-uw-earnings`                                                                 | Earnings calendar source cache                | Every 6 hours                    | Unusual Whales                                                    | Upserts active-window rows and prunes outside-window rows.                                |
+| `refresh-economic-events`                                                           | Economic calendar cache                       | Every 6 hours                    | Investing.com                                                     | Upserts normalized economic events.                                                       |
+| `refresh-put-call`                                                                  | Put/call observation cache                    | Every 30 minutes Monday-Friday   | Cboe                                                              | Upserts latest put/call observation.                                                      |
+| `refresh-flow`, `refresh-dark-pool`, `refresh-whale-feed`, `refresh-insider-trades` | Flow source rows and snapshot                 | Hourly/weekday guarded schedules | Unusual Whales + Supabase                                         | Refreshes source tables and composes `flow:latest`.                                       |
+| `refresh-institutional-*`, `refresh-congressional-portfolios`                       | Ownership source rows                         | Daily schedules                  | Unusual Whales, Yahoo Finance SPY comparison                      | Upserts normalized ownership/institutional/congressional caches.                          |
 
 Representative API response envelope:
 
@@ -230,7 +230,9 @@ Representative cache/status shape:
 
 ```json
 {
-  "snapshots": [{ "key": "economy:latest", "fresh": true, "generatedAt": "2026-06-29T00:00:00.000Z" }],
+  "snapshots": [
+    { "key": "economy:latest", "fresh": true, "generatedAt": "2026-06-29T00:00:00.000Z" }
+  ],
   "sources": [{ "name": "fred_economy", "rowCount": 1200 }]
 }
 ```
@@ -313,15 +315,21 @@ Netlify scheduled functions run cron expressions in UTC. Daily Market Candles ru
 Ownership selects each institution's latest complete available 13F period. A complete period requires a summary row and stock holdings for the same report date; newer incomplete quarters are reported as metadata and do not delete or hide previous complete filings.
 
 ### Markets: Market Watch
+
 The Markets page includes a server-calculated Market Watch card beside Market Breadth and Market Movers. Signals come from `sp500_daily_candles` and are stored compactly in `markets:latest`: 52W highs/lows compare the latest eligible session with the previous 252 sessions excluding the latest candle, 200D moving-average rows require a true latest-session cross or exact-at result with at least 201 closes, and 200W rows use final weekly closes and require at least 201 weekly observations. Current one-year candle pruning means 200W can remain visible as `Insufficient history` unless longer valid history exists. Rows are limited to five per section and sorted by breakout/cross magnitude with ticker tie-breakers. Advancers / Decliners display uses `▲` and `▼` text glyphs with accessible count labels.
 
 ### Equity candle audit/backfill
 
 Run `npm run audit:equity-candles` to summarize `sp500_daily_candles` and `market_daily_candles` coverage without writes. Run targeted historical backfills with `npm run backfill:equity-candles -- --symbol AAPL --from 2021-01-01 --to YYYY-MM-DD` or use `--dry-run` to avoid writes. Equity history uses the configured Unusual Whales historical candle endpoint; Finnhub quotes are current-session data only. Jobs are globally capped at five symbols per batch with paced retries, while S&P 500 Futures keeps its dedicated futures endpoint.
 
-
 AlphaDigest does not use an Unusual Whales API key for candle ingestion. Public provider requests originate only in server-side ingestion modules, send no authorization header, persist normalized candles in Supabase, and frontend charts read cached AlphaDigest data rather than provider URLs.
 
 ## Equity candle operations
 
 Daily market candle refresh is incremental. Historical equity repair is dispatched through the protected Netlify `backfill-equity-candles` function and processed by `backfill-equity-candles-worker-background` in atomic batches of at most five symbols. Run `npm run audit:equity-candles` for read-only coverage checks. The historical Unusual Whales endpoint is public and used server-side only—no Unusual Whales API key is configured or used.
+
+### Today live-data integrity
+
+The Today Leading Sectors metric carries up to three ordered `{ symbol, label, changePercent }` records so each signed percentage is rendered and announced independently. Today earnings are selected only from the Supabase `unusual_whales_earnings_events` cache for the current Toronto/Eastern date, require the documented $4B minimum market capitalization, sort by raw market cap, and display the first five; an empty/unavailable cache renders no earnings rather than fixture records. Earnings and Markets `movers` remain separate payload fields.
+
+Economic-calendar page builders read `investing_economic_events`; scheduled refreshes alone contact Investing.com. Refresh responses include bounded extraction/filter/upsert/read-back diagnostics and only report `persisted: true` after verification. A provider response with raw rows but no normalized rows is an error and preserves cached rows. Production provider/database health must be verified after deployment.
