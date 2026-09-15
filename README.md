@@ -1,12 +1,12 @@
 # AlphaDigest
 
-AlphaDigest is a Next.js market intelligence dashboard built around server-side data ingestion, Supabase-backed cache tables, and Netlify scheduled functions. The product UI is intentionally compact; the engineering focus is reliable provider isolation, cache-first reads, typed API boundaries, and observable refresh jobs.
+AlphaDigest is a Next.js market-intelligence dashboard built around server-side data ingestion, Supabase-backed caches, and Netlify scheduled functions. The product UI is intentionally compact; the engineering focus is provider isolation, cache-first reads, typed API boundaries, and observable refresh jobs.
 
 ## Project overview
 
-AlphaDigest combines market, news, calendar, flow, ownership, and status data into a single dashboard without exposing privileged provider credentials to the browser. Netlify functions fetch and normalize external data server-side, Supabase stores durable source rows and dashboard snapshots, and the Next.js App Router renders React dashboard views from normalized cache/API payloads.
+AlphaDigest combines market, news, calendar, flow, ownership, sentiment, and status views without exposing privileged provider credentials to the browser. Netlify functions fetch and normalize external data server-side, Supabase stores durable source rows and dashboard snapshots, and the Next.js App Router renders React views from normalized cache and API payloads.
 
-Detailed tab behavior lives in [`docs/`](docs/). This README focuses on system architecture and implementation decisions.
+Detailed feature and operational behavior lives in [`docs/`](docs/). This README is the durable system overview, not a changelog or implementation journal.
 
 ## Architecture at a glance
 
@@ -14,215 +14,102 @@ Detailed tab behavior lives in [`docs/`](docs/). This README focuses on system a
 flowchart LR
   Providers[External providers\nUnusual Whales · Cboe · Yahoo Finance · Finnhub · Investing.com]
   Functions[Netlify scheduled functions\nand serverless handlers]
-  Supabase[(Supabase Postgres\nsource tables · dashboard_snapshots · job_runs)]
+  Supabase[(Supabase Postgres\nsource tables · snapshots · job telemetry)]
   API[Next.js App Router\nserver components + API routes]
   UI[React dashboard UI]
   Status[Status tab\nfreshness + job telemetry]
 
-  Providers -->|server-side fetches only| Functions
+  Providers -->|server-side fetches| Functions
   Functions -->|normalize · validate · upsert| Supabase
+  Functions -->|record telemetry| Supabase
   Supabase -->|cache-first reads| API
   API -->|typed payloads| UI
-  Functions -->|start/finish telemetry| Supabase
   Supabase --> Status
-  UI -->|safe browser requests| API
+  UI -->|safe app requests| API
 ```
 
 ## Core engineering decisions
 
-- **Next.js App Router + TypeScript** keeps page-level data loading, server components, API routes, and React UI boundaries typed and colocated.
-- **Netlify Functions** isolate provider fetches and scheduled refreshes from browser traffic, including high-risk provider calls and service-role Supabase writes.
-- **Supabase** acts as the durable cache, normalized source store, snapshot store, and job telemetry database.
-- **Server-side-only provider keys** prevent privileged API credentials from reaching client bundles; browser code reads only safe app routes or rendered server payloads.
-- **Cache-first UI reads** reduce latency, provider rate-limit pressure, and coupling between page navigation and third-party availability.
-- **Zod validation** is used for dashboard API envelopes and payload schemas before responses are returned through shared helpers.
-- **Scheduled refreshes** decouple ingestion from interactive browsing; users do not trigger most provider fetches directly.
-- **Retention/pruning** is implemented for high-churn caches such as job telemetry, earnings windows, news/feed rows, flow rows, and source snapshots where relevant.
+- **Next.js App Router and TypeScript** keep server components, API routes, page loading, and React UI boundaries typed and colocated.
+- **Netlify Functions** isolate provider calls, scheduled refreshes, and service-role Supabase writes from browser traffic.
+- **Supabase** is the durable normalized source store, dashboard cache, historical candle store, and job-telemetry database.
+- **Server-side credentials** keep provider secrets and `SUPABASE_SERVICE_ROLE_KEY` out of browser bundles.
+- **Cache-first reads** reduce latency, provider rate-limit pressure, and coupling between navigation and third-party availability.
+- **Validated API envelopes** give the dashboard stable application-owned payloads rather than raw provider shapes.
+- **Scheduled ingestion and bounded retention** decouple refresh work from user traffic and control high-volume cache growth.
 
 ## Data flow
 
-```mermaid
-sequenceDiagram
-  participant Cron as Netlify schedule
-  participant Fn as Refresh function
-  participant Provider as External provider
-  participant DB as Supabase
-  participant App as Next.js route/server component
-  participant User as Dashboard UI
+1. Netlify invokes scheduled ingestion and refresh functions.
+2. Functions fetch provider data with server-only credentials, then normalize and validate it.
+3. Functions upsert normalized source rows and compact frontend-ready snapshots in Supabase.
+4. Refresh jobs record safe runtime metadata in `job_runs`.
+5. Next.js server components and API routes read snapshots or normalized tables before using an explicitly supported fallback.
+6. The browser receives typed AlphaDigest payloads, never privileged provider access.
+7. The Status tab combines the job registry with runtime telemetry to report freshness and failures.
 
-  Cron->>Fn: Wake refresh job
-  Fn->>Provider: Fetch with server-side credentials
-  Provider-->>Fn: Provider payload
-  Fn->>Fn: Normalize, filter, validate, hash
-  Fn->>DB: Upsert source rows / dashboard snapshot
-  Fn->>DB: Record job_runs telemetry
-  User->>App: Navigate or request API route
-  App->>DB: Read dashboard_snapshots/source tables first
-  App-->>User: Return normalized UI payload
-```
-
-1. A scheduled Netlify function runs on a cron schedule, sometimes guarded by Toronto/Eastern market-session logic.
-2. Provider APIs are fetched server-side.
-3. Raw provider shapes are normalized into app-specific rows and payloads.
-4. Supabase source tables and/or `dashboard_snapshots` are upserted.
-5. Job telemetry is written to `job_runs`.
-6. Next.js pages and API routes read cached rows/snapshots first, with fixture or live fallback paths only where implemented.
-7. The Status tab reads job metadata and telemetry to surface stale, failed, skipped, or unknown refreshes.
+Historical market charts follow the same boundary: server-side ingestion persists daily candles in Supabase, and the browser requests them through the AlphaDigest candle API rather than a provider API.
 
 ## Provider and data source overview
 
-Only providers present in the codebase are listed here:
+| Provider/source | High-level role                                                                                        |
+| --------------- | ------------------------------------------------------------------------------------------------------ |
+| Unusual Whales  | News, earnings, flow, institutional ownership, heatmap data, and selected historical candle ingestion. |
+| Cboe            | Put/call market statistics.                                                                            |
+| Yahoo Finance   | Selected market quotes, volatility metrics, and comparison data.                                       |
+| Finnhub         | Configured quote, heatmap, company metadata, and incremental daily-candle flows.                       |
+| Investing.com   | US economic-calendar ingestion.                                                                        |
+| Supabase        | Postgres persistence, source metadata, dashboard snapshots, candle history, and refresh telemetry.     |
+| Static fixtures | Explicit fallback or not-yet-live areas only; APIs identify fallback/mock modes where applicable.      |
 
-| Provider/source                          | Current role                                                                                                                                                           |
-| ---------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Unusual Whales                           | Featured articles, news feed, earnings calendar, dark pool, whale feed, insider trades, institutional data where adapters/functions are wired. |
-| Cboe                                     | Server-side put/call market-statistics parser with optional Supabase persistence in `put_call_observations`.                                                           |
-| Yahoo Finance public endpoints           | Selected quotes, VIX-related metrics, market quote cache helpers, and SPY comparison data.                                                                             |
-| Finnhub                                  | Market/heatmap quote flows and company/logo support when configured.                                                                                                   |
-| Investing.com economic calendar endpoint | Economic calendar events normalized into app event shapes and optional Supabase cache rows.                                                                            |
-| Supabase                                 | Postgres persistence, dashboard snapshot cache, source metadata, and refresh telemetry.                                                                                |
-| Static fixtures/fallback files           | Used only for specific fallback or not-yet-live areas; responses label fallback/mock modes where applicable.                                                           |
+AlphaDigest has no active Economy/FRED or congressional-data product flow. Provider contracts, fallback rules, and current source boundaries are documented in [`docs/data-sources.md`](docs/data-sources.md).
 
 ## Database schema overview
 
-Supabase is organized around source-specific normalized tables plus small app-level cache/telemetry tables.
+Supabase uses source-specific normalized tables alongside a small set of shared cache and operational tables. The major domains are:
 
-### Dashboard snapshots and metadata
+- **Markets** — quotes, S&P 500 heatmap rows, put/call observations, comparison history, and market/equity/crypto daily candles.
+- **News and calendar** — Unusual Whales articles, headlines, and earnings plus Investing.com economic events.
+- **Flow** — dark-pool, whale-feed, and insider-trade rows.
+- **Ownership** — tracked institutions, holdings, activity, exposure, and historical summaries.
+- **Snapshots and cache metadata** — `dashboard_snapshots` contains compact page-ready payloads; `data_refresh_metadata` records source-level refresh state.
+- **Status and observability** — `job_runs` contains scheduled-function outcomes, counts, warnings, errors, and safe metadata.
 
-Purpose: frontend-ready cache payloads such as `today:latest`, `markets:latest`, `news-calendar:latest`, `flow:latest`, `ownership:latest`.
+Business timestamps and ingestion timestamps remain distinct. Source rows retain the fields needed for normalization and freshness, while snapshots avoid sending large source histories such as candle arrays to ordinary page loads. See [`supabase/schema.sql`](supabase/schema.sql) and [`docs/data-sources.md`](docs/data-sources.md) for table-level details.
 
-```sql
-dashboard_snapshots (
-  key text primary key,
-  payload jsonb,
-  mode text,
-  notices jsonb,
-  generated_at timestamptz,
-  expires_at timestamptz,
-  metadata jsonb
-)
-```
+## API and scheduled function overview
 
-Important constraints/indexes: primary key/unique snapshot key plus freshness indexes on `expires_at` and `generated_at`.
+The primary browser-safe API categories are:
 
-The persisted snapshot `notices` and `metadata` fields remain because cache-fallback composition and Flow diagnostics read them. Change hashes are kept centrally in `data_refresh_metadata`; the redundant per-snapshot hash was removed.
+- dashboard payloads for Today, Markets, News & Calendar, Flow, and Ownership;
+- market candle history;
+- institutional ownership detail;
+- cache and source-status diagnostics.
 
-### Lean source-table conventions
-
-- `crypto_daily_candles` stores its provider symbol, trading date, OHLCV values, and one `fetched_at` ingestion timestamp. Its single-provider provenance is derived by the API rather than repeated per row.
-- `market_daily_candles` retains `provider_symbol`, `source`, `trading_date`, `volume`, and `fetched_at`: provider mapping, mixed historical/current provenance, business-date semantics, volume preservation, and freshness all depend on them.
-- `investing_economic_events` keeps the stable synthetic `id`, provider `event_id`, application classification `event_key`, Eastern `event_date`, timezone-aware `event_time`, and `fetched_at`. Display time is formatted from `event_time` rather than persisted separately.
-- `market_quotes` is keyed by `symbol`; Yahoo provenance is derived by its only adapter, aggregate change detection lives in `data_refresh_metadata`, and `fetched_at` is the freshness timestamp.
-- `market_summary_history` uses `observed_at` as its business timestamp. The detailed Cboe timezone fields belong to `put_call_observations`, not this compact comparison-history table.
-
-### News, calendar, and earnings
-
-Purpose: cache feed/calendar rows used by Today and News & Calendar.
-
-Representative tables:
-
-- `unusual_whales_news_feed` — headline rows keyed by provider id with `headline`, `event_time`, `source_url`, `publisher`, `content_hash`, and freshness fields.
-- `unusual_whales_featured_articles` — article rows keyed by id/slug with title, timestamps, tags, excerpt/content, source URL, and content hash.
-- `unusual_whales_earnings_events` — earnings rows for the active previous/current/next-week window; refreshes prune rows outside that active window and exclude configured micro-cap rows.
-- `investing_economic_events` — economic calendar rows with event keys, date/time, importance/stars, actual/forecast/previous, and highlight metadata.
-
-### Flow, ownership, and institutional data
-
-Purpose: server-side Unusual Whales ingestion for Flow and Ownership without browser calls to privileged endpoints.
-
-Representative tables:
-
-- `unusual_whales_dark_pool_flows` — dark-pool prints with execution timestamp, ticker, premium, size, volume, average-volume fields, and 14-day retention logic.
-- `unusual_whales_whale_feed` — lit whale-feed rows with ticker, price, NBBO fields, inferred side/sentiment, premium, size, and execution timestamp.
-- `unusual_whales_insider_trades` — normalized insider transaction rows retained for the rolling Flow window.
-- `unusual_whales_tracked_institutions`, `unusual_whales_tracked_institution_history`, holdings/activity tables — curated institutional holdings, historical totals, SPY comparison points, and latest-quarter activity.
-
-### Status and observability
-
-Purpose: function/job telemetry for the Status tab.
-
-```sql
-job_runs (
-  id uuid primary key,
-  job_name text,
-  function_name text,
-  source text,
-  status text,
-  started_at timestamptz,
-  finished_at timestamptz,
-  rows_fetched integer,
-  rows_inserted integer,
-  rows_updated integer,
-  rows_deleted integer,
-  error_message text,
-  warning_message text,
-  metadata jsonb
-)
-```
-
-Important constraints/indexes: status is limited to `running`, `success`, `warning`, `error`, or `skipped`; indexes support latest-run lookups by function and status. A Supabase RPC prunes telemetry older than the configured retention window during writes.
-
-## API and scheduled function reference
-
-| Route/function                                                                      | Purpose                                       | Method/schedule                  | Source/provider                                                   | Cache behavior                                                                            |
-| ----------------------------------------------------------------------------------- | --------------------------------------------- | -------------------------------- | ----------------------------------------------------------------- | ----------------------------------------------------------------------------------------- |
-| `/api/today`                                                                        | Today dashboard payload                       | `GET`                            | Supabase snapshot/source rows plus market/news/calendar providers | Validates with `todayPayloadSchema`; reads cached/snapshot data where available.          |
-| `/api/markets`                                                                      | Markets strip/heatmap payload                 | `GET`                            | Yahoo Finance, Finnhub, fixtures where needed                     | Uses `markets:latest`/quote cache paths where supported.                                  |
-| `/api/news-calendar`                                                                | News, economic calendar, and earnings payload | `GET`                            | Unusual Whales, Investing.com, Supabase                           | Reads normalized source rows and fallback paths.                                          |
-| `/api/flow`                                                                         | Flow payload                                  | `GET`                            | Supabase Flow source tables                                       | Reads `flow:latest`, then source tables, then fixtures where necessary.                   |
-| `/api/ownership`                                                                    | Ownership payload                             | `GET`                            | Supabase ownership data and fixtures                              | Reads ownership cache/snapshot paths where implemented.                                   |
-| `/api/ownership/institutional`                                                      | Institutional summary/holdings                | `GET`                            | Supabase tracked institutional tables                             | Browser-safe cached response.                                                             |
-| `/api/sources/status`                                                               | Environment/source readiness                  | `GET`                            | Environment metadata only                                         | Returns configured/missing booleans; never returns secret values.                         |
-| `/api/cache/status`                                                                 | Cache diagnostics                             | `GET`                            | Supabase metadata/source tables                                   | Reports row counts, freshness, and metadata diagnostics.                                  |
-| `refresh-markets` / `refresh-market-quotes`                                         | Market quote cache and Markets snapshot       | Frequent weekday schedules       | Yahoo Finance, Finnhub                                            | Upserts quote rows and dashboard snapshots.                                               |
-| `refresh-news`, `refresh-news-feed`, `refresh-featured-articles`                    | News source rows and News & Calendar snapshot | Every 30 minutes                 | Unusual Whales                                                    | Upserts feed/article rows and snapshot payloads.                                          |
-| `fetch-uw-earnings`                                                                 | Earnings calendar source cache                | Every 6 hours                    | Unusual Whales                                                    | Upserts active-window rows and prunes outside-window rows.                                |
-| `refresh-economic-events`                                                           | Economic calendar cache                       | Every 6 hours                    | Investing.com                                                     | Upserts normalized economic events.                                                       |
-| `refresh-put-call`                                                                  | Put/call observation cache                    | Every 30 minutes Monday-Friday   | Cboe                                                              | Upserts latest put/call observation.                                                      |
-| `refresh-flow`, `refresh-dark-pool`, `refresh-whale-feed`, `refresh-insider-trades` | Flow source rows and snapshot                 | Hourly/weekday guarded schedules | Unusual Whales + Supabase                                         | Refreshes source tables and composes `flow:latest`.                                       |
-
-Representative API response envelope:
-
-```json
-{
-  "payload": {
-    "summaryCards": [],
-    "mainCards": [],
-    "sourceMeta": []
-  },
-  "mode": "cached",
-  "notices": [],
-  "timezone": "America/New_York",
-  "generatedAt": "2026-06-29T00:00:00.000Z"
-}
-```
+Scheduled functions refresh market data, news and earnings, economic events, put/call observations, Flow sources, ownership data, snapshots, and daily candles. Historical repairs and backfills are separate maintenance workflows rather than interactive dashboard requests. Exact function names and schedules belong in [`docs/deployment.md`](docs/deployment.md); maintenance commands belong in [`docs/development.md`](docs/development.md).
 
 ## Status and observability
 
-The Status tab is backed by two layers:
-
-1. A static job registry in `lib/status/jobs.ts` that defines dashboard grouping, function names, sources, schedules, and freshness expectations.
-2. Runtime telemetry in `job_runs`, written by scheduled functions through shared helpers in `lib/status/job-runs.ts`.
-
-Status rows surface successful, skipped, warning, error, stale, critical, offline, and unknown conditions depending on telemetry and schedule definitions. The page is rendered with no-store/dynamic behavior and includes client auto-refresh so operational state can update without redeploying.
+The Status tab combines a static job registry in `lib/status/jobs.ts` with runtime `job_runs` telemetry written by scheduled functions through shared helpers. It presents freshness, skipped work, warnings, failures, and unknown states without exposing secrets or raw provider responses. Netlify logs remain an operational debugging aid, not the dashboard's status data source.
 
 ## Security model
 
 - Browser components do not call privileged provider APIs directly.
-- `SUPABASE_SERVICE_ROLE_KEY` is used only server-side and is not exposed to client bundles.
-- Client-visible routes return normalized/cache-layer payloads instead of raw secret-bearing provider URLs or credentials.
-- Only variables intentionally safe for the browser should use a `NEXT_PUBLIC_` prefix.
-- Logs and diagnostics avoid dumping raw provider payloads or secrets.
+- Provider credentials and `SUPABASE_SERVICE_ROLE_KEY` are server-only and must not use the `NEXT_PUBLIC_` prefix.
+- Client-visible routes return normalized application payloads rather than secret-bearing provider details.
+- Logs and diagnostics expose bounded operational metadata, not credentials or raw sensitive payloads.
 
 ## Performance and reliability
 
-- Cache-first page/API reads keep dashboard navigation independent of most provider outages.
-- Scheduled ingestion reduces repeated provider calls during user traffic.
-- Flow and feed tables use retention/pruning so high-volume caches do not grow indefinitely.
-- `dashboard_snapshots` stores frontend-ready payloads to avoid rebuilding every dashboard section on every request.
-- Failure paths preserve stale/last-known-good data where implemented and surface notices/status telemetry rather than silently hiding failures.
+- Cache-first reads and frontend-ready snapshots keep navigation responsive during provider latency or outages.
+- Dashboard routes load independently; conservative route warming may occur after the active page is interactive.
+- Scheduled ingestion avoids repeating provider work for each visitor.
+- Retention and pruning bound high-volume caches and telemetry.
+- Supported failure paths preserve last-known-good data and surface unavailable, stale, or failed states rather than silently fabricating live data.
 
 ## Local development
+
+Requires Node.js 20 or newer and npm.
 
 ```bash
 npm install
@@ -237,57 +124,13 @@ npm run lint
 npm run build
 ```
 
-Configure only the environment variables needed for the flows you are testing. Server-only provider keys and `SUPABASE_SERVICE_ROLE_KEY` must not be prefixed with `NEXT_PUBLIC_`. See [`docs/development.md`](docs/development.md) and [`docs/deployment.md`](docs/deployment.md) for deeper setup and deployment notes.
+Configure only the environment variables needed for the flows you are testing. See [`docs/development.md`](docs/development.md) for local workflows and [`docs/deployment.md`](docs/deployment.md) for production configuration.
 
 ## Documentation map
 
-- [`docs/architecture.md`](docs/architecture.md) — routing, data orchestration, cache patterns, and conventions.
-- [`docs/data-sources.md`](docs/data-sources.md) — provider-specific adapters, fallback rules, environment variables, and Supabase notes.
-- [`docs/features.md`](docs/features.md) — product/tab implementation details that do not belong in this README.
-- [`docs/development.md`](docs/development.md) — local workflows and validation commands.
-- [`docs/deployment.md`](docs/deployment.md) — Netlify/Supabase deployment guidance.
-- [`docs/codex-guidelines.md`](docs/codex-guidelines.md) — repository maintenance expectations for agent-assisted work.
-
-### Daily candle architecture
-
-Markets chart history and S&P 500 breadth calculations are backed by three server-only Supabase tables: `sp500_daily_candles`, `market_daily_candles`, and `crypto_daily_candles`. Provider writes use the Supabase service-role client on the server, while the browser reads only through `/api/markets/candles?symbol=SPY&range=1W` and renders those Supabase rows with TradingView Lightweight Charts (with attribution), not TradingView-hosted data. Stock and fixed-market history is temporarily backfilled from Unusual Whales by an explicit maintenance script, then updated daily from Finnhub only. Crypto is the exception: the eight configured crypto heatmap assets continue to use Unusual Whales daily candles. All candle tables are pruned to a dynamic trailing one-year window and `markets:latest` remains a compact frontend-ready snapshot rather than a candle-history payload.
-
-### Markets candle data flow
-
-Historical Markets charts use a frontend-safe API over Supabase candle tables: `crypto_daily_candles`, `market_daily_candles`, and `sp500_daily_candles`. Chart history never uses fixtures or `marketsMock()`; no rows means an unavailable chart state. Crypto backfill remains Unusual Whales crypto candles, while temporary equity backfills use Unusual Whales `ticker_candles/{TICKER}/historic/v2?interval=1y&include_1m_data=true`; ongoing equity daily updates remain Finnhub and preserve existing non-null Unusual Whales volume when Finnhub volume is null. Real candle API responses are short-cacheable; empty/error responses are `no-store`.
-
-S&P 500 Futures (`ES=F`) chart history is candle-enabled through the server-only Unusual Whales futures endpoint `https://phx.unusualwhales.com/api/futures_eod_history/09abc102-cb07-420e-92c6-e220f44c1e81`. The live futures card quote remains separate from historical candles. Futures OHLC rows are stored in `market_daily_candles` with null volume, one-year retention, `America/New_York` date handling, provider Sundays preserved, Saturdays excluded, and no fabricated Sunday rows. Diagnostic and targeted backfill commands are available as `npx tsx scripts/debugUnusualWhalesFuturesCandles.ts` and `npm run backfill:futures-candles`.
-
-Markets chart headings use name-first order and avoid repeating duplicate name/ticker labels. Market Breadth always shows the five canonical rows; unavailable 50D, 200D, and 52W metrics display `-`.
-
-## Performance loading model
-
-AlphaDigest keeps App Router pages split by dashboard route. The Today route loads first; visible navigation disables eager prefetch; after load and browser idle a sequential, network-aware route warmer prefetches Markets, News & Calendar, Flow, Ownership, Sentiment, and Status. Save-Data, 2G, hidden tabs, and user interaction priority are respected. Route-level skeletons and a non-blocking shell progress bar keep the interface visibly responsive.
-
-## Daily candle schedules
-
-Netlify scheduled functions run cron expressions in UTC. Daily Market Candles run `0 23 * * 1-5` (6:00 PM Toronto standard time, 7:00 PM daylight time). Daily Crypto Candles run `0 6 * * *` (1:00 AM Toronto standard time, 2:00 AM daylight time). Manual Netlify Run now remains supported for the market dispatcher/background worker path.
-
-## Ownership 13F freshness
-
-Ownership selects each institution's latest complete available 13F period. A complete period requires a summary row and stock holdings for the same report date; newer incomplete quarters are reported as metadata and do not delete or hide previous complete filings.
-
-### Markets: Market Watch
-
-The Markets page includes a server-calculated Market Watch card beside Market Breadth and Market Movers. Signals come from `sp500_daily_candles` and are stored compactly in `markets:latest`: 52W highs/lows compare the latest eligible session with the previous 252 sessions excluding the latest candle, 200D moving-average rows require a true latest-session cross or exact-at result with at least 201 closes, and 200W rows use final weekly closes and require at least 201 weekly observations. Current one-year candle pruning means 200W can remain visible as `Insufficient history` unless longer valid history exists. Rows are limited to five per section and sorted by breakout/cross magnitude with ticker tie-breakers. Advancers / Decliners display uses `▲` and `▼` text glyphs with accessible count labels.
-
-### Equity candle audit/backfill
-
-Run `npm run audit:equity-candles` to summarize `sp500_daily_candles` and `market_daily_candles` coverage without writes. Run targeted historical backfills with `npm run backfill:equity-candles -- --symbol AAPL --from 2021-01-01 --to YYYY-MM-DD` or use `--dry-run` to avoid writes. Equity history uses the configured Unusual Whales historical candle endpoint; Finnhub quotes are current-session data only. Jobs are globally capped at five symbols per batch with paced retries, while S&P 500 Futures keeps its dedicated futures endpoint.
-
-AlphaDigest does not use an Unusual Whales API key for candle ingestion. Public provider requests originate only in server-side ingestion modules, send no authorization header, persist normalized candles in Supabase, and frontend charts read cached AlphaDigest data rather than provider URLs.
-
-## Equity candle operations
-
-Daily market candle refresh is incremental. Historical equity repair is dispatched through the protected Netlify `backfill-equity-candles` function and processed by `backfill-equity-candles-worker-background` in atomic batches of at most five symbols. Run `npm run audit:equity-candles` for read-only coverage checks. The historical Unusual Whales endpoint is public and used server-side only—no Unusual Whales API key is configured or used.
-
-### Today live-data integrity
-
-The Today Leading Sectors metric carries up to three ordered `{ symbol, label, changePercent }` records so each signed percentage is rendered and announced independently. Today earnings are selected only from the Supabase `unusual_whales_earnings_events` cache for the current Toronto/Eastern date, require the documented $4B minimum market capitalization, sort by raw market cap, and display the first five; an empty/unavailable cache renders no earnings rather than fixture records. Earnings and Markets `movers` remain separate payload fields.
-
-Economic-calendar page builders read `investing_economic_events`; scheduled refreshes alone contact Investing.com. Refresh responses include bounded extraction/filter/upsert/read-back diagnostics and only report `persisted: true` after verification. A provider response with raw rows but no normalized rows is an error and preserves cached rows. Production provider/database health must be verified after deployment.
+- [`docs/architecture.md`](docs/architecture.md) — routing, data orchestration, caching, and shared design conventions.
+- [`docs/data-sources.md`](docs/data-sources.md) — provider ingestion, normalization, persistence, retention, fallbacks, and source behavior.
+- [`docs/features.md`](docs/features.md) — detailed dashboard, tab, card, and business behavior.
+- [`docs/development.md`](docs/development.md) — local development, maintenance scripts, audits, backfills, and debugging.
+- [`docs/deployment.md`](docs/deployment.md) — Netlify schedules, environment configuration, deployment, and operations.
+- [`docs/codex-guidelines.md`](docs/codex-guidelines.md) — documentation and repository-maintenance policy for agent-assisted work.

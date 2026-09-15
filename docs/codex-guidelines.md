@@ -2,19 +2,46 @@
 
 This repository's documentation is intended to help future Codex/AI-agent sessions work safely and accurately.
 
-## Prime directive: docs are required
+## Prime directive: keep affected documentation current
 
-Every code change that affects behavior, data flow, UI, scripts, APIs, deployment, environment variables, serverless/backend functions, data files, schemas, styling conventions, or architecture must update documentation in the same change.
+Documentation is part of an implementation when a change materially affects documented behavior, data flow, APIs, operations, or architecture. Update only the files whose scope is affected; minor code changes do not require documentation churn.
 
 Documentation is not optional cleanup after coding. It is part of the implementation.
 
 Use this routing:
 
-- User-visible behavior changed? Update `README.md` if appropriate and `docs/features.md`.
+- Feature, tab, card, or other user-visible behavior changed? Update `docs/features.md`.
 - Architecture/routing/backend pattern changed? Update `docs/architecture.md`.
 - Source/provider/cache/fallback/script/schema changed? Update `docs/data-sources.md`.
 - Build/deploy/env/function scheduling changed? Update `docs/deployment.md`.
 - Development workflow or agent rules changed? Update `docs/development.md` and this file.
+
+## README maintenance policy
+
+`README.md` is a stable, high-level overview of AlphaDigest. It is not a changelog or implementation journal. Do not update it merely because a code change was implemented, and do not append a new README section for each implementation task.
+
+Change the README only when a change materially affects a major project-level concept, such as:
+
+- the overall architecture or primary technology stack;
+- a major data provider or the core data-flow model;
+- major database domains;
+- public developer setup;
+- the security model; or
+- the fundamental deployment model.
+
+Put feature-specific detail in the documentation file responsible for it:
+
+- provider, ingestion, persistence, retention, or fallback behavior -> `docs/data-sources.md`;
+- feature, tab, card, or business behavior -> `docs/features.md`;
+- architecture, caching, routing, or shared patterns -> `docs/architecture.md`;
+- development, backfill, audit, validation, or debugging commands -> `docs/development.md`;
+- schedules, environment configuration, deployment, or production operations -> `docs/deployment.md`.
+
+Before editing `README.md`, ask:
+
+> Would a new developer need this information to understand the overall AlphaDigest project, or is this primarily a detail about one feature or implementation?
+
+If it is primarily an implementation detail, do not put it in the README. A request to “update documentation” does **not** automatically mean updating `README.md`; update only documentation whose scope is materially affected.
 
 ## Start-of-task audit
 

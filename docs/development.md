@@ -8,7 +8,7 @@ Documentation is part of implementation, not optional cleanup.
 
 Whenever a change modifies user-facing behavior, data flow, UI, scripts, APIs, environment variables, deployment settings, data sources, backend/serverless functions, schemas, styling patterns, or architecture, update the relevant documentation in the same change.
 
-- Update `README.md` when the user experience, available tabs, data freshness caveats, setup, or deployment story changes.
+- Update `README.md` only when a major project-level concept changes, as defined by the README maintenance policy in `docs/codex-guidelines.md`.
 - Update `docs/features.md` when tabs, pages, components, route behavior, or visible UI flows change.
 - Update `docs/data-sources.md` when sources, adapters, caching, fallbacks, schemas, scripts, or provider contracts change.
 - Update `docs/architecture.md` when routing, structure, backend/serverless patterns, Supabase usage, or shared architecture changes.
@@ -115,7 +115,7 @@ Guidelines:
 3. Update navigation in `lib/constants/navigation.ts` if it is a navigable tab.
 4. Add/update schemas in `lib/data/schemas/` if an API payload changes.
 5. Add/update API route under `app/api/` if internal fetch access is needed.
-6. Update docs: `README.md` for user-facing tab changes and `docs/features.md`/`docs/architecture.md` for technical details.
+6. Update `docs/features.md` for user-facing behavior and `docs/architecture.md` for routing or system-design changes. Update the README only if the project-level overview materially changes.
 
 ### Change Today data
 
