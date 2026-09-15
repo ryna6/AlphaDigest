@@ -9,7 +9,6 @@ export type DashboardSnapshot<T> = {
   notices: string[];
   generatedAt: string;
   expiresAt: string | null;
-  sourceHash: string | null;
   metadata: Record<string, unknown>;
 };
 
@@ -20,7 +19,6 @@ type SnapshotRow = {
   notices: unknown;
   generated_at: string;
   expires_at: string | null;
-  source_hash: string | null;
   metadata: unknown;
 };
 
@@ -32,7 +30,6 @@ function normalize<T>(row: SnapshotRow): DashboardSnapshot<T> {
     notices: Array.isArray(row.notices) ? row.notices.filter((item): item is string => typeof item === "string") : [],
     generatedAt: row.generated_at,
     expiresAt: row.expires_at,
-    sourceHash: row.source_hash,
     metadata: row.metadata && typeof row.metadata === "object" && !Array.isArray(row.metadata) ? row.metadata as Record<string, unknown> : {}
   };
 }
@@ -46,7 +43,7 @@ export async function getSnapshotOrNull<T>(key: string) {
   if (!supabase.ok) return { snapshot: null, message: supabase.message };
   const { data, error } = await supabase.client
     .from("dashboard_snapshots")
-    .select("key,payload,mode,notices,generated_at,expires_at,source_hash,metadata")
+    .select("key,payload,mode,notices,generated_at,expires_at,metadata")
     .eq("key", key)
     .maybeSingle();
   if (error) return { snapshot: null, message: `Supabase dashboard snapshot read failed for ${key}: ${error.message}` };
@@ -81,7 +78,6 @@ export async function upsertDashboardSnapshot(
       notices: options.notices ?? [],
       generated_at: generatedAt.toISOString(),
       expires_at: expiresAt,
-      source_hash: sourceHash,
       metadata: options.metadata ?? {}
     },
     { onConflict: "key" }
@@ -103,7 +99,7 @@ export async function listDashboardSnapshotStatus(limit = 25) {
   if (!supabase.ok) return { ok: false as const, configured: false, message: supabase.message, snapshots: [] };
   const { data, error } = await supabase.client
     .from("dashboard_snapshots")
-    .select("key,mode,generated_at,expires_at,source_hash,metadata")
+    .select("key,mode,generated_at,expires_at,metadata")
     .order("generated_at", { ascending: false })
     .limit(limit);
   if (error) return { ok: false as const, configured: true, message: error.message, snapshots: [] };

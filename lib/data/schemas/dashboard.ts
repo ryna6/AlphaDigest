@@ -271,75 +271,6 @@ export const insiderTradeDetailPayloadSchema = z.object({
   notices: z.array(z.string()).default([])
 });
 
-const economyDataPointSchema = z.object({
-  date: z.string(),
-  value: z.number()
-});
-
-const economyChangeModeSchema = z.enum(["percent", "percentage-point", "absolute"]);
-
-const economyChangeSnapshotSchema = z.object({
-  value: z.number().nullable(),
-  mode: economyChangeModeSchema
-});
-
-const economyMetricDefinitionSchema = z.object({
-  id: z.string(),
-  label: z.string(),
-  shortLabel: z.string().optional(),
-  fullName: z.string(),
-  dataSource: z.string().optional(),
-  seriesId: z.string(),
-  unit: z.string(),
-  frequency: z.enum(["Daily", "Weekly", "Monthly", "Quarterly"]),
-  seasonalAdjustment: z.string(),
-  preferredChangeMode: economyChangeModeSchema,
-  valueFormat: z.enum([
-    "number",
-    "percent",
-    "currency-billions",
-    "currency-trillions",
-    "persons-thousands"
-  ]),
-  chartAxisLabel: z.string(),
-  signalLabel: z.string(),
-  whatItMeasures: z.string(),
-  whyInvestorsCare: z.string(),
-  howToReadIt: z.string(),
-  currentTakeaway: z.string(),
-  fredOptions: z
-    .object({
-      units: z.string().optional(),
-      frequency: z.string().optional()
-    })
-    .optional(),
-  latestDate: z.string().optional(),
-  latestValue: z.number().nullable().optional(),
-  history: z.array(economyDataPointSchema).optional(),
-  qoqChange: economyChangeSnapshotSchema.optional(),
-  yoyChange: economyChangeSnapshotSchema.optional(),
-  error: z.string().optional()
-});
-
-const economyCardDefinitionSchema = z.object({
-  id: z.string(),
-  title: z.string(),
-  description: z.string(),
-  statusLabel: z.string(),
-  interpretation: z.string(),
-  sectionSummary: z.string().optional(),
-  metrics: z.array(economyMetricDefinitionSchema),
-  derivedFrom: z.array(z.string()).optional(),
-  hasMiniChart: z.boolean().optional()
-});
-
-export const economyPayloadSchema = z.object({
-  summaryCards: z.array(economyCardDefinitionSchema),
-  mainCards: z.array(economyCardDefinitionSchema),
-  sourceMeta: z.array(sourceMetaSchema),
-  notices: z.array(z.string()).default([])
-});
-
 export const newsCalendarPayloadSchema = z.object({
   news: z.array(newsItemSchema),
   economicCalendar: z.array(eventSchema),
@@ -383,5 +314,4 @@ export type FlowPayload = z.infer<typeof flowPayloadSchema>;
 export type OwnershipPayload = z.infer<typeof ownershipPayloadSchema>;
 export type InsiderTradesPayload = z.infer<typeof insiderTradesPayloadSchema>;
 export type InsiderTradeDetailPayload = z.infer<typeof insiderTradeDetailPayloadSchema>;
-export type EconomyPayload = z.infer<typeof economyPayloadSchema>;
 export type TickerPayload = z.infer<typeof tickerPayloadSchema>;

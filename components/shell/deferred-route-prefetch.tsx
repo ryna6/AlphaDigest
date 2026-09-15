@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useRef } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { mainNavigation, utilityNavigation } from "@/lib/constants/navigation";
 
-const priority = ["/markets", "/news-calendar", "/flow", "/ownership", "/economy", "/sentiment", "/status"];
+const priority = ["/markets", "/news-calendar", "/flow", "/ownership", "/sentiment", "/status"];
 const slowTypes = new Set(["slow-2g", "2g"]);
 
 type ConnectionLike = { saveData?: boolean; effectiveType?: string };

@@ -1,6 +1,5 @@
 import {
   CalendarDays,
-  ChartColumn,
   Database,
   Landmark,
   Newspaper,
@@ -16,7 +15,6 @@ export const mainNavigation = [
   { label: "News & Calendar", href: "/news-calendar", icon: CalendarDays },
   { label: "Flow", href: "/flow", icon: ScrollText },
   { label: "Ownership", href: "/ownership", icon: Landmark },
-  { label: "Economy", href: "/economy", icon: ChartColumn },
   { label: "Sentiment", href: "/sentiment", icon: Vote }
 ];
 

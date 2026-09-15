@@ -1,4 +1,4 @@
-import { economyMock } from "@/lib/data/fixtures/mock-dashboard";
+import { sentimentMock } from "@/lib/data/fixtures/mock-dashboard";
 import { PageTitle } from "@/components/dashboard/page-title";
 import { Panel } from "@/components/ui/panel";
 import { SectionHeader } from "@/components/ui/section-header";
@@ -10,7 +10,7 @@ function MetricPanel({
   info
 }: {
   title: string;
-  metrics: typeof economyMock.sentiment;
+  metrics: typeof sentimentMock.sentiment;
   info?: string;
 }) {
   return (
@@ -24,7 +24,7 @@ function MetricPanel({
 }
 
 function SentimentSummaryRow() {
-  const summaryCards = economyMock.sentiment.slice(0, 3);
+  const summaryCards = sentimentMock.sentiment.slice(0, 3);
 
   return (
     <Panel>
@@ -59,7 +59,7 @@ export function SentimentView() {
       <div className="mt-4 grid gap-4 xl:grid-cols-2">
         <MetricPanel
           title="Sentiment & Positioning"
-          metrics={economyMock.sentiment}
+          metrics={sentimentMock.sentiment}
           info="Put/call ratios compare option put volume with call volume; high readings can indicate defensive demand."
         />
       </div>

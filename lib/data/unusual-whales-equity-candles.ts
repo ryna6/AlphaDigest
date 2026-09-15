@@ -200,7 +200,7 @@ export async function verifyEquityCandleDatabaseReady() {
     const { error } = await supabase.client
       .from(table)
       .select(
-        "symbol,provider_symbol,trading_date,open,high,low,close,volume,previous_close,source,source_timestamp,fetched_at"
+        "symbol,provider_symbol,trading_date,open,high,low,close,volume,previous_close,source,fetched_at"
       )
       .limit(0);
     if (error)

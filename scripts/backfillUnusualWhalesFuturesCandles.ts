@@ -3,7 +3,7 @@ import { fetchUnusualWhalesFuturesPayload, parseUnusualWhalesFuturesCandles, ver
 import { upsertDailyCandles } from "../lib/data/daily-candles";
 async function main(){
   const supabase = createServerSupabaseClient(); if(!supabase.ok) throw new Error(supabase.message);
-  const { error } = await supabase.client.from("market_daily_candles").select("symbol,provider_symbol,trading_date,open,high,low,close,volume,previous_close,source,source_timestamp,fetched_at").limit(0);
+  const { error } = await supabase.client.from("market_daily_candles").select("symbol,provider_symbol,trading_date,open,high,low,close,volume,previous_close,source,fetched_at").limit(0);
   if(error) throw new Error(`market_daily_candles unavailable: ${error.message}`);
   const fetched = await fetchUnusualWhalesFuturesPayload();
   const parsed = parseUnusualWhalesFuturesCandles(fetched.payload);

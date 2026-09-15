@@ -70,7 +70,6 @@ Initial target routes:
 | `/news-calendar` | App route is dynamic. | `/api/news-calendar` / `news-calendar:latest`. | Pending production run. |
 | `/flow` | Snapshot-backed with additional validation that bypasses stale mock or old flow summary shapes. | `flow:latest`. | Pending production run. |
 | `/ownership` | Snapshot-backed top-level payload; client detail cards fetch drill-down APIs. | `ownership:latest` and drill-down tables. | Pending production run. |
-| `/economy` | Snapshot-backed through economy payload helper. | `economy:latest`. | Pending production run. |
 | `/status` | `force-dynamic`, `revalidate = 0`, `fetchCache = force-no-store`. | `job_runs`/Supabase health. | Should remain no-store. |
 
 ## 5. Supabase query inventory
@@ -122,7 +121,6 @@ Expected dashboard snapshot keys:
 - `news-calendar:latest`
 - `flow:latest`
 - `ownership:latest`
-- `economy:latest`
 
 Implemented in this branch:
 
@@ -132,7 +130,7 @@ Implemented in this branch:
 
 ## 9. External-provider dependency map
 
-Normal page requests should prefer snapshots and cached source tables. Provider calls are concentrated in adapters and Netlify functions for Yahoo Finance, Finnhub, CoinGecko, Unusual Whales, Investing.com calendar, CBOE, FRED/economy, Barchart/market breadth, and ownership/congressional data. Any provider call observed during ordinary dashboard navigation is a candidate P1/P0 unless it is a documented live fallback after missing/expired snapshot.
+Normal page requests prefer snapshots and cached source tables. Provider calls are isolated in server adapters and scheduled functions.
 
 ## 10. Research sources
 
@@ -198,7 +196,7 @@ P1 confirmed:
 Implemented now:
 
 1. Add reusable bounded performance spans and `Server-Timing` support.
-2. Add `Server-Timing` to `/api/today`, `/api/markets`, `/api/news-calendar`, `/api/flow`, and `/api/economy`.
+2. Add `Server-Timing` to the active dashboard APIs.
 3. Add Netlify-aware public CDN headers only to the existing dashboard API envelope.
 4. Add production-safe benchmark scripts and Supabase audit SQL.
 
@@ -278,7 +276,7 @@ Run the SQL files in Supabase SQL Editor or a read-only psql session. Do not pas
 
 ## 16. 2026-07-12 continuation: Today-first loading
 
-Repository changes now make `/overview/today` the critical route. Visible navigation links set `prefetch={false}` so the Today shell does not compete with eager prefetches for Markets, News & Calendar, Flow, Ownership, Economy, Sentiment, or Status during hydration. The shared dashboard shell mounts a client-side deferred prefetcher that waits for the browser load event (or an already-complete document), an idle callback/fallback timer, and an additional quiet period before warming one route at a time in this order: Markets, News & Calendar, Flow, Ownership, Economy, Sentiment, Status.
+Repository changes now make `/overview/today` the critical route. Visible navigation links set `prefetch={false}` so the Today shell does not compete with eager prefetches for Markets, News & Calendar, Flow, Ownership, Sentiment, or Status during hydration. The shared dashboard shell mounts a client-side deferred prefetcher that waits for the browser load event (or an already-complete document), an idle callback/fallback timer, and an additional quiet period before warming one route at a time in this order: Markets, News & Calendar, Flow, Ownership, Sentiment, Status.
 
 The prefetcher reads the central navigation configuration, excludes the active route, deduplicates warmed routes during the browser session, pauses on hidden documents, and skips background work when Save-Data, `slow-2g`, or `2g` is detected. Hover, keyboard focus, pointer down, or touch start can prioritize a user-selected route without blocking navigation. In production, `router.prefetch()` should be treated as warming route code/RSC/loading boundaries only unless network traces prove that reusable snapshot data is warmed; it must not trigger provider refreshes from the browser.
 

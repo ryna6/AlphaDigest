@@ -564,30 +564,10 @@ export function investingEconomicSources() {
 
 import { createServerSupabaseClient } from "@/lib/db/supabase";
 import { payloadContentHash, sourceResult, updateRefreshMetadata } from "./supabase-refresh";
-import { stableHash } from "./unusual-whales-earnings";
 
 const INVESTING_METADATA_SOURCE = "investing_economic_events";
 
 type CachedEconomicResult = FetchResult & { metadata?: Record<string, unknown> | null };
-
-function eventContentHash(event: InvestingEconomicEvent) {
-  return stableHash({
-    id: event.id,
-    eventId: event.eventId,
-    eventKey: event.eventKey,
-    eventName: event.eventName,
-    eventDate: event.eventDate,
-    time: event.time,
-    timestamp: event.timestamp,
-    importance: event.importance,
-    stars: event.stars,
-    actual: event.actual,
-    forecast: event.forecast,
-    previous: event.previous,
-    isHighlighted: event.isHighlighted,
-    highlightReason: event.highlightReason
-  });
-}
 
 function economicToDbRow(event: InvestingEconomicEvent) {
   return {
@@ -596,7 +576,6 @@ function economicToDbRow(event: InvestingEconomicEvent) {
     event_key: event.eventKey,
     event_name: event.eventName,
     event_date: event.eventDate,
-    time: event.time,
     event_time: event.timestamp,
     importance: event.importance,
     stars: event.stars,
@@ -605,10 +584,7 @@ function economicToDbRow(event: InvestingEconomicEvent) {
     previous: event.previous,
     is_highlighted: event.isHighlighted,
     highlight_reason: event.highlightReason,
-    source_url: buildInvestingEconomicCalendarUrl(event.eventDate),
-    raw: event.raw,
-    fetched_at: event.fetchedAt,
-    updated_at: new Date().toISOString()
+    fetched_at: event.fetchedAt
   };
 }
 
@@ -620,7 +596,7 @@ function economicFromDbRow(row: UnknownRecord): InvestingEconomicEvent {
     eventKey: asString(row.event_key) as ImportantEconomicEventKey | null,
     eventName: String(row.event_name ?? ""),
     eventDate: String(row.event_date),
-    time: asString(row.time),
+    time: asString(row.event_time) ? formatEtTime(String(row.event_time)) : null,
     timestamp: asString(row.event_time),
     importance: asString(row.importance),
     stars:
@@ -633,7 +609,7 @@ function economicFromDbRow(row: UnknownRecord): InvestingEconomicEvent {
     isHighlighted: Boolean(row.is_highlighted),
     highlightReason: asString(row.highlight_reason),
     fetchedAt: asString(row.fetched_at) ?? new Date().toISOString(),
-    raw: isRecord(row.raw) ? row.raw : {}
+    raw: {}
   };
 }
 
@@ -718,7 +694,7 @@ export async function refreshInvestingEconomicEvents(dateKeys = defaultEconomicR
   const deduped = Array.from(new Map(events.map((event) => [event.id, event])).values());
   const rows = deduped.map(economicToDbRow);
   const contentHash = payloadContentHash(
-    rows.map(({ fetched_at: _fetchedAt, updated_at: _updatedAt, ...row }) => row)
+    rows.map(({ fetched_at: _fetchedAt, ...row }) => row)
   );
   console.log("economic_rows_normalized", {
     correlationId,
@@ -772,7 +748,7 @@ export async function refreshInvestingEconomicEvents(dateKeys = defaultEconomicR
       const { data: verified, error: verifyError } = await supabase.client
         .from("investing_economic_events")
         .select(
-          "id,event_id,event_name,event_date,importance,stars,actual,forecast,previous,fetched_at,updated_at"
+          "id,event_id,event_name,event_date,importance,stars,actual,forecast,previous,fetched_at"
         )
         .gte("event_date", earliest)
         .lte("event_date", latest);
@@ -882,7 +858,7 @@ export async function getCachedInvestingEconomicCalendar(
   const { data, error } = await supabase.client
     .from("investing_economic_events")
     .select(
-      "id,event_id,event_key,event_name,event_date,time,event_time,importance,stars,actual,forecast,previous,is_highlighted,highlight_reason,source_url,raw,fetched_at,updated_at"
+      "id,event_id,event_key,event_name,event_date,event_time,importance,stars,actual,forecast,previous,is_highlighted,highlight_reason,fetched_at"
     )
     .eq("event_date", dateKey)
     .order("event_time", { ascending: true, nullsFirst: false });

@@ -4,7 +4,7 @@ AlphaDigest is a Next.js market intelligence dashboard built around server-side 
 
 ## Project overview
 
-AlphaDigest combines market, news, calendar, economy, flow, ownership, and status data into a single dashboard without exposing privileged provider credentials to the browser. Netlify functions fetch and normalize external data server-side, Supabase stores durable source rows and dashboard snapshots, and the Next.js App Router renders React dashboard views from normalized cache/API payloads.
+AlphaDigest combines market, news, calendar, flow, ownership, and status data into a single dashboard without exposing privileged provider credentials to the browser. Netlify functions fetch and normalize external data server-side, Supabase stores durable source rows and dashboard snapshots, and the Next.js App Router renders React dashboard views from normalized cache/API payloads.
 
 Detailed tab behavior lives in [`docs/`](docs/). This README focuses on system architecture and implementation decisions.
 
@@ -12,7 +12,7 @@ Detailed tab behavior lives in [`docs/`](docs/). This README focuses on system a
 
 ```mermaid
 flowchart LR
-  Providers[External providers\nFRED · Unusual Whales · Cboe · Yahoo Finance · Finnhub · Investing.com]
+  Providers[External providers\nUnusual Whales · Cboe · Yahoo Finance · Finnhub · Investing.com]
   Functions[Netlify scheduled functions\nand serverless handlers]
   Supabase[(Supabase Postgres\nsource tables · dashboard_snapshots · job_runs)]
   API[Next.js App Router\nserver components + API routes]
@@ -75,7 +75,6 @@ Only providers present in the codebase are listed here:
 
 | Provider/source                          | Current role                                                                                                                                                           |
 | ---------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| FRED                                     | Economy time-series ingestion through `FRED_API_KEY`, stored in `fred_economy`, and cached under `economy:latest`.                                                     |
 | Unusual Whales                           | Featured articles, news feed, earnings calendar, dark pool, whale feed, insider trades, institutional data, and congressional data where adapters/functions are wired. |
 | Cboe                                     | Server-side put/call market-statistics parser with optional Supabase persistence in `put_call_observations`.                                                           |
 | Yahoo Finance public endpoints           | Selected quotes, VIX-related metrics, market quote cache helpers, and SPY comparison data.                                                                             |
@@ -88,33 +87,9 @@ Only providers present in the codebase are listed here:
 
 Supabase is organized around source-specific normalized tables plus small app-level cache/telemetry tables.
 
-### Economy/FRED
-
-Purpose: durable FRED observations for Economy charts and incremental refreshes.
-
-```sql
-fred_economy (
-  id uuid primary key,
-  provider text,
-  series_id text,
-  metric_key text,
-  card_key text,
-  date date,
-  value numeric,
-  unit text,
-  frequency text,
-  seasonal_adjustment text,
-  source_label text,
-  created_at timestamptz,
-  updated_at timestamptz
-)
-```
-
-Important constraints/indexes: unique `(provider, series_id, date)` and lookup indexes by metric/card plus descending date. Refreshes fetch only missing/new observations after the latest saved series date when possible.
-
 ### Dashboard snapshots and metadata
 
-Purpose: frontend-ready cache payloads such as `today:latest`, `markets:latest`, `news-calendar:latest`, `flow:latest`, `ownership:latest`, and `economy:latest`.
+Purpose: frontend-ready cache payloads such as `today:latest`, `markets:latest`, `news-calendar:latest`, `flow:latest`, `ownership:latest`.
 
 ```sql
 dashboard_snapshots (
@@ -124,12 +99,21 @@ dashboard_snapshots (
   notices jsonb,
   generated_at timestamptz,
   expires_at timestamptz,
-  source_hash text,
   metadata jsonb
 )
 ```
 
 Important constraints/indexes: primary key/unique snapshot key plus freshness indexes on `expires_at` and `generated_at`.
+
+The persisted snapshot `notices` and `metadata` fields remain because cache-fallback composition and Flow diagnostics read them. Change hashes are kept centrally in `data_refresh_metadata`; the redundant per-snapshot hash was removed.
+
+### Lean source-table conventions
+
+- `crypto_daily_candles` stores its provider symbol, trading date, OHLCV values, and one `fetched_at` ingestion timestamp. Its single-provider provenance is derived by the API rather than repeated per row.
+- `market_daily_candles` retains `provider_symbol`, `source`, `trading_date`, `volume`, and `fetched_at`: provider mapping, mixed historical/current provenance, business-date semantics, volume preservation, and freshness all depend on them.
+- `investing_economic_events` keeps the stable synthetic `id`, provider `event_id`, application classification `event_key`, Eastern `event_date`, timezone-aware `event_time`, and `fetched_at`. Display time is formatted from `event_time` rather than persisted separately.
+- `market_quotes` is keyed by `symbol`; Yahoo provenance is derived by its only adapter, aggregate change detection lives in `data_refresh_metadata`, and `fetched_at` is the freshness timestamp.
+- `market_summary_history` uses `observed_at` as its business timestamp. The detailed Cboe timezone fields belong to `put_call_observations`, not this compact comparison-history table.
 
 ### News, calendar, and earnings
 
@@ -173,8 +157,7 @@ job_runs (
   rows_deleted integer,
   error_message text,
   warning_message text,
-  metadata jsonb,
-  created_at timestamptz
+  metadata jsonb
 )
 ```
 
@@ -187,15 +170,12 @@ Important constraints/indexes: status is limited to `running`, `success`, `warni
 | `/api/today`                                                                        | Today dashboard payload                       | `GET`                            | Supabase snapshot/source rows plus market/news/calendar providers | Validates with `todayPayloadSchema`; reads cached/snapshot data where available.          |
 | `/api/markets`                                                                      | Markets strip/heatmap payload                 | `GET`                            | Yahoo Finance, Finnhub, fixtures where needed                     | Uses `markets:latest`/quote cache paths where supported.                                  |
 | `/api/news-calendar`                                                                | News, economic calendar, and earnings payload | `GET`                            | Unusual Whales, Investing.com, Supabase                           | Reads normalized source rows and fallback paths.                                          |
-| `/api/economy`                                                                      | Economy payload                               | `GET`                            | FRED + Supabase `fred_economy`/`economy:latest`                   | Cache-first snapshot with live/server fallback.                                           |
-| `/api/economy-sentiment`                                                            | Legacy Economy compatibility endpoint         | `GET`                            | Same as `/api/economy`                                            | Retained intentionally to avoid breaking old clients; new code should use `/api/economy`. |
 | `/api/flow`                                                                         | Flow payload                                  | `GET`                            | Supabase Flow source tables                                       | Reads `flow:latest`, then source tables, then fixtures where necessary.                   |
 | `/api/ownership`                                                                    | Ownership payload                             | `GET`                            | Supabase ownership data and fixtures                              | Reads ownership cache/snapshot paths where implemented.                                   |
 | `/api/ownership/institutional`                                                      | Institutional summary/holdings                | `GET`                            | Supabase tracked institutional tables                             | Browser-safe cached response.                                                             |
 | `/api/ownership/congressional`                                                      | Congressional holdings/trades                 | `GET`                            | Supabase congressional tables                                     | Browser-safe cached response with SPY comparison support.                                 |
 | `/api/sources/status`                                                               | Environment/source readiness                  | `GET`                            | Environment metadata only                                         | Returns configured/missing booleans; never returns secret values.                         |
 | `/api/cache/status`                                                                 | Cache diagnostics                             | `GET`                            | Supabase metadata/source tables                                   | Reports row counts, freshness, and metadata diagnostics.                                  |
-| `refresh-economy`                                                                   | FRED ingestion and Economy snapshot           | Daily at 00:00 UTC               | FRED                                                              | Incremental `fred_economy` upserts and `economy:latest` snapshot.                         |
 | `refresh-markets` / `refresh-market-quotes`                                         | Market quote cache and Markets snapshot       | Frequent weekday schedules       | Yahoo Finance, Finnhub                                            | Upserts quote rows and dashboard snapshots.                                               |
 | `refresh-news`, `refresh-news-feed`, `refresh-featured-articles`                    | News source rows and News & Calendar snapshot | Every 30 minutes                 | Unusual Whales                                                    | Upserts feed/article rows and snapshot payloads.                                          |
 | `fetch-uw-earnings`                                                                 | Earnings calendar source cache                | Every 6 hours                    | Unusual Whales                                                    | Upserts active-window rows and prunes outside-window rows.                                |
@@ -220,23 +200,6 @@ Representative API response envelope:
 }
 ```
 
-Representative Economy request:
-
-```http
-GET /api/economy
-```
-
-Representative cache/status shape:
-
-```json
-{
-  "snapshots": [
-    { "key": "economy:latest", "fresh": true, "generatedAt": "2026-06-29T00:00:00.000Z" }
-  ],
-  "sources": [{ "name": "fred_economy", "rowCount": 1200 }]
-}
-```
-
 ## Status and observability
 
 The Status tab is backed by two layers:
@@ -248,7 +211,6 @@ Status rows surface successful, skipped, warning, error, stale, critical, offlin
 
 ## Security model
 
-- Provider keys such as `FRED_API_KEY` and market/news provider credentials are read only from server environments.
 - Browser components do not call privileged provider APIs directly.
 - `SUPABASE_SERVICE_ROLE_KEY` is used only server-side and is not exposed to client bundles.
 - Client-visible routes return normalized/cache-layer payloads instead of raw secret-bearing provider URLs or credentials.
@@ -259,7 +221,6 @@ Status rows surface successful, skipped, warning, error, stale, critical, offlin
 
 - Cache-first page/API reads keep dashboard navigation independent of most provider outages.
 - Scheduled ingestion reduces repeated provider calls during user traffic.
-- Economy/FRED refreshes are incremental by series date and reuse stored observations before live fetches.
 - Flow and feed tables use retention/pruning so high-volume caches do not grow indefinitely.
 - `dashboard_snapshots` stores frontend-ready payloads to avoid rebuilding every dashboard section on every request.
 - Failure paths preserve stale/last-known-good data where implemented and surface notices/status telemetry rather than silently hiding failures.
@@ -304,7 +265,7 @@ Markets chart headings use name-first order and avoid repeating duplicate name/t
 
 ## Performance loading model
 
-AlphaDigest keeps App Router pages split by dashboard route. The Today route loads first; visible navigation disables eager prefetch; after load and browser idle a sequential, network-aware route warmer prefetches Markets, News & Calendar, Flow, Ownership, Economy, Sentiment, and Status. Save-Data, 2G, hidden tabs, and user interaction priority are respected. Route-level skeletons and a non-blocking shell progress bar keep the interface visibly responsive.
+AlphaDigest keeps App Router pages split by dashboard route. The Today route loads first; visible navigation disables eager prefetch; after load and browser idle a sequential, network-aware route warmer prefetches Markets, News & Calendar, Flow, Ownership, Sentiment, and Status. Save-Data, 2G, hidden tabs, and user interaction priority are respected. Route-level skeletons and a non-blocking shell progress bar keep the interface visibly responsive.
 
 ## Daily candle schedules
 

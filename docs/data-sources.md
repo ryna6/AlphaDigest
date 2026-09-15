@@ -15,7 +15,6 @@ This document records active and placeholder data sources. Accuracy matters: do 
 | Cboe U.S. Options Market Statistics           | Active server-side parser for intraday equity, index, and total put/call ratios.                        | `lib/data/adapters/cboe-put-call.ts`, `netlify/functions/refresh-put-call.ts`  |
 | Supabase                                      | Optional durable cache for supported refresh helpers, including put/call observations.                  | `lib/db/supabase.ts`, `supabase/`                                              |
 | Static earnings fallback JSON                 | Active fallback when Supabase/live earnings paths are unavailable.                                      | `public/data/unusual-whales/earnings-calendar.json`                            |
-| FRED, Twelve Data, Capitol Trades, CBOE, AAII | Listed/planned or placeholder only unless future code wires them into live flows.                       | Methodology/Status pages and fixtures currently reference some of these names. |
 
 ## Environment variables
 
@@ -31,7 +30,6 @@ FINNHUB_SECTORS_HEATMAP_API_KEY
 FINNHUB_CRYPTO_HEATMAP_API_KEY
 FINNHUB_MACRO_HEATMAP_API_KEY
 TWELVE_DATA_API_KEY
-FRED_API_KEY
 SCRAPER_ENABLED
 ```
 
@@ -244,7 +242,7 @@ The current dashboard fetches the live Investing.com endpoint directly through t
 Fixture data lives in `lib/data/fixtures/mock-dashboard.ts` and currently backs:
 
 - Flow reads Supabase cached dark pool, whale feed, and insider tables, then section-level fixtures; Ownership reads cached tracked-institution data for Institutional and keeps Congressional fixture-backed.
-- Economy and Sentiment pages and API.
+- Sentiment pages and API.
 - Fallback market/today/news/earnings values when live data is unavailable.
 
 When replacing fixture-backed sections with live data:
@@ -308,7 +306,8 @@ The active tab APIs now prefer Supabase `dashboard_snapshots` before provider-sp
 | `markets:latest`       | `netlify/functions/refresh-markets.ts`, `netlify/functions/refresh-markets-heatmap.ts`, `netlify/functions/refresh-daily-market-candles.ts` | `getMarketsPayload()` and `/api/markets`            | Existing market quote/crypto/live builder plus cached S&P 500 heatmap/breadth, then mock market fixture |
 | `news-calendar:latest` | `netlify/functions/refresh-news.ts`                                                                                                         | `getNewsCalendarPayload()` and `/api/news-calendar` | Existing UW news, UW earnings, Investing calendar, and fixture fallback behavior                        |
 
-Source-specific cache status remains mixed: Unusual Whales earnings and Cboe put/call are active Supabase-backed flows; Unusual Whales news/articles, Yahoo quotes, and Investing economic events have adapter-level Supabase helpers but are only dashboard-fast after the scheduled snapshot job writes the combined payload. `refresh-economy` is implemented as the FRED Economy data refresh; generic `refresh-flow` and `refresh-sources-status` remain placeholders until implemented. Economy has server-side FRED wiring: `fetchFredSeries(seriesId, options)` reads server-only `FRED_API_KEY`, calls `https://api.stlouisfed.org/fred/series/observations`, normalizes `{ date, value }` points, skips FRED `.` missing values, and supports optional units/frequency/start/end parameters for later transforms. The `refresh-economy` function runs daily at midnight UTC (`0 0 * * *`), reads the latest saved observation date per configured series from `fred_economy`, fetches only observations after that date, skips cleanly when FRED returns no new data, and upserts new rows with a unique `(provider, series_id, date)` constraint so refreshes do not duplicate rows. Empty or brand-new series still backfill the configured 30-year history window where available. The Economy page/API reads all matching Supabase-stored observations first with paginated reads so daily 10-year series are not truncated by API row limits, falls back to server-side FRED only when cache rows are unavailable, defaults the chart display to 10 years, computes latest values plus QoQ/YoY changes using reusable frequency-aware offsets, caches the frontend payload in `dashboard_snapshots` with key `economy:latest`, and never exposes the FRED key to browser code. Rate/spread/percentage metrics use percentage-point changes, while level series use percent changes unless configured otherwise. The former CoinGecko API-key env var, SEC API-key env var, and Hormuz tracker feature flag are removed and unused.
+
+Source-specific cache status includes Supabase-backed earnings and Cboe put/call flows, plus adapter-level Supabase helpers for news, Yahoo quotes, and Investing.com economic events.
 
 ## Source table refresh corrections
 
@@ -406,11 +405,6 @@ For each top-20 politician, the refresh fetches `https://phx.unusualwhales.com/a
 
 Unusual Whales earnings cache retention is keyed by `unusual_whales_earnings_events.report_date`: `fetch-uw-earnings` keeps only previous-week Monday through next-week Friday in Toronto/Eastern time, prunes rows outside that active window on every Supabase-backed refresh, and continues excluding `market_cap_size = micro`. The tracked cleanup migration `0029_uw_earnings_active_window_prune.sql` provides an idempotent one-time/manual cleanup for existing rows. The News & Calendar Earnings Calendar UI no longer displays the old server-cache/Supabase-optional helper text.
 
-### FRED Economy storage and chart display
-
-FRED Economy observations are stored in Supabase table `fred_economy`. Migration `0016_rename_economy_observations_to_fred_economy.sql` safely renames the prior `economy_observations` table when present, creates `fred_economy` if needed, and preserves the unique `(provider, series_id, date)` upsert key. The Netlify `refresh-economy` scheduled function runs daily at midnight UTC (`0 0 * * *`) and performs incremental refreshes: it checks the latest saved date per configured FRED series, requests only observations after that date, skips no-new-data responses without error, and only backfills the full configured 30-year window for empty/new series. The Economy payload reads Supabase/cache first, compares cached daily-series latest dates against the source table before reusing `economy:latest`, and FRED calls remain server-side through `FRED_API_KEY`.
-
-Economy charts use whole-number y-axis ticks with compact unit labels, add reusable domain padding above the maximum and below the minimum, vertically center the y-axis label and reserve moderate left margin and y-axis width so it stays separated from large, compact, negative, index, and percentage tick values, show hover tooltips containing only the actual FRED observation date with a four-digit year and formatted value, display the selected metric grid as six cards in one row on desktop with responsive horizontal overflow on smaller screens, and render chart details as spaced `Range: start to end | Frequency: ... | ...` metadata without `Unit` or `Source: FRED`.
 
 Markets S&P 500 heatmap data comes from the server-side Unusual Whales PHX endpoint `sector/heatmap/options?date_range=one_day`. The cached heatmap rows remain the source of truth for current S&P 500 heatmap presentation, constituent membership, sector metadata, market-cap weighting, current live card values, participation display fallback, and Market Movers. Daily historical breadth values (`% Above 50D MA`, `% Above 200D MA`, and `New 52W Highs / Lows`) are now calculated from `sp500_daily_candles` after Finnhub daily candle ingestion.
 
