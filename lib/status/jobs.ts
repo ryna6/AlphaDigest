@@ -98,9 +98,9 @@ export const STATUS_JOBS: StatusJob[] = [
     functionName: "refresh-featured-articles",
     source: "Unusual Whales",
     frequency: "Every 30m, Daily",
-    schedule: "*/30 * * * *",
-    scheduleDescription: "Every 30 minutes on the hour and half-hour, every day.",
-    nextRunRule: { intervalMinutes: 30, minuteOffset: 0 },
+    schedule: "7,37 * * * *",
+    scheduleDescription: "Every 30 minutes at :07 and :37, every day.",
+    nextRunRule: { intervalMinutes: 30, minuteOffset: 7 },
     staleAfterMinutes: 60
   },
   {
@@ -111,9 +111,9 @@ export const STATUS_JOBS: StatusJob[] = [
     source: "Investing.com",
     frequency: "Every 6h, Daily",
     staleAfterMinutes: 480,
-    schedule: "0 */6 * * *",
-    scheduleDescription: "Every 6 hours from midnight UTC.",
-    nextRunUtcRule: { hours: [0, 6, 12, 18], minutes: [0] }
+    schedule: "10 */6 * * *",
+    scheduleDescription: "Every 6 hours at 10 minutes past the UTC boundary.",
+    nextRunUtcRule: { hours: [0, 6, 12, 18], minutes: [10] }
   },
   {
     id: "today-earnings",
@@ -196,9 +196,9 @@ export const STATUS_JOBS: StatusJob[] = [
     functionName: "refresh-news-feed",
     source: "Unusual Whales",
     frequency: "Every 30m, Daily",
-    schedule: "*/30 * * * *",
-    scheduleDescription: "Every 30 minutes on the hour and half-hour, every day.",
-    nextRunRule: { intervalMinutes: 30, minuteOffset: 0 },
+    schedule: "6,36 * * * *",
+    scheduleDescription: "Every 30 minutes at :06 and :36, every day.",
+    nextRunRule: { intervalMinutes: 30, minuteOffset: 6 },
     staleAfterMinutes: 60
   },
   {
@@ -209,9 +209,9 @@ export const STATUS_JOBS: StatusJob[] = [
     source: "Investing.com",
     frequency: "Every 6h, Daily",
     staleAfterMinutes: 480,
-    schedule: "0 */6 * * *",
-    scheduleDescription: "Every 6 hours from midnight UTC.",
-    nextRunUtcRule: { hours: [0, 6, 12, 18], minutes: [0] }
+    schedule: "10 */6 * * *",
+    scheduleDescription: "Every 6 hours at 10 minutes past the UTC boundary.",
+    nextRunUtcRule: { hours: [0, 6, 12, 18], minutes: [10] }
   },
   {
     id: "news-calendar-earnings",
@@ -232,9 +232,9 @@ export const STATUS_JOBS: StatusJob[] = [
     functionName: "refresh-insider-trades",
     source: "Unusual Whales",
     frequency: "Every 1h, Mon–Fri",
-    schedule: "0 * * * 1-5",
-    scheduleDescription: "Every hour Monday-Friday.",
-    nextRunRule: { days: [1, 2, 3, 4, 5], intervalMinutes: 60, minuteOffset: 0 },
+    schedule: "3 * * * *",
+    scheduleDescription: "Every hour at :03, with a Toronto weekday runtime guard.",
+    nextRunRule: { days: [1, 2, 3, 4, 5], intervalMinutes: 60, minuteOffset: 3 },
     staleAfterMinutes: 90
   },
   {
@@ -244,9 +244,9 @@ export const STATUS_JOBS: StatusJob[] = [
     functionName: "refresh-dark-pool",
     source: "Unusual Whales",
     frequency: "Every 1h, Mon–Fri",
-    schedule: "0 * * * 1-5",
-    scheduleDescription: "Every hour Monday-Friday.",
-    nextRunRule: { days: [1, 2, 3, 4, 5], intervalMinutes: 60, minuteOffset: 0 },
+    schedule: "1 * * * 1-5",
+    scheduleDescription: "Every hour at :01 Monday-Friday.",
+    nextRunRule: { days: [1, 2, 3, 4, 5], intervalMinutes: 60, minuteOffset: 1 },
     staleAfterMinutes: 90
   },
   {
@@ -256,9 +256,9 @@ export const STATUS_JOBS: StatusJob[] = [
     functionName: "refresh-whale-feed",
     source: "Unusual Whales",
     frequency: "Every 1h, Mon–Fri",
-    schedule: "0 * * * 1-5",
-    scheduleDescription: "Every hour Monday-Friday.",
-    nextRunRule: { days: [1, 2, 3, 4, 5], intervalMinutes: 60, minuteOffset: 0 },
+    schedule: "2 * * * 1-5",
+    scheduleDescription: "Every hour at :02 Monday-Friday.",
+    nextRunRule: { days: [1, 2, 3, 4, 5], intervalMinutes: 60, minuteOffset: 2 },
     staleAfterMinutes: 90
   },
   {

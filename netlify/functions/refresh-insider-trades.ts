@@ -2,7 +2,7 @@ import { refreshInsiderTrades } from "../../lib/data/adapters/unusual-whales-ins
 import { shouldRunInTorontoWindow } from "../../lib/schedule/toronto";
 import { finishJobRun, recordJobRun, startJobRun } from "../../lib/status/job-runs";
 
-export const config = { schedule: "0 * * * *" };
+export const config = { schedule: "3 * * * *" };
 
 const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json" } });
 
