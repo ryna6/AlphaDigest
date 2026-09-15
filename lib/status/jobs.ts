@@ -10,7 +10,6 @@ export type StatusGroup =
   | "News & Calendar"
   | "Flow"
   | "Ownership"
-  | "Economy"
   | "Sentiment";
 
 export type StatusJob = {
@@ -68,7 +67,6 @@ export const STATUS_GROUPS: StatusGroup[] = [
   "News & Calendar",
   "Flow",
   "Ownership",
-  "Economy",
   "Sentiment"
 ];
 
@@ -312,18 +310,6 @@ export const STATUS_JOBS: StatusJob[] = [
     schedule: "0 10 * * *",
     scheduleDescription: "Daily at 10:00 UTC.",
     nextRunUtcRule: { hours: [10], minutes: [0] },
-    staleAfterMinutes: 2160
-  },
-  {
-    id: "economy-data",
-    group: "Economy",
-    job: "Economy Data",
-    functionName: "refresh-economy",
-    source: "FRED",
-    frequency: "Daily",
-    schedule: "0 5 * * *",
-    scheduleDescription: "Daily at 05:00 UTC (midnight EST).",
-    nextRunUtcRule: { hours: [5], minutes: [0] },
     staleAfterMinutes: 2160
   },
   {

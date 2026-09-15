@@ -230,7 +230,6 @@ export async function fetchYahooMarketQuote(
 
 import { createServerSupabaseClient } from "@/lib/db/supabase";
 import { payloadContentHash, sourceResult, updateRefreshMetadata } from "./supabase-refresh";
-import { stableHash } from "./unusual-whales-earnings";
 
 const MARKET_QUOTES_METADATA_SOURCE = "yahoo_market_quotes";
 const MARKET_QUOTE_SYMBOLS: Array<"^VIX" | "^VIX3M" | "ES=F" | "SPY"> = [
@@ -246,23 +245,8 @@ type CachedMarketQuotesResult = {
   message?: string;
 };
 
-function quoteContentHash(quote: YahooMarketQuote) {
-  return stableHash({
-    symbol: quote.symbol,
-    displaySymbol: quote.displaySymbol,
-    name: quote.name,
-    price: quote.price,
-    previousClose: quote.previousClose,
-    change: quote.change,
-    changePercent: quote.changePercent,
-    marketTime: quote.marketTime
-  });
-}
-
 function quoteToDbRow(quote: YahooMarketQuote) {
   return {
-    id: `yahoo_finance:${quote.symbol}`,
-    source: quote.source,
     symbol: quote.symbol,
     display_symbol: quote.displaySymbol,
     name: quote.name,
@@ -271,10 +255,7 @@ function quoteToDbRow(quote: YahooMarketQuote) {
     change: quote.change,
     change_percent: quote.changePercent,
     market_time: quote.marketTime,
-    raw: quote.raw,
-    content_hash: quoteContentHash(quote),
-    fetched_at: quote.fetchedAt,
-    updated_at: new Date().toISOString()
+    fetched_at: quote.fetchedAt
   };
 }
 
@@ -290,10 +271,7 @@ function quoteFromDbRow(row: Record<string, unknown>): YahooMarketQuote {
     change: yahooNumber(row.change),
     changePercent: yahooNumber(row.change_percent),
     marketTime: yahooString(row.market_time),
-    raw:
-      row.raw && typeof row.raw === "object" && !Array.isArray(row.raw)
-        ? (row.raw as Record<string, unknown>)
-        : {},
+    raw: {},
     fetchedAt: yahooString(row.fetched_at) ?? new Date().toISOString()
   };
 }
@@ -306,7 +284,7 @@ export async function refreshYahooMarketQuotes(symbols = MARKET_QUOTE_SYMBOLS) {
   );
   const rows = quotes.map(quoteToDbRow);
   const contentHash = payloadContentHash(
-    rows.map(({ fetched_at: _fetchedAt, updated_at: _updatedAt, ...row }) => row)
+    rows.map(({ fetched_at: _fetchedAt, ...row }) => row)
   );
   console.log("force_refresh_normalized", {
     source: MARKET_QUOTES_METADATA_SOURCE,
@@ -335,7 +313,7 @@ export async function refreshYahooMarketQuotes(symbols = MARKET_QUOTE_SYMBOLS) {
     if (rows.length) {
       const { error } = await supabase.client
         .from("market_quotes")
-        .upsert(rows, { onConflict: "id" });
+        .upsert(rows, { onConflict: "symbol" });
       if (error) throw new Error(`Supabase market quotes upsert failed: ${error.message}`);
       upserted = rows.length;
     }

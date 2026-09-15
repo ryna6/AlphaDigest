@@ -4,7 +4,7 @@ import { canBackgroundPrefetch, orderedPrefetchRoutes } from "../components/shel
 
 test("deferred prefetch excludes current route and orders utility routes last", () => {
   const routes = orderedPrefetchRoutes("/overview/today");
-  assert.deepEqual(routes.slice(0, 5), ["/markets", "/news-calendar", "/flow", "/ownership", "/economy"]);
+  assert.deepEqual(routes.slice(0, 5), ["/markets", "/news-calendar", "/flow", "/ownership", "/sentiment"]);
   assert.equal(routes.includes("/overview/today"), false);
   assert.equal(routes.at(-1), "/status");
 });

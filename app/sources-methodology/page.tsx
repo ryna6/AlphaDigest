@@ -29,8 +29,8 @@ export default function SourcesMethodologyPage() {
       <Panel>
         <SectionHeader title="Refresh Schedule" />
         <p className="text-sm leading-6 text-textSecondary">
-          News should refresh every 5–15 minutes, flow every 15–60 minutes depending on limits, FRED
-          macro daily, CBOE after market close, AAII weekly, and Finnhub heatmaps every 1–15 minutes
+          News should refresh every 5–15 minutes, flow every 15–60 minutes depending on limits,
+          CBOE after market close, AAII weekly, and Finnhub heatmaps every 1–15 minutes
           while respecting rate limits. All market display logic uses America/Toronto and shows ET
           timestamps.
         </p>

@@ -198,8 +198,7 @@ export const todayMock: TodayPayload = {
     { label: "XLE Energy", value: "+0.44%", tone: "positive" }
   ],
   sourceMeta: [
-    mockMeta("Unusual Whales Featured News", "https://unusualwhales.com/news"),
-    mockMeta("FRED", "https://fred.stlouisfed.org/docs/api/fred/")
+    mockMeta("Unusual Whales Featured News", "https://unusualwhales.com/news")
   ]
 };
 
@@ -413,7 +412,7 @@ export const ownershipMock: OwnershipPayload = {
   notices: []
 };
 
-export const economyMock: { sentiment: Metric[]; sourceMeta: ReturnType<typeof mockMeta>[] } = {
+export const sentimentMock: { sentiment: Metric[]; sourceMeta: ReturnType<typeof mockMeta>[] } = {
   sentiment: [
     { label: "CBOE total put/call", value: "0.91", tone: "neutral" },
     { label: "AAII bullish", value: "39.1%", tone: "neutral" },

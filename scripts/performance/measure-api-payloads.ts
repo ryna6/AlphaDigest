@@ -1,5 +1,5 @@
 type Result = { url:string; run:number; ok:boolean; status:number; ttfbMs:number; totalMs:number; bytes:number; gzipBytes:number|null; mode?:string; payloadKeys?:number; cacheControl:string|null; serverTiming:string|null };
-const DEFAULT_PATHS = ["/api/today","/api/markets","/api/markets/candles?symbol=SPY&range=1M","/api/news-calendar","/api/flow","/api/ownership","/api/economy","/api/cache/status"];
+const DEFAULT_PATHS = ["/api/today","/api/markets","/api/markets/candles?symbol=SPY&range=1M","/api/news-calendar","/api/flow","/api/ownership","/api/cache/status"];
 function env(name:string){ return process.env[name]?.trim(); }
 function baseUrl(){ const value=env("PERF_BASE_URL")||env("URL")||env("DEPLOY_PRIME_URL"); if(!value) throw new Error("Set PERF_BASE_URL to the production or deploy-preview origin."); return value.replace(/\/$/,""); }
 function paths(){ return (env("PERF_API_PATHS")?.split(",").map(s=>s.trim()).filter(Boolean) ?? DEFAULT_PATHS); }
