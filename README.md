@@ -75,7 +75,7 @@ Only providers present in the codebase are listed here:
 
 | Provider/source                          | Current role                                                                                                                                                           |
 | ---------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Unusual Whales                           | Featured articles, news feed, earnings calendar, dark pool, whale feed, insider trades, institutional data, and congressional data where adapters/functions are wired. |
+| Unusual Whales                           | Featured articles, news feed, earnings calendar, dark pool, whale feed, insider trades, institutional data where adapters/functions are wired. |
 | Cboe                                     | Server-side put/call market-statistics parser with optional Supabase persistence in `put_call_observations`.                                                           |
 | Yahoo Finance public endpoints           | Selected quotes, VIX-related metrics, market quote cache helpers, and SPY comparison data.                                                                             |
 | Finnhub                                  | Market/heatmap quote flows and company/logo support when configured.                                                                                                   |
@@ -126,7 +126,7 @@ Representative tables:
 - `unusual_whales_earnings_events` — earnings rows for the active previous/current/next-week window; refreshes prune rows outside that active window and exclude configured micro-cap rows.
 - `investing_economic_events` — economic calendar rows with event keys, date/time, importance/stars, actual/forecast/previous, and highlight metadata.
 
-### Flow, ownership, institutional, and congressional data
+### Flow, ownership, and institutional data
 
 Purpose: server-side Unusual Whales ingestion for Flow and Ownership without browser calls to privileged endpoints.
 
@@ -136,7 +136,6 @@ Representative tables:
 - `unusual_whales_whale_feed` — lit whale-feed rows with ticker, price, NBBO fields, inferred side/sentiment, premium, size, and execution timestamp.
 - `unusual_whales_insider_trades` — normalized insider transaction rows retained for the rolling Flow window.
 - `unusual_whales_tracked_institutions`, `unusual_whales_tracked_institution_history`, holdings/activity tables — curated institutional holdings, historical totals, SPY comparison points, and latest-quarter activity.
-- `unusual_whales_congressional_portfolios` / `unusual_whales_congressional_trades` — normalized congressional portfolio/trade data with retention and asset cleanup migrations.
 
 ### Status and observability
 
@@ -173,7 +172,6 @@ Important constraints/indexes: status is limited to `running`, `success`, `warni
 | `/api/flow`                                                                         | Flow payload                                  | `GET`                            | Supabase Flow source tables                                       | Reads `flow:latest`, then source tables, then fixtures where necessary.                   |
 | `/api/ownership`                                                                    | Ownership payload                             | `GET`                            | Supabase ownership data and fixtures                              | Reads ownership cache/snapshot paths where implemented.                                   |
 | `/api/ownership/institutional`                                                      | Institutional summary/holdings                | `GET`                            | Supabase tracked institutional tables                             | Browser-safe cached response.                                                             |
-| `/api/ownership/congressional`                                                      | Congressional holdings/trades                 | `GET`                            | Supabase congressional tables                                     | Browser-safe cached response with SPY comparison support.                                 |
 | `/api/sources/status`                                                               | Environment/source readiness                  | `GET`                            | Environment metadata only                                         | Returns configured/missing booleans; never returns secret values.                         |
 | `/api/cache/status`                                                                 | Cache diagnostics                             | `GET`                            | Supabase metadata/source tables                                   | Reports row counts, freshness, and metadata diagnostics.                                  |
 | `refresh-markets` / `refresh-market-quotes`                                         | Market quote cache and Markets snapshot       | Frequent weekday schedules       | Yahoo Finance, Finnhub                                            | Upserts quote rows and dashboard snapshots.                                               |
@@ -182,7 +180,6 @@ Important constraints/indexes: status is limited to `running`, `success`, `warni
 | `refresh-economic-events`                                                           | Economic calendar cache                       | Every 6 hours                    | Investing.com                                                     | Upserts normalized economic events.                                                       |
 | `refresh-put-call`                                                                  | Put/call observation cache                    | Every 30 minutes Monday-Friday   | Cboe                                                              | Upserts latest put/call observation.                                                      |
 | `refresh-flow`, `refresh-dark-pool`, `refresh-whale-feed`, `refresh-insider-trades` | Flow source rows and snapshot                 | Hourly/weekday guarded schedules | Unusual Whales + Supabase                                         | Refreshes source tables and composes `flow:latest`.                                       |
-| `refresh-institutional-*`, `refresh-congressional-portfolios`                       | Ownership source rows                         | Daily schedules                  | Unusual Whales, Yahoo Finance SPY comparison                      | Upserts normalized ownership/institutional/congressional caches.                          |
 
 Representative API response envelope:
 

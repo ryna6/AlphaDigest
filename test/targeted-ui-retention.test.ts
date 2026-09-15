@@ -33,8 +33,8 @@ test("Market Movers UI keeps ticker neutral and colors only percentage values", 
   assert.match(source, /tabular/);
 });
 
-test("Flow source retention constants keep Dark Pool and Whale Feed for 30 days", () => {
-  assert.equal(DARK_POOL_RETENTION_DAYS, 30);
+test("Flow source retention constants keep Dark Pool for 14 days and Whale Feed for 30 days", () => {
+  assert.equal(DARK_POOL_RETENTION_DAYS, 14);
   assert.equal(WHALE_FEED_RETENTION_DAYS, 30);
 });
 
@@ -94,10 +94,15 @@ test("Institution holding absolute Change formatting signs only positive values"
 });
 
 test("Markets UI renders three desktop cards in order and Market Watch states", () => {
-  const source = new TextDecoder().decode(new Uint8Array(require("node:fs").readFileSync("components/dashboard/markets/markets-view.tsx")));
+  const source = new TextDecoder().decode(
+    new Uint8Array(require("node:fs").readFileSync("components/dashboard/markets/markets-view.tsx"))
+  );
   assert.match(source, /md:grid-cols-2 xl:grid-cols-3/);
   assert.ok(source.indexOf('title="Market Breadth"') < source.indexOf('title="Market Movers"'));
-  assert.ok(source.indexOf('title="Market Movers"') < source.indexOf('<MarketWatchCard marketWatch={data.marketWatch} />'));
+  assert.ok(
+    source.indexOf('title="Market Movers"') <
+      source.indexOf("<MarketWatchCard marketWatch={data.marketWatch} />")
+  );
   assert.match(source, /52W Highs/);
   assert.match(source, /52W Lows/);
   assert.match(source, /200D MA Crosses/);
@@ -107,7 +112,9 @@ test("Markets UI renders three desktop cards in order and Market Watch states", 
 });
 
 test("Advancers and Decliners render accessible colored triangles with safe fallback", () => {
-  const source = new TextDecoder().decode(new Uint8Array(require("node:fs").readFileSync("components/dashboard/markets/markets-view.tsx")));
+  const source = new TextDecoder().decode(
+    new Uint8Array(require("node:fs").readFileSync("components/dashboard/markets/markets-view.tsx"))
+  );
   assert.match(source, /aria-label=\{`\$\{advancers\} advancers, \$\{decliners\} decliners`\}/);
   assert.match(source, /className="text-positive">▲/);
   assert.match(source, /className="text-negative">▼/);

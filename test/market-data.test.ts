@@ -21,7 +21,6 @@ import {
 import { DARK_POOL_RETENTION_DAYS } from "../lib/data/adapters/unusual-whales-dark-pool";
 import { WHALE_FEED_RETENTION_DAYS } from "../lib/data/adapters/unusual-whales-whale-feed";
 import { INSIDER_TRADES_LOOKBACK_MONTHS } from "../lib/data/insider-window";
-import { selectTopCongressionalPortfolioRows } from "../lib/data/adapters/unusual-whales-congressional";
 import {
   sp500Breadth,
   sp500Movers,
@@ -146,44 +145,10 @@ test("Unusual Whales article cleanup keeps valid text around hr sections", () =>
   assert.match(text, /Valid ending section after paired hr tags remains/);
 });
 
-test("Flow retention constants match requested source-table windows", () => {
-  assert.equal(DARK_POOL_RETENTION_DAYS, 30);
+test("Flow retention constants match requested 14-day Dark Pool and 30-day Whale Feed windows", () => {
+  assert.equal(DARK_POOL_RETENTION_DAYS, 14);
   assert.equal(WHALE_FEED_RETENTION_DAYS, 30);
   assert.equal(INSIDER_TRADES_LOOKBACK_MONTHS, 6);
-});
-
-test("Congressional portfolio selection blacklists and dedupes before top 20", () => {
-  const rawRows = [
-    { name: "William Harnisch", ytd_return: "999", ids: ["blacklisted-1"] },
-    { name: " Donald   McEachin ", ytd_return: "998", ids: ["blacklisted-2"] },
-    { name: " ray   dalio ", ytd_return: "997", ids: ["blacklisted-3"] },
-    { name: "Michael McCaul", ytd_return: "12.5", ids: ["old"] },
-    { name: " michael   mccaul ", ytd_return: "45.5", ids: ["new"] },
-    { name: "No Return", ytd_return: null },
-    ...Array.from({ length: 21 }, (_, index) => ({
-      name: `Politician ${index + 1}`,
-      ytd_return: String(50 - index),
-      ids: [`id-${index + 1}`]
-    }))
-  ];
-  const selected = selectTopCongressionalPortfolioRows(rawRows, "2026-06-26T00:00:00.000Z");
-  assert.equal(selected.blacklistedRowCount, 3);
-  assert.equal(selected.duplicateRowCount, 1);
-  assert.equal(selected.dedupedRowCount, 22);
-  assert.equal(selected.selectedTop20RowCount, 20);
-  assert.deepEqual(
-    selected.rows.filter((row) => /harnisch|mceachin|dalio/i.test(row.name)),
-    []
-  );
-  assert.equal(
-    selected.rows.some((row) => row.politicianKey === "michael-mccaul"),
-    true
-  );
-  assert.equal(new Set(selected.rows.map((row) => row.politicianKey)).size, selected.rows.length);
-  assert.deepEqual(
-    selected.rows.find((row) => row.politicianKey === "michael-mccaul")?.ids?.sort(),
-    ["new", "old"]
-  );
 });
 
 test("Cboe daily fallback URL includes Toronto date query", () => {

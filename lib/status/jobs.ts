@@ -5,12 +5,7 @@ import { nextTorontoRun, type TorontoRunWindowOptions } from "@/lib/schedule/tor
 export type StatusValue = "Healthy" | "Warning" | "Error" | "Unknown";
 
 export type StatusGroup =
-  | "Today"
-  | "Markets"
-  | "News & Calendar"
-  | "Flow"
-  | "Ownership"
-  | "Sentiment";
+  "Today" | "Markets" | "News & Calendar" | "Flow" | "Ownership" | "Sentiment";
 
 export type StatusJob = {
   id: string;
@@ -164,7 +159,8 @@ export const STATUS_JOBS: StatusJob[] = [
     source: "Finnhub",
     frequency: "Daily, Mon–Fri",
     schedule: "0 23 * * 1-5",
-    scheduleDescription: "Daily at 23:00 UTC Monday-Friday (6:00 PM America/Toronto during standard time; 7:00 PM during daylight time) and invokes the background worker.",
+    scheduleDescription:
+      "Daily at 23:00 UTC Monday-Friday (6:00 PM America/Toronto during standard time; 7:00 PM during daylight time) and invokes the background worker.",
     nextRunRule: { days: [1, 2, 3, 4, 5], utcHours: [23], minutes: [0] },
     staleAfterMinutes: 1440
   },
@@ -176,7 +172,8 @@ export const STATUS_JOBS: StatusJob[] = [
     source: "Unusual Whales",
     frequency: "Daily",
     schedule: "0 6 * * *",
-    scheduleDescription: "Daily at 06:00 UTC (1:00 AM America/Toronto during standard time; 2:00 AM during daylight time).",
+    scheduleDescription:
+      "Daily at 06:00 UTC (1:00 AM America/Toronto during standard time; 2:00 AM during daylight time).",
     nextRunRule: { utcHours: [6], minutes: [0] },
     staleAfterMinutes: 1440
   },
@@ -293,18 +290,6 @@ export const STATUS_JOBS: StatusJob[] = [
     group: "Ownership",
     job: "Institutional Holdings",
     functionName: "refresh-institutional-portfolios",
-    source: "Unusual Whales",
-    frequency: "Daily",
-    schedule: "0 10 * * *",
-    scheduleDescription: "Daily at 10:00 UTC.",
-    nextRunUtcRule: { hours: [10], minutes: [0] },
-    staleAfterMinutes: 2160
-  },
-  {
-    id: "ownership-congressional-holdings",
-    group: "Ownership",
-    job: "Congressional Holdings",
-    functionName: "refresh-congressional-portfolios",
     source: "Unusual Whales",
     frequency: "Daily",
     schedule: "0 10 * * *",

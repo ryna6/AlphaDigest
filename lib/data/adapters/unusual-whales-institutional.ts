@@ -283,8 +283,7 @@ function toTickerDb(row: InstitutionalTickerFlowRow) {
     holding_count: row.holdingCount,
     units: row.units,
     prev_units: row.prevUnits,
-    fetched_at: row.fetchedAt,
-    updated_at: row.fetchedAt
+    fetched_at: row.fetchedAt
   };
 }
 function toSectorDb(row: InstitutionalSectorExposureRow) {
@@ -293,8 +292,7 @@ function toSectorDb(row: InstitutionalSectorExposureRow) {
     sector: normalizeSectorLabel(row.sector) ?? row.sector,
     value: row.value,
     report_date: row.reportDate,
-    fetched_at: row.fetchedAt,
-    updated_at: row.fetchedAt
+    fetched_at: row.fetchedAt
   };
 }
 
@@ -747,8 +745,7 @@ async function persistTrackedData(
         report_date: r.date,
         buy_value: r.buyValue,
         sell_value: r.sellValue,
-        fetched_at: r.fetchedAt,
-        updated_at: r.fetchedAt
+        fetched_at: r.fetchedAt
       })),
       { onConflict: "institution_name,report_date" }
     );
@@ -771,8 +768,7 @@ async function persistTrackedData(
         report_date: r.reportDate,
         total_value: r.totalValue,
         spy_price: r.spyPrice,
-        fetched_at: r.fetchedAt,
-        updated_at: r.fetchedAt
+        fetched_at: r.fetchedAt
       })),
       { onConflict: "institution_slug,report_date" }
     );
@@ -807,8 +803,7 @@ async function persistTrackedData(
         perc_of_share_value: r.percOfShareValue,
         value: r.value,
         close: r.close,
-        fetched_at: r.fetchedAt,
-        updated_at: r.fetchedAt
+        fetched_at: r.fetchedAt
       })),
       { onConflict: "institution_name,report_date,ticker" }
     );
@@ -825,8 +820,7 @@ async function persistTrackedData(
         put_call: r.putCall ?? "Unknown",
         put_oi: r.putOi,
         call_oi: r.callOi,
-        fetched_at: r.fetchedAt,
-        updated_at: r.fetchedAt
+        fetched_at: r.fetchedAt
       })),
       { onConflict: "institution_name,as_of_date,ticker,put_call" }
     );
@@ -846,8 +840,7 @@ async function persistTrackedData(
         sell_price: r.sellPrice,
         price_on_report: r.priceOnReport,
         close: r.close,
-        fetched_at: r.fetchedAt,
-        updated_at: r.fetchedAt
+        fetched_at: r.fetchedAt
       })),
       { onConflict: "activity_id" }
     );
@@ -1250,6 +1243,11 @@ export async function refreshInstitutionalSummaryData() {
       });
     if (error) throw new Error(`Institutional sector exposure upsert failed: ${error.message}`);
   }
+  const quarterCutoff = latestQuarterEndCutoff();
+  for (const table of [SOURCE_TICKER_FLOW, SOURCE_SECTOR_EXPOSURE]) {
+    const { error } = await supabase.client.from(table).delete().lt("report_date", quarterCutoff);
+    if (error) throw new Error(`Institutional quarter retention prune failed: ${error.message}`);
+  }
   return {
     ok: true as const,
     count: tickerRows.length + sectorRows.length,
@@ -1257,6 +1255,7 @@ export async function refreshInstitutionalSummaryData() {
     meta: {
       tickerRows: tickerRows.length,
       sectorRows: retainedSectorRows.length,
+      tickerFlowReportDatesRetained: SECTOR_EXPOSURE_QUARTERS_RETAINED,
       sectorReportDatesRetained: SECTOR_EXPOSURE_QUARTERS_RETAINED,
       summaryOnly: true
     }

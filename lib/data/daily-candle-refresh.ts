@@ -79,7 +79,9 @@ export async function verifyEquityCandleTablesReady(client?: SupabaseClient) {
     const { error } = await supabase.client
       .from(table)
       .select(
-        "symbol,provider_symbol,trading_date,open,high,low,close,volume,previous_close,source,fetched_at"
+        table === "sp500_daily_candles"
+          ? "symbol,trading_date,open,high,low,close,volume,previous_close,fetched_at"
+          : "symbol,provider_symbol,trading_date,open,high,low,close,volume,previous_close,source,fetched_at"
       )
       .limit(0);
     results[table] = error

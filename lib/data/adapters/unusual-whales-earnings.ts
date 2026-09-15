@@ -22,17 +22,12 @@ export type UnusualWhalesEarningsEvent = {
   logo: string | null;
   reportDate: string;
   reportTime: "premarket" | "postmarket" | "regular" | string | null;
-  marketTime: string | null;
-  sector: string | null;
   isSp500: boolean;
   marketCapSize: string | null;
   marketCap: number | null;
   callVolume: number | null;
   putVolume: number | null;
-  expectedMove: number | null;
-  impliedMove: number | null;
   impliedMovePct: number | null;
-  raw: Record<string, unknown>;
   contentHash: string;
   fetchedAt: string;
 };
@@ -225,17 +220,12 @@ export function normalizeUnusualWhalesEarningsRow(
     logo: stringOrNull(row.logo),
     reportDate,
     reportTime,
-    marketTime: stringOrNull(row.market_time),
-    sector: stringOrNull(row.sector),
     isSp500: booleanValue(row.is_s_p_500),
     marketCapSize: stringOrNull(row.market_cap_size),
     marketCap: numberOrNull(row.marketcap),
     callVolume: numberOrNull(row.call_vol),
     putVolume: numberOrNull(row.put_vol),
-    expectedMove,
-    impliedMove,
-    impliedMovePct,
-    raw: row
+    impliedMovePct
   };
   return { ...base, contentHash: stableHash(base), fetchedAt };
 }
@@ -336,32 +326,18 @@ function toDbRow(event: UnusualWhalesEarningsEvent) {
     logo: event.logo,
     report_date: event.reportDate,
     report_time: event.reportTime,
-    market_time: event.marketTime,
-    sector: event.sector,
     is_sp500: event.isSp500,
     market_cap_size: event.marketCapSize,
     market_cap: event.marketCap,
     call_volume: event.callVolume,
     put_volume: event.putVolume,
-    expected_move: event.expectedMove,
-    implied_move: event.impliedMove,
     implied_move_pct: event.impliedMovePct,
-    raw: event.raw,
     content_hash: event.contentHash,
-    fetched_at: event.fetchedAt,
-    updated_at: new Date().toISOString()
+    fetched_at: event.fetchedAt
   };
 }
 
 function fromDbRow(row: UnknownRecord): UnusualWhalesEarningsEvent {
-  const impliedMove = numberOrNull(row.implied_move);
-  const expectedMove = numberOrNull(row.expected_move);
-  const currentPrice = numberOrNull(isRecord(row.raw) ? row.raw.curr : null);
-  const previousPrice = numberOrNull(isRecord(row.raw) ? row.raw.prev : null);
-  const impliedMovePct =
-    numberOrNull(row.implied_move_pct) ??
-    calculateImpliedMovePct({ impliedMove, expectedMove, currentPrice, previousPrice });
-
   return {
     source: SOURCE,
     id: String(row.id),
@@ -370,17 +346,12 @@ function fromDbRow(row: UnknownRecord): UnusualWhalesEarningsEvent {
     logo: stringOrNull(row.logo),
     reportDate: String(row.report_date),
     reportTime: stringOrNull(row.report_time),
-    marketTime: stringOrNull(row.market_time),
-    sector: stringOrNull(row.sector),
     isSp500: Boolean(row.is_sp500),
     marketCapSize: stringOrNull(row.market_cap_size),
     marketCap: numberOrNull(row.market_cap),
     callVolume: numberOrNull(row.call_volume),
     putVolume: numberOrNull(row.put_volume),
-    expectedMove,
-    impliedMove,
-    impliedMovePct,
-    raw: isRecord(row.raw) ? row.raw : {},
+    impliedMovePct: numberOrNull(row.implied_move_pct),
     contentHash: String(row.content_hash ?? ""),
     fetchedAt: String(row.fetched_at ?? new Date().toISOString())
   };
@@ -582,7 +553,7 @@ function filterAndSortEvents(
       case "market_cap":
         return event.marketCap ?? -1;
       case "expected_move":
-        return event.expectedMove ?? -1;
+        return event.impliedMovePct ?? -1;
       case "report_date":
         return new Date(event.reportDate).getTime();
       default:
@@ -665,7 +636,7 @@ export async function getCachedUnusualWhalesEarnings(
   let query = supabase.client
     .from("unusual_whales_earnings_events")
     .select(
-      "id,symbol,company_name,logo,report_date,report_time,market_time,sector,is_sp500,market_cap_size,market_cap,call_volume,put_volume,expected_move,implied_move,implied_move_pct,raw,content_hash,fetched_at,updated_at"
+      "id,symbol,company_name,logo,report_date,report_time,is_sp500,market_cap_size,market_cap,call_volume,put_volume,implied_move_pct,content_hash,fetched_at"
     )
     .gte("report_date", minDate)
     .lte("report_date", maxDate)
@@ -676,7 +647,6 @@ export async function getCachedUnusualWhalesEarnings(
   const orderMap: Record<string, string> = {
     oi: "market_cap",
     market_cap: "market_cap",
-    expected_move: "expected_move",
     report_date: "report_date"
   };
   query = query.order(orderMap[options.order ?? "oi"] ?? "market_cap", {

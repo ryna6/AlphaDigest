@@ -185,8 +185,7 @@ export async function refreshWhaleFeed() {
       size: r.size,
       volume: r.volume,
       avg30_volume: r.avg30Volume,
-      fetched_at: r.fetchedAt,
-      updated_at: fetchedAt
+      fetched_at: r.fetchedAt
     }));
     if (dbRows.length) {
       const { error } = await supabase.client

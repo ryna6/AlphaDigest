@@ -110,9 +110,12 @@ export async function readEquityCoverage(
   const db = client ? { ok: true as const, client } : createServerSupabaseClient();
   if (!db.ok) throw new Error(db.message);
   if (!symbols.length) return [];
-  const { data, error } = await db.client
-    .from(table)
-    .select("symbol,provider_symbol,trading_date,source,fetched_at")
+  const { data, error } = await (db.client.from(table) as any)
+    .select(
+      table === "sp500_daily_candles"
+        ? "symbol,trading_date,fetched_at"
+        : "symbol,provider_symbol,trading_date,source,fetched_at"
+    )
     .in("symbol", symbols);
   if (error) throw new Error(error.message);
   const map = new Map(
@@ -135,8 +138,10 @@ export async function readEquityCoverage(
     x.rowCount++;
     x.earliest = !x.earliest || r.trading_date < x.earliest ? r.trading_date : x.earliest;
     x.latest = !x.latest || r.trading_date > x.latest ? r.trading_date : x.latest;
-    if (r.provider_symbol) x.providerSymbols.add(r.provider_symbol);
-    if (r.source) x.sources.add(r.source);
+    if (table === "sp500_daily_candles") x.providerSymbols.add(r.symbol);
+    else if (r.provider_symbol) x.providerSymbols.add(r.provider_symbol);
+    if (table === "sp500_daily_candles") x.sources.add("Unusual Whales Equity");
+    else if (r.source) x.sources.add(r.source);
     x.latestFetchedAt =
       !x.latestFetchedAt || r.fetched_at > x.latestFetchedAt ? r.fetched_at : x.latestFetchedAt;
   }

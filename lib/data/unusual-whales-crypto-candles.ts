@@ -205,7 +205,7 @@ export async function verifyCryptoCandleDatabaseReady() {
   const { error } = await supabase.client
     .from("crypto_daily_candles")
     .select(
-      "symbol,provider_symbol,trading_date,open,high,low,close,volume,fetched_at"
+      "symbol,trading_date,open,high,low,close,volume,fetched_at"
     )
     .limit(0);
   if (error)
