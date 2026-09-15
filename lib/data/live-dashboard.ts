@@ -972,7 +972,17 @@ export async function refreshDashboardSnapshot(
   } as const;
   const entry = builders[key];
   const result = await entry.build();
-  const write = await upsertDashboardSnapshot(key, result.payload, {
+  // Article bodies belong to the detail table/read path, not the initial Today payload.
+  const servingPayload =
+    key === "today:latest"
+      ? {
+          ...(result.payload as TodayPayload),
+          featuredNews: (result.payload as TodayPayload).featuredNews.map(
+            ({ contentHtml: _contentHtml, ...article }) => article
+          )
+        }
+      : result.payload;
+  const write = await upsertDashboardSnapshot(key, servingPayload, {
     ttlSeconds: entry.ttlSeconds,
     mode: result.mode,
     notices: result.notices,
@@ -991,7 +1001,7 @@ export async function refreshDashboardSnapshot(
       ok: write.ok,
       changed: write.persisted ?? false,
       rowCount: write.persisted ? 1 : 0,
-      contentHash: payloadContentHash([result.payload]),
+      contentHash: payloadContentHash([servingPayload]),
       error: write.error ?? null,
       meta: {
         mode: result.mode,

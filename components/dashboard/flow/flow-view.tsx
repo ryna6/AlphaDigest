@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { getFlowPayload } from "@/lib/data/live-dashboard";
+import type { FlowPayload } from "@/lib/data/schemas/dashboard";
 import { PageTitle } from "@/components/dashboard/page-title";
 import { Panel } from "@/components/ui/panel";
 import { SectionHeader } from "@/components/ui/section-header";
@@ -123,8 +123,7 @@ function orderedSummary(summary: Array<{ label: string }>) {
   });
 }
 
-export async function FlowView() {
-  const { payload } = await getFlowPayload();
+export function FlowView({ data: payload }: { data: FlowPayload }) {
   const summary = orderedSummary(payload.summary);
   return (
     <>

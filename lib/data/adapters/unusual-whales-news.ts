@@ -700,3 +700,22 @@ export async function getCachedUnusualWhalesFeaturedArticles(
   }
   return { items: data.map((row) => featuredFromDbRow(row as UnknownRecord)), mode: "live" };
 }
+
+/** Read one persisted article for the user-triggered detail view; never fetches its provider. */
+export async function getCachedUnusualWhalesFeaturedArticle(slug: string) {
+  const supabase = createServerSupabaseClient();
+  if (!supabase.ok) return { article: null, message: supabase.message };
+  const { data, error } = await supabase.client
+    .from("unusual_whales_featured_articles")
+    .select(
+      "id,slug,title,published_at,created_at_source,tags,excerpt,content_html,source_url,fetched_at"
+    )
+    .eq("slug", slug)
+    .maybeSingle();
+  if (error)
+    return { article: null, message: `Supabase featured article read failed: ${error.message}` };
+  return {
+    article: data ? featuredFromDbRow(data as UnknownRecord) : null,
+    message: data ? undefined : `No cached featured article found for ${slug}.`
+  };
+}

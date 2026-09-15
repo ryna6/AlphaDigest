@@ -62,5 +62,15 @@ export const apiEnvelopeSchema = <T extends z.ZodTypeAny>(payload: T) =>
     timezone: z.literal("America/Toronto"),
     mode: z.enum(["mock", "live", "cached", "unavailable"]),
     notices: z.array(z.string()),
+    snapshot: z
+      .object({
+        key: z.string(),
+        generatedAt: z.string(),
+        expiresAt: z.string().nullable(),
+        ageSeconds: z.number(),
+        stale: z.boolean(),
+        payloadBytes: z.number()
+      })
+      .optional(),
     payload
   });

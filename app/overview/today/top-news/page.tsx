@@ -1,10 +1,13 @@
-import { getTodayPayload } from "@/lib/data/live-dashboard";
+import { getServingDashboardSnapshot } from "@/lib/data/dashboard-serving";
+import { SnapshotUnavailable } from "@/components/dashboard/snapshot-unavailable";
 import { TopNewsListClient } from "./top-news-list-client";
 
-export const dynamic = "force-dynamic";
+export const revalidate = 180;
 
 export default async function TopNewsPage({ searchParams }: { searchParams?: { count?: string } }) {
-  const { payload } = await getTodayPayload();
+  const result = await getServingDashboardSnapshot("today:latest");
+  if (!result.ok) return <SnapshotUnavailable title="Top News" />;
+  const payload = result.payload;
   const requestedCount = Number(searchParams?.count ?? 20);
   const initialCount = Number.isFinite(requestedCount) ? requestedCount : 20;
 
