@@ -1,7 +1,7 @@
 import { economicRefreshDateKeysFromParams, refreshInvestingEconomicEvents } from "../../lib/data/adapters/investing-economic-calendar";
 import { finishJobRun, startJobRun } from "../../lib/status/job-runs";
 
-export const config = { schedule: "0 */6 * * *" };
+export const config = { schedule: "10 */6 * * *" };
 
 function json(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json" } });

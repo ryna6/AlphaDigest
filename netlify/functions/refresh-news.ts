@@ -1,7 +1,8 @@
 import { refreshDashboardSnapshot } from "../../lib/data/live-dashboard";
-import { refreshUnusualWhalesFeaturedArticles, refreshUnusualWhalesNewsFeed } from "../../lib/data/adapters/unusual-whales-news";
 
-export const config = { schedule: "*/30 * * * *" };
+// Run after the two source owners (:06 and :07). This function only assembles
+// their cached rows, so a snapshot refresh cannot duplicate provider/upsert work.
+export const config = { schedule: "8,38 * * * *" };
 
 function json(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json" } });
@@ -9,19 +10,12 @@ function json(body: unknown, status = 200) {
 
 export default async function handler() {
   const startedAt = new Date().toISOString();
-  console.log("scheduled_refresh_start", { job: "refresh-news", startedAt, sources: ["unusual_whales_news_feed", "unusual_whales_featured_articles"], snapshotKey: "news-calendar:latest" });
+  console.log("scheduled_refresh_start", { job: "refresh-news", startedAt, snapshotKey: "news-calendar:latest" });
   try {
-    const [newsFeed, featuredArticles] = await Promise.all([
-      refreshUnusualWhalesNewsFeed(100),
-      refreshUnusualWhalesFeaturedArticles(50)
-    ]);
-    const dependenciesOk = newsFeed.ok && featuredArticles.ok;
-    const snapshot = dependenciesOk
-      ? await refreshDashboardSnapshot("news-calendar:latest")
-      : { key: "news-calendar:latest", ok: false, persisted: false, error: "Skipped snapshot because source upserts failed." };
-    const ok = dependenciesOk && snapshot.ok;
-    console.log("scheduled_refresh_complete", { job: "refresh-news", newsRows: newsFeed.count, newsUpserted: newsFeed.upserted ?? 0, featuredRows: featuredArticles.count, featuredUpserted: featuredArticles.upserted ?? 0, snapshotKey: snapshot.key, snapshotPersisted: snapshot.persisted, ok, error: ok ? null : snapshot.error ?? newsFeed.error ?? featuredArticles.error });
-    return json({ job: "refresh-news", startedAt, finishedAt: new Date().toISOString(), ok, newsFeed, featuredArticles, snapshot }, ok ? 200 : 502);
+    const snapshot = await refreshDashboardSnapshot("news-calendar:latest");
+    const ok = snapshot.ok;
+    console.log("scheduled_refresh_complete", { job: "refresh-news", snapshotKey: snapshot.key, snapshotPersisted: snapshot.persisted, ok, error: snapshot.error });
+    return json({ job: "refresh-news", startedAt, finishedAt: new Date().toISOString(), ok, snapshot }, ok ? 200 : 502);
   } catch (error) {
     const message = error instanceof Error ? error.message : "Unknown news/calendar refresh error";
     console.error("scheduled_refresh_error", { job: "refresh-news", error: message });

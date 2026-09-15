@@ -1,7 +1,7 @@
 import { refreshUnusualWhalesFeaturedArticles } from "../../lib/data/adapters/unusual-whales-news";
 import { finishJobRun, recordJobRun, startJobRun } from "../../lib/status/job-runs";
 
-export const config = { schedule: "*/30 * * * *" };
+export const config = { schedule: "7,37 * * * *" };
 
 function json(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json" } });

@@ -2,7 +2,7 @@ import { refreshDarkPoolFlows } from "../../lib/data/adapters/unusual-whales-dar
 import { shouldRunInTorontoWindow } from "../../lib/schedule/toronto";
 import { finishJobRun, recordJobRun, startJobRun } from "../../lib/status/job-runs";
 
-export const config = { schedule: "0 * * * 1-5" };
+export const config = { schedule: "1 * * * 1-5" };
 
 const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json" } });
 
