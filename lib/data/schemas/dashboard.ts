@@ -70,17 +70,12 @@ export const unusualWhalesEarningsEventSchema = z.object({
   logo: z.string().url().nullable(),
   reportDate: z.string(),
   reportTime: z.string().nullable(),
-  marketTime: z.string().nullable(),
-  sector: z.string().nullable(),
   isSp500: z.boolean(),
   marketCapSize: z.string().nullable(),
   marketCap: z.number().nullable(),
   callVolume: z.number().nullable(),
   putVolume: z.number().nullable(),
-  expectedMove: z.number().nullable(),
-  impliedMove: z.number().nullable(),
   impliedMovePct: z.number().nullable().default(null),
-  raw: z.record(z.string(), z.unknown()),
   contentHash: z.string(),
   fetchedAt: z.string()
 });
@@ -251,7 +246,6 @@ export const flowPayloadSchema = z.object({
 });
 
 export const ownershipPayloadSchema = z.object({
-  congressionalTrades: z.array(z.record(z.string(), z.string())),
   institutionalPositioning: z.array(z.record(z.string(), z.string())),
   sourceMeta: z.array(sourceMetaSchema),
   notices: z.array(z.string()).default([])

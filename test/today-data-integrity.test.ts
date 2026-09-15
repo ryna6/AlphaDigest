@@ -42,17 +42,12 @@ const earning = (
   logo: null,
   reportDate,
   reportTime,
-  marketTime: null,
-  sector: null,
   isSp500: false,
   marketCapSize: "large",
   marketCap,
   callVolume: null,
   putVolume: null,
-  expectedMove: null,
-  impliedMove: null,
   impliedMovePct: null,
-  raw: {},
   contentHash: symbol,
   fetchedAt: "2026-07-30T12:00:00Z"
 });

@@ -197,12 +197,11 @@ export async function verifyEquityCandleDatabaseReady() {
   const supabase = createServerSupabaseClient();
   if (!supabase.ok) return { ok: false as const, error: supabase.message };
   for (const table of ["sp500_daily_candles", "market_daily_candles"] as const) {
-    const { error } = await supabase.client
-      .from(table)
-      .select(
-        "symbol,provider_symbol,trading_date,open,high,low,close,volume,previous_close,source,fetched_at"
-      )
-      .limit(0);
+    const columns =
+      table === "sp500_daily_candles"
+        ? "symbol,trading_date,open,high,low,close,volume,previous_close,fetched_at"
+        : "symbol,provider_symbol,trading_date,open,high,low,close,volume,previous_close,source,fetched_at";
+    const { error } = await supabase.client.from(table).select(columns).limit(0);
     if (error)
       return {
         ok: false as const,

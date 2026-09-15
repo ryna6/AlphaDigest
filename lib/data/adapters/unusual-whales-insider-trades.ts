@@ -336,8 +336,7 @@ export async function refreshInsiderTrades() {
       officer_title: r.officerTitle,
       transaction_code: r.transactionCode,
       shares_owned_after: r.sharesOwnedAfter,
-      fetched_at: r.fetchedAt,
-      updated_at: fetchedAt
+      fetched_at: r.fetchedAt
     }));
     if (dbRows.length) {
       const { error } = await supabase.client

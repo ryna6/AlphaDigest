@@ -6,7 +6,7 @@ import { payloadContentHash, sourceResult, updateRefreshMetadata } from "./supab
 
 export const UW_DARK_POOL_URL =
   "https://phx.unusualwhales.com/api/flow/dark-pool?tab=dark-pool&limit=250&min_premium=10000000&min_marketcap=5000000000&min_size_avg30d_vol_perc=0.05&min_size_daily_perc=0.15&min_size=250000&min_price=5&order=Prem&hide_index_etf=true&max_marketcap=100000000000&max_size_daily_perc=0.5&max_size_avg30d_vol_perc=0.25";
-export const DARK_POOL_RETENTION_DAYS = 30;
+export const DARK_POOL_RETENTION_DAYS = 14;
 const SOURCE = "unusual_whales_dark_pool_flows";
 
 type Rec = Record<string, unknown>;
@@ -27,8 +27,15 @@ const num = (v: unknown) =>
 const safeKeys = (value: unknown, limit = 20) =>
   isRec(value) ? Object.keys(value).slice(0, limit) : [];
 
-const canonicalDarkPoolKey = (row: Pick<DarkPoolFlowRow, "ticker" | "executedAt" | "price" | "premium">) =>
-  stableHash({ ticker: row.ticker, executedAt: row.executedAt, price: row.price, premium: row.premium });
+const canonicalDarkPoolKey = (
+  row: Pick<DarkPoolFlowRow, "ticker" | "executedAt" | "price" | "premium">
+) =>
+  stableHash({
+    ticker: row.ticker,
+    executedAt: row.executedAt,
+    price: row.price,
+    premium: row.premium
+  });
 
 export function extractArrayFromUnusualWhalesResponse(json: unknown): {
   rows: unknown[];
@@ -114,7 +121,13 @@ export function normalizeDarkPoolPayload(
       const premium = num(value.premium ?? value.prem ?? value.notional ?? value.value);
       const volume = num(value.volume ?? value.vol);
       const size = num(value.size ?? value.Size ?? value.trade_size ?? value.total_size);
-      const avg30Volume = num(value.avg30_volume ?? value.avg30Volume ?? value.avg_30_volume ?? value.avg_30_day_volume ?? value.avg30_day_volume);
+      const avg30Volume = num(
+        value.avg30_volume ??
+          value.avg30Volume ??
+          value.avg_30_volume ??
+          value.avg_30_day_volume ??
+          value.avg30_day_volume
+      );
       return {
         externalId: canonicalDarkPoolKey({
           ticker,
@@ -153,7 +166,9 @@ export function normalizeDarkPoolPayload(
 export async function readDarkPoolRows(client: SupabaseClient, limit = 50, ticker?: string) {
   let query = client
     .from("unusual_whales_dark_pool_flows")
-    .select("external_id,executed_at,ticker,sector,price,premium,size,volume,avg30_volume,fetched_at")
+    .select(
+      "external_id,executed_at,ticker,sector,price,premium,size,volume,avg30_volume,fetched_at"
+    )
     .order(ticker ? "executed_at" : "premium", { ascending: false })
     .limit(limit);
   if (ticker) query = query.eq("ticker", ticker.toUpperCase());
@@ -204,7 +219,12 @@ export async function refreshDarkPoolFlows() {
       missingFieldSamples: normalized.rows
         .filter((row) => row.size == null || row.avg30Volume == null)
         .slice(0, 10)
-        .map((row) => ({ ticker: row.ticker, executedAt: row.executedAt, missingSize: row.size == null, missingAvg30Volume: row.avg30Volume == null }))
+        .map((row) => ({
+          ticker: row.ticker,
+          executedAt: row.executedAt,
+          missingSize: row.size == null,
+          missingAvg30Volume: row.avg30Volume == null
+        }))
     };
     console.log("dark_pool_response_diagnostics", shapeDiagnostics);
     if (!normalized.responsePath)
@@ -221,7 +241,8 @@ export async function refreshDarkPoolFlows() {
         .select("external_id,executed_at,ticker,price,premium")
         .gte("executed_at", times[0])
         .lte("executed_at", times[times.length - 1]);
-      if (existingError) throw new Error(`Dark pool existing-row lookup failed: ${existingError.message}`);
+      if (existingError)
+        throw new Error(`Dark pool existing-row lookup failed: ${existingError.message}`);
       const existingIdByCanonicalKey = new Map(
         (existingRows ?? []).map((row: any) => [
           canonicalDarkPoolKey({
@@ -251,8 +272,7 @@ export async function refreshDarkPoolFlows() {
       size: r.size,
       volume: r.volume,
       avg30_volume: r.avg30Volume,
-      fetched_at: r.fetchedAt,
-      updated_at: fetchedAt
+      fetched_at: r.fetchedAt
     }));
     if (dbRows.length) {
       const { error } = await supabase.client

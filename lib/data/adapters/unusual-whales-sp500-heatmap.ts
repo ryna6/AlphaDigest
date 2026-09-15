@@ -2,7 +2,6 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { createServerSupabaseClient } from "@/lib/db/supabase";
 import { getHeatmapIconPath } from "@/lib/constants/asset-icons";
 import type { HeatmapTile, Metric } from "../schemas/common";
-import { stableHash } from "./unusual-whales-earnings";
 import { payloadContentHash, sourceResult, updateRefreshMetadata } from "./supabase-refresh";
 
 export const UW_SP500_HEATMAP_URL =
@@ -148,7 +147,6 @@ export async function fetchSp500HeatmapRows() {
 
 function toDb(row: Sp500HeatmapRow) {
   return {
-    id: `${row.asOfDate}:${row.ticker}`,
     ticker: row.ticker,
     sector: row.sector,
     normalized_sector: row.normalizedSector,
@@ -160,8 +158,7 @@ function toDb(row: Sp500HeatmapRow) {
     prev_close: row.prevClose,
     tape_time: row.tapeTime,
     as_of_date: row.asOfDate,
-    fetched_at: row.fetchedAt,
-    content_hash: stableHash(row)
+    fetched_at: row.fetchedAt
   };
 }
 
@@ -195,7 +192,7 @@ export async function refreshSp500Heatmap() {
     const asOfDate = rows[0]?.asOfDate;
     const { error } = await supabase.client
       .from(TABLE)
-      .upsert(rows.map(toDb), { onConflict: "id" });
+      .upsert(rows.map(toDb), { onConflict: "ticker" });
     if (error) throw error;
     const { count: pruneCount, error: pruneError } = await supabase.client
       .from(TABLE)

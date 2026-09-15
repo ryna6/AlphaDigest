@@ -197,9 +197,7 @@ export const todayMock: TodayPayload = {
     { label: "XLU Utilities", value: "-0.31%", tone: "negative" },
     { label: "XLE Energy", value: "+0.44%", tone: "positive" }
   ],
-  sourceMeta: [
-    mockMeta("Unusual Whales Featured News", "https://unusualwhales.com/news")
-  ]
+  sourceMeta: [mockMeta("Unusual Whales Featured News", "https://unusualwhales.com/news")]
 };
 
 const tiles = (items: Array<[string, string, number, number]>) =>
@@ -291,10 +289,30 @@ export const marketsMock = (): MarketsPayload => ({
   ],
   marketWatch: {
     asOfDate: null,
-    highs52Week: { available: false, items: [], eligibleSymbols: 0, reason: "Unavailable without S&P 500 candles" },
-    lows52Week: { available: false, items: [], eligibleSymbols: 0, reason: "Unavailable without S&P 500 candles" },
-    crosses200Day: { available: false, items: [], eligibleSymbols: 0, reason: "Unavailable without S&P 500 candles" },
-    crosses200Week: { available: false, items: [], eligibleSymbols: 0, reason: "Insufficient history" }
+    highs52Week: {
+      available: false,
+      items: [],
+      eligibleSymbols: 0,
+      reason: "Unavailable without S&P 500 candles"
+    },
+    lows52Week: {
+      available: false,
+      items: [],
+      eligibleSymbols: 0,
+      reason: "Unavailable without S&P 500 candles"
+    },
+    crosses200Day: {
+      available: false,
+      items: [],
+      eligibleSymbols: 0,
+      reason: "Unavailable without S&P 500 candles"
+    },
+    crosses200Week: {
+      available: false,
+      items: [],
+      eligibleSymbols: 0,
+      reason: "Insufficient history"
+    }
   },
   sourceMeta: [
     mockMeta("Finnhub heatmap routes", "https://finnhub.io/docs/api"),
@@ -314,7 +332,14 @@ export const flowMock: FlowPayload = {
       purchaseValue: 0,
       saleValue: 0
     },
-    { label: "Largest Dark Pool Print (14D)", value: "SPY", subtext: "0.3% of 30D Vol", change: "$84.2M", href: "/flow/dark-pool/SPY", tone: "neutral" },
+    {
+      label: "Largest Dark Pool Print (14D)",
+      value: "SPY",
+      subtext: "0.3% of 30D Vol",
+      change: "$84.2M",
+      href: "/flow/dark-pool/SPY",
+      tone: "neutral"
+    },
     {
       label: "Whale Feed (14D)",
       value: "TSLA",
@@ -380,17 +405,6 @@ export const flowMock: FlowPayload = {
 };
 
 export const ownershipMock: OwnershipPayload = {
-  congressionalTrades: [
-    {
-      Published: "2026-06-03",
-      Traded: "2026-05-20",
-      Politician: "Member",
-      Ticker: "MSFT",
-      Side: "Buy",
-      Amount: "$15K-$50K",
-      FiledAfter: "14 days"
-    }
-  ],
   institutionalPositioning: [
     {
       Fund: "Example Capital",
@@ -403,12 +417,7 @@ export const ownershipMock: OwnershipPayload = {
       Filed: "2026-05-15"
     }
   ],
-  sourceMeta: [
-    mockMeta(
-      "Capitol Trades fixture placeholder",
-      "https://www.capitoltrades.com/trades?pageSize=96"
-    )
-  ],
+  sourceMeta: [],
   notices: []
 };
 
