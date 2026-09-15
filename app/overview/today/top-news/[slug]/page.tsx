@@ -1,16 +1,16 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { getTodayPayload } from "@/lib/data/live-dashboard";
 import { PageTitle } from "@/components/dashboard/page-title";
 import { Panel } from "@/components/ui/panel";
 import { SectionHeader } from "@/components/ui/section-header";
 import {
   articleTextFromHtml,
+  getCachedUnusualWhalesFeaturedArticle,
   stripUnusualWhalesAdSection
 } from "@/lib/data/adapters/unusual-whales-news";
 import { formatEtDateTime, timestampTitle } from "@/lib/utils/time";
 
-export const dynamic = "force-dynamic";
+export const revalidate = 300;
 
 type ArticleBlock = { type: "h2" | "p"; text: string };
 
@@ -68,9 +68,8 @@ export default async function TopNewsArticlePage({
   params: { slug: string };
   searchParams?: { from?: string; count?: string };
 }) {
-  const { payload } = await getTodayPayload();
   const slug = decodeURIComponent(params.slug);
-  const article = payload.featuredNews.find((item) => item.slug === slug);
+  const { article } = await getCachedUnusualWhalesFeaturedArticle(slug);
   if (!article) notFound();
 
   const timestamp = article.publishedAt ?? article.createdAt ?? article.fetchedAt;

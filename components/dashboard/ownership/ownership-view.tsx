@@ -1,4 +1,4 @@
-import { getOwnershipPayload } from "@/lib/data/live-dashboard";
+import type { OwnershipPayload } from "@/lib/data/schemas/dashboard";
 import { PageTitle } from "@/components/dashboard/page-title";
 import { Panel } from "@/components/ui/panel";
 import { InstitutionalSummary } from "./institutional-summary";
@@ -8,8 +8,7 @@ const hiddenOwnershipNotices = new Set([
   "Institutional ownership is sourced from the tracked 13F cache."
 ]);
 
-export async function OwnershipView() {
-  const { payload } = await getOwnershipPayload();
+export function OwnershipView({ data: payload }: { data: OwnershipPayload }) {
   const visibleNotices = payload.notices.filter((notice) => !hiddenOwnershipNotices.has(notice));
   return (
     <>

@@ -1,6 +1,14 @@
 import { MarketsView } from "@/components/dashboard/markets/markets-view";
-import { getMarketsPayload } from "@/lib/data/live-dashboard";
+import { getServingDashboardSnapshot } from "@/lib/data/dashboard-serving";
+import { SnapshotUnavailable } from "@/components/dashboard/snapshot-unavailable";
 
-export const dynamic = "force-dynamic";
+export const revalidate = 60;
 
-export default async function MarketsPage() { const { payload } = await getMarketsPayload(); return <MarketsView data={payload} />; }
+export default async function MarketsPage() {
+  const result = await getServingDashboardSnapshot("markets:latest");
+  return result.ok ? (
+    <MarketsView data={result.payload} />
+  ) : (
+    <SnapshotUnavailable title="Markets" />
+  );
+}
