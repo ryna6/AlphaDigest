@@ -247,7 +247,7 @@ When replacing fixture-backed sections with live data:
 2. Add schemas or update existing schemas.
 3. Wire page-level data functions and API routes.
 4. Keep fallback behavior explicit.
-5. Update README and relevant docs in the same change.
+5. Update the affected provider documentation in this file; update the README only if the project's major provider overview or core data-flow model changes.
 
 ## Supabase schema and migrations
 

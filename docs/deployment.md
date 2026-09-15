@@ -120,7 +120,7 @@ These currently return placeholder JSON and should not be described as productio
 - `refresh-flow.ts`
 - `refresh-sources-status.ts`
 
-If any placeholder becomes real, update `docs/architecture.md`, `docs/data-sources.md`, this deployment file, and README if user-visible freshness behavior changes.
+If any placeholder becomes real, update the affected architecture, data-source, deployment, and feature documentation. Update the README only if the project-level architecture or deployment model changes.
 
 ## Build and validation commands
 
@@ -150,7 +150,7 @@ Current caveat: `npm run lint` uses `next lint`; if the installed Next.js versio
 When changing deployment behavior:
 
 1. Update `netlify.toml` and any function code together.
-2. Update environment variable lists in README, `docs/development.md`, `docs/data-sources.md`, and this file.
+2. Update environment-variable lists in `docs/development.md`, `docs/data-sources.md`, and this file; update the README only if public setup or the security model materially changes.
 3. Update smoke-test instructions if route/function names change.
 4. Document any new scheduler, cron, queue, or Supabase requirement.
 5. Run `npm run build` at minimum.
