@@ -8,6 +8,7 @@ export type RefreshSourceResult = {
   error: string | null;
   contentHash: string | null;
   upserted?: number;
+  pruned?: number;
   persisted?: boolean;
   meta?: Record<string, unknown> | null;
 };
@@ -68,6 +69,7 @@ export function sourceResult(
     error: values.error ?? null,
     contentHash: values.contentHash ?? null,
     ...(values.upserted !== undefined ? { upserted: values.upserted } : {}),
+    ...(values.pruned !== undefined ? { pruned: values.pruned } : {}),
     ...(values.persisted !== undefined ? { persisted: values.persisted } : {}),
     ...(values.meta !== undefined ? { meta: values.meta } : {})
   };

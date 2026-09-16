@@ -222,20 +222,20 @@ Files:
 
 Current behavior:
 
-1. `buildInvestingEconomicCalendarWeekRange(dateKey)` calculates a Monday-Friday range for the requested date.
+1. `buildInvestingEconomicCalendarWeekRange(dateKey)` calculates the Monday-Sunday provider range for the requested date.
 2. `fetchInvestingEconomicCalendar(dateKey)` fetches the provider endpoint for that week.
 3. Events are normalized into stable event ids, event date, timestamp/time, actual, forecast, previous, country (in API payloads), star importance, and highlight metadata. The Supabase cache no longer stores redundant `country` or `source_name` columns; it keeps `content_hash` for refresh change detection/status rather than as an upsert key.
 4. Highlighting is based on included economic-event configuration and star importance.
 5. Exclusion patterns remove low-signal or duplicate rows, including exports/imports details, without excluding broader Trade Balance events.
 6. Today filters events to the current ET date.
-7. News & Calendar preloads adjacent weeks and fetches selected days on demand.
+7. Dashboard reads use persisted rows only. Current week is refreshed every six hours; next week is refreshed once daily at 01:40 UTC. Previous-week rows are not re-fetched because AlphaDigest does not use later historical revisions. Current-week actuals, forecasts, and schedule changes justify the higher cadence; next-week schedules and forecasts can change but a daily refresh is sufficient.
 
 Optional Supabase helpers:
 
 - `refreshInvestingEconomicEvents()` refreshes date keys and upserts `investing_economic_events`.
 - `getCachedInvestingEconomicCalendar()` reads one cached date.
 
-The current dashboard fetches the live Investing.com endpoint directly through the server-side adapter rather than requiring Supabase.
+Each scheduled invocation makes one provider request. Failed or empty provider responses fail telemetry and leave persisted rows unchanged.
 
 ## Static fixtures and mock mode
 
@@ -310,17 +310,18 @@ The production failure mode was metadata drift: `data_refresh_metadata` could re
 
 Active source refresh functions:
 
-| Function                       | Table                                                             | Schedule                                              |
-| ------------------------------ | ----------------------------------------------------------------- | ----------------------------------------------------- |
-| `fetch-uw-earnings`            | `unusual_whales_earnings_events`                                  | `0 */6 * * *`                                         |
-| `refresh-news-feed`            | `unusual_whales_news_feed`                                        | `*/30 * * * *`                                        |
-| `refresh-featured-articles`    | `unusual_whales_featured_articles`                                | `*/30 * * * *`                                        |
-| `refresh-economic-events`      | `investing_economic_events`                                       | `0 */6 * * *`                                         |
-| `refresh-market-quotes`        | `market_quotes`                                                   | `*/5 * * * *` with Toronto Sun–Fri guard              |
-| `refresh-markets`              | `market_quotes`, `dashboard_snapshots`                            | `*/5 * * * 1-5` with Toronto weekday guard            |
-| `refresh-markets-heatmap`      | `unusual_whales_sp500_heatmap`, `dashboard_snapshots`             | `*/10 * * * 1-5` with Toronto weekday guard           |
-| `refresh-daily-market-candles` | `sp500_daily_candles, market_daily_candles, `dashboard_snapshots` | `*/15 * * * 1-5` with Toronto weekday/15-minute guard |
-| `refresh-put-call`             | `put_call_observations`                                           | `*/30 * * * 1-5`                                      |
+| Function                            | Table                                                             | Schedule                                              |
+| ----------------------------------- | ----------------------------------------------------------------- | ----------------------------------------------------- |
+| `fetch-uw-earnings`                 | `unusual_whales_earnings_events`                                  | `0 */6 * * *`                                         |
+| `refresh-news-feed`                 | `unusual_whales_news_feed`                                        | `*/30 * * * *`                                        |
+| `refresh-featured-articles`         | `unusual_whales_featured_articles`                                | `*/30 * * * *`                                        |
+| `refresh-economic-events`           | `investing_economic_events`                                       | `10 */6 * * *` (current week)                         |
+| `refresh-economic-events-next-week` | `investing_economic_events`                                       | `40 1 * * *` (next week)                              |
+| `refresh-market-quotes`             | `market_quotes`                                                   | `*/5 * * * *` with Toronto Sun–Fri guard              |
+| `refresh-markets`                   | `market_quotes`, `dashboard_snapshots`                            | `*/5 * * * 1-5` with Toronto weekday guard            |
+| `refresh-markets-heatmap`           | `unusual_whales_sp500_heatmap`, `dashboard_snapshots`             | `*/10 * * * 1-5` with Toronto weekday guard           |
+| `refresh-daily-market-candles`      | `sp500_daily_candles, market_daily_candles, `dashboard_snapshots` | `*/15 * * * 1-5` with Toronto weekday/15-minute guard |
+| `refresh-put-call`                  | `put_call_observations`                                           | `*/30 * * * 1-5`                                      |
 
 ## Cache schema expectation map
 
@@ -490,3 +491,5 @@ Historical equity candles are retrieved only server-side from the public Unusual
 ## Source-cache retention and schema convention
 
 Requested Unusual Whales source caches preserve provider business timestamps (execution, publication, observation, and 13F report dates) and use `fetched_at` as their single ingestion timestamp. Institutional ticker flow and sector exposure retain the five most recent complete quarter ends per investor type; malformed legacy Unix-epoch sentinel rows are rejected and removed. This leaves enough history for current/previous-quarter comparisons and an incomplete-quarter fallback without unbounded accumulation.
+
+Scheduled refreshes retain economic rows by canonical `event_time` for 14 days after an event and featured articles by canonical `published_at` for 7 days. The economic predicate only targets timestamps in the past beyond the boundary, so current and future events remain available. Migration `0044_calendar_and_featured_retention.sql` performs the initial cleanup and adds the event-time retention index; subsequent refresh telemetry includes deleted-row counts.

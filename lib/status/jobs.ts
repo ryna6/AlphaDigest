@@ -214,6 +214,18 @@ export const STATUS_JOBS: StatusJob[] = [
     nextRunUtcRule: { hours: [0, 6, 12, 18], minutes: [10] }
   },
   {
+    id: "news-calendar-economic-events-next-week",
+    group: "News & Calendar",
+    job: "Next Week Economic Events",
+    functionName: "refresh-economic-events-next-week",
+    source: "Investing.com",
+    frequency: "Daily",
+    staleAfterMinutes: 1560,
+    schedule: "40 1 * * *",
+    scheduleDescription: "Daily at 01:40 UTC, staggered from current-week refreshes.",
+    nextRunUtcRule: { hours: [1], minutes: [40] }
+  },
+  {
     id: "news-calendar-earnings",
     group: "News & Calendar",
     job: "Earnings Calendar",

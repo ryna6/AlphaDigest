@@ -11,6 +11,7 @@ const INVESTING_ECONOMIC_CALENDAR_ENDPOINT =
 const INVESTING_ECONOMIC_CALENDAR_PAGE = "https://www.investing.com/economic-calendar/";
 const ECONOMIC_CALENDAR_TIMEOUT_MS = 12_000;
 const ECONOMIC_CALENDAR_RETRIES = 2;
+export const ECONOMIC_EVENT_RETENTION_DAYS = 14;
 const INVESTING_DOMAIN_ID = "www";
 const INVESTING_BROWSER_USER_AGENT =
   "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36";
@@ -536,12 +537,19 @@ async function fetchPayload(url: string) {
           }
         };
       }
-      if (![429, 500, 502, 503, 504].includes(response.status)) {
-        throw new Error(`Investing.com economic calendar responded ${response.status}`);
+      const body = (await response.text()).replace(/\s+/g, " ").trim().slice(0, 240);
+      const detail = `Investing.com economic calendar responded ${response.status} (${response.headers.get("content-type") ?? "unknown content type"})${body ? `: ${body}` : ""}`;
+      if (![429, 500, 502, 503, 504].includes(response.status)) throw new Error(detail);
+      lastError = new Error(detail);
+      const retryAfterSeconds = Number(response.headers.get("retry-after"));
+      if (attempt < ECONOMIC_CALENDAR_RETRIES && Number.isFinite(retryAfterSeconds)) {
+        await sleep(Math.min(Math.max(retryAfterSeconds, 0) * 1_000, 5_000));
+        continue;
       }
-      lastError = new Error(`Investing.com economic calendar responded ${response.status}`);
     } catch (error) {
       lastError = error;
+      if (error instanceof Error && /responded (?!429|500|502|503|504)\d{3}/.test(error.message))
+        break;
     }
     if (attempt < ECONOMIC_CALENDAR_RETRIES) await sleep(350 * 2 ** attempt);
   }
@@ -673,7 +681,23 @@ function dateKeysBetween(startDate: string, endDate: string) {
 export function defaultEconomicRefreshDateKeys(date = new Date()) {
   const todayKey = formatEtDateKey(date) ?? dateKeyFromDate(date);
   const currentWeek = buildInvestingEconomicCalendarWeekRange(todayKey).startDate;
-  return [addDaysToDateKey(currentWeek, -7), currentWeek, addDaysToDateKey(currentWeek, 7)];
+  return [currentWeek];
+}
+
+export function economicRefreshDateKeysForPeriod(
+  period: "current" | "next" | "previous",
+  date = new Date()
+) {
+  const currentWeek = defaultEconomicRefreshDateKeys(date)[0];
+  if (period === "next") return [addDaysToDateKey(currentWeek, 7)];
+  if (period === "previous") return [addDaysToDateKey(currentWeek, -7)];
+  return [currentWeek];
+}
+
+export function economicEventRetentionCutoff(now = new Date()) {
+  return new Date(
+    now.getTime() - ECONOMIC_EVENT_RETENTION_DAYS * 24 * 60 * 60 * 1000
+  ).toISOString();
 }
 
 export async function refreshInvestingEconomicEvents(dateKeys = defaultEconomicRefreshDateKeys()) {
@@ -790,6 +814,11 @@ export async function refreshInvestingEconomicEvents(dateKeys = defaultEconomicR
       if (error) throw new Error(`Supabase economic events upsert failed: ${error.message}`);
       upserted = rows.length;
     }
+    const { count: prunedCount, error: pruneError } = await supabase.client
+      .from("investing_economic_events")
+      .delete({ count: "exact" })
+      .lt("event_time", economicEventRetentionCutoff());
+    if (pruneError) throw new Error(`Supabase economic events prune failed: ${pruneError.message}`);
     console.log("economic_rows_upserted", { correlationId, upserted });
     let verifiedRows: UnknownRecord[] = [];
     if (rows.length) {
@@ -821,6 +850,7 @@ export async function refreshInvestingEconomicEvents(dateKeys = defaultEconomicR
       rowsFetched: events.length,
       rowsNormalized: rows.length,
       rowsUpserted: upserted,
+      rowsPruned: prunedCount ?? 0,
       rowsVerified: verifiedRows.length,
       persisted
     };
@@ -840,6 +870,7 @@ export async function refreshInvestingEconomicEvents(dateKeys = defaultEconomicR
       correlationId,
       source: INVESTING_METADATA_SOURCE,
       upserted,
+      pruned: prunedCount ?? 0,
       rowsVerified: verifiedRows.length,
       persisted,
       changed,
@@ -851,6 +882,7 @@ export async function refreshInvestingEconomicEvents(dateKeys = defaultEconomicR
       changed,
       contentHash,
       upserted,
+      pruned: prunedCount ?? 0,
       persisted,
       meta: diagnostics
     });

@@ -15,7 +15,7 @@ export default async function handler(request: Request) {
   try {
     const result = await refreshUnusualWhalesFeaturedArticles(Number.isFinite(limit) ? limit : 50);
     console.log("scheduled_refresh_complete", { job: "refresh-featured-articles", rowsFetched: result.count, rowsUpserted: result.upserted ?? 0, persisted: result.persisted, ok: result.ok, error: result.error });
-    await finishJobRun(runId, { status: result.ok && (result.count ?? 0) > 0 ? "success" : result.ok ? "warning" : "error", rowsFetched: result.count ?? null, rowsInserted: result.upserted ?? null, errorMessage: result.ok ? null : result.error, warningMessage: result.ok && (result.count ?? 0) === 0 ? "Job completed with zero fetched rows." : null, metadata: { persisted: result.persisted } });
+    await finishJobRun(runId, { status: result.ok && (result.count ?? 0) > 0 ? "success" : result.ok ? "warning" : "error", rowsFetched: result.count ?? null, rowsInserted: result.upserted ?? null, rowsDeleted: result.pruned ?? null, errorMessage: result.ok ? null : result.error, warningMessage: result.ok && (result.count ?? 0) === 0 ? "Job completed with zero fetched rows." : null, metadata: { persisted: result.persisted } });
     return json({ job: "refresh-featured-articles", startedAt, finishedAt: new Date().toISOString(), ...result }, result.ok ? 200 : 502);
   } catch (error) {
     const message = error instanceof Error ? error.message : "Unknown featured articles refresh error";
