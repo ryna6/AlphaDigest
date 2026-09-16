@@ -86,6 +86,48 @@ test("provider errors and empty payloads remain failures while last-known-good m
   }
 });
 
+test("an authorization rejection establishes and replays one browser session", async () => {
+  const originalFetch = globalThis.fetch;
+  const requests: Array<{ url: string; cookie: string | null }> = [];
+  const payload = {
+    data: {
+      events: [{ id: 101, name: "Initial Jobless Claims", importance: "high" }],
+      occurrences: [{ event_id: "101", datetime: "2026-10-08T08:30:00-04:00" }]
+    }
+  };
+  try {
+    globalThis.fetch = async (input, init) => {
+      const url = String(input);
+      const headers = new Headers(init?.headers);
+      requests.push({ url, cookie: headers.get("cookie") });
+      if (url === "https://www.investing.com/economic-calendar/")
+        return new Response("calendar", {
+          status: 200,
+          headers: { "set-cookie": "geoC=US; Path=/; Secure; SameSite=None" }
+        });
+      if (!headers.has("cookie"))
+        return new Response("session required", {
+          status: 403,
+          headers: { "content-type": "text/html" }
+        });
+      return new Response(JSON.stringify(payload), {
+        status: 200,
+        headers: { "content-type": "application/json" }
+      });
+    };
+    const result = await fetchInvestingEconomicCalendar("2026-10-08");
+    assert.equal(result.mode, "live");
+    assert.equal(result.events.length, 1);
+    assert.equal(result.diagnostics?.sessionRetry, true);
+    assert.equal(requests.length, 3);
+    assert.equal(requests[0].cookie, null);
+    assert.equal(requests[1].url, "https://www.investing.com/economic-calendar/");
+    assert.equal(requests[2].cookie, "geoC=US");
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
 test("retention migration uses provider timestamps and strict older-than predicates", async () => {
   const sql = await readFile(
     new URL("../supabase/migrations/0044_calendar_and_featured_retention.sql", import.meta.url),
@@ -94,6 +136,20 @@ test("retention migration uses provider timestamps and strict older-than predica
   assert.match(sql, /event_time < now\(\) - interval '14 days'/);
   assert.match(sql, /published_at < now\(\) - interval '7 days'/);
   assert.doesNotMatch(sql, /created_at\s*</);
+});
+
+test("automatic retention is service-role-only and independent of ingestion", async () => {
+  const sql = await readFile(
+    new URL(
+      "../supabase/migrations/0045_automatic_calendar_featured_retention.sql",
+      import.meta.url
+    ),
+    "utf8"
+  );
+  assert.match(sql, /event_time < now\(\) - interval '14 days'/);
+  assert.match(sql, /published_at < now\(\) - interval '7 days'/);
+  assert.match(sql, /grant execute[^;]+service_role/i);
+  assert.doesNotMatch(sql, /event_time\s*>/);
 });
 
 test("current nested events/occurrences wrapper links metadata to occurrences across string IDs", () => {
