@@ -477,29 +477,42 @@ function sleep(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+let investingSessionCookie: string | null = null;
+
 /**
  * Investing's pd-instruments gateway uses the Domain-Id header to select the
  * public web tenant. The domain_id query parameter filters the calendar data,
  * but does not replace this gateway header; requests without it are rejected
  * with 403 before they reach the calendar service.
  */
-export function buildInvestingEconomicCalendarRequestHeaders() {
+export function buildInvestingEconomicCalendarRequestHeaders(cookie = investingSessionCookie) {
   return {
     "User-Agent": INVESTING_BROWSER_USER_AGENT,
     Accept: "application/json, text/plain, */*",
     "Accept-Language": "en-US,en;q=0.9",
     "Domain-Id": INVESTING_DOMAIN_ID,
     Origin: "https://www.investing.com",
-    Referer: INVESTING_ECONOMIC_CALENDAR_PAGE
+    Referer: INVESTING_ECONOMIC_CALENDAR_PAGE,
+    ...(cookie ? { Cookie: cookie } : {})
   };
 }
 
-async function fetchWithTimeout(url: string) {
+function responseCookies(response: Response) {
+  const headers = response.headers as Headers & { getSetCookie?: () => string[] };
+  const values = headers.getSetCookie?.() ?? [response.headers.get("set-cookie") ?? ""];
+  return values
+    .flatMap((value) => value.split(/,(?=[^;,]+=)/))
+    .map((value) => value.split(";", 1)[0]?.trim())
+    .filter(Boolean)
+    .join("; ");
+}
+
+async function fetchWithTimeout(url: string, cookie = investingSessionCookie) {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), ECONOMIC_CALENDAR_TIMEOUT_MS);
   try {
     return await fetch(url, {
-      headers: buildInvestingEconomicCalendarRequestHeaders(),
+      headers: buildInvestingEconomicCalendarRequestHeaders(cookie),
       cache: "no-store",
       signal: controller.signal
     });
@@ -508,11 +521,32 @@ async function fetchWithTimeout(url: string) {
   }
 }
 
+async function establishInvestingSession() {
+  const response = await fetchWithTimeout(INVESTING_ECONOMIC_CALENDAR_PAGE, null);
+  // A challenge/error document is not a usable session. Preserve its status so
+  // telemetry continues to describe the provider failure rather than masking it.
+  if (!response.ok) return null;
+  const cookie = responseCookies(response);
+  if (cookie) investingSessionCookie = cookie;
+  return cookie || null;
+}
+
 async function fetchPayload(url: string) {
   let lastError: unknown;
   for (let attempt = 0; attempt <= ECONOMIC_CALENDAR_RETRIES; attempt += 1) {
     try {
-      const response = await fetchWithTimeout(url);
+      let response = await fetchWithTimeout(url);
+      let sessionRetry = false;
+      // The endpoint accepts a browser session but rejects otherwise-identical
+      // direct requests with 401/403. The old header-only workaround did not
+      // establish or replay the cookies present in the successful manual call.
+      if ((response.status === 401 || response.status === 403) && !investingSessionCookie) {
+        const cookie = await establishInvestingSession();
+        if (cookie) {
+          response = await fetchWithTimeout(url, cookie);
+          sessionRetry = true;
+        }
+      }
       if (response.ok) {
         const text = await response.text();
         let payload: unknown;
@@ -533,7 +567,8 @@ async function fetchPayload(url: string) {
             httpStatus: response.status,
             finalUrl: response.url,
             contentType: response.headers.get("content-type"),
-            responseBytes: new TextEncoder().encode(text).length
+            responseBytes: new TextEncoder().encode(text).length,
+            sessionRetry
           }
         };
       }

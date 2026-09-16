@@ -226,6 +226,18 @@ export const STATUS_JOBS: StatusJob[] = [
     nextRunUtcRule: { hours: [1], minutes: [40] }
   },
   {
+    id: "news-calendar-source-retention",
+    group: "News & Calendar",
+    job: "Source Data Retention",
+    functionName: "cleanup-source-retention",
+    source: "Supabase",
+    frequency: "Daily",
+    staleAfterMinutes: 1560,
+    schedule: "20 3 * * *",
+    scheduleDescription: "Daily at 03:20 UTC, independently of provider refreshes.",
+    nextRunUtcRule: { hours: [3], minutes: [20] }
+  },
+  {
     id: "news-calendar-earnings",
     group: "News & Calendar",
     job: "Earnings Calendar",

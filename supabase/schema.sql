@@ -556,10 +556,26 @@ end $$;
 
 notify pgrst, 'reload schema';
 
--- Rolling source-cache retention (maintained by scheduled refresh functions).
+-- Rolling source-cache retention (also maintained by cleanup-source-retention).
 delete from public.investing_economic_events
 where event_time < now() - interval '14 days';
 delete from public.unusual_whales_featured_articles
 where published_at < now() - interval '7 days';
 create index if not exists idx_investing_economic_events_event_time
   on public.investing_economic_events (event_time);
+
+create or replace function public.cleanup_calendar_and_featured_retention()
+returns table(economic_events_deleted bigint, featured_articles_deleted bigint)
+language plpgsql security definer set search_path = public
+as $$
+declare economic_count bigint; featured_count bigint;
+begin
+  delete from public.investing_economic_events where event_time < now() - interval '14 days';
+  get diagnostics economic_count = row_count;
+  delete from public.unusual_whales_featured_articles where published_at < now() - interval '7 days';
+  get diagnostics featured_count = row_count;
+  return query select economic_count, featured_count;
+end;
+$$;
+revoke all on function public.cleanup_calendar_and_featured_retention() from public, anon, authenticated;
+grant execute on function public.cleanup_calendar_and_featured_retention() to service_role;
