@@ -408,6 +408,13 @@ import { stableHash } from "./unusual-whales-earnings";
 
 const NEWS_METADATA_SOURCE = "unusual_whales_news_feed";
 const NEWS_RETENTION_DAYS = 3;
+export const FEATURED_ARTICLE_RETENTION_DAYS = 7;
+
+export function featuredArticleRetentionCutoff(now = new Date()) {
+  return new Date(
+    now.getTime() - FEATURED_ARTICLE_RETENTION_DAYS * 24 * 60 * 60 * 1000
+  ).toISOString();
+}
 const FEATURED_METADATA_SOURCE = "unusual_whales_featured_articles";
 
 type CachedNewsResult = NewsFetchResult & { metadata?: Record<string, unknown> | null };
@@ -598,14 +605,13 @@ export async function refreshUnusualWhalesFeaturedArticles(limit = 50) {
       .eq("source", FEATURED_METADATA_SOURCE)
       .maybeSingle();
     const changed = metadata?.content_hash !== contentHash;
-    const pruneBefore = new Date(
-      Date.now() - NEWS_RETENTION_DAYS * 24 * 60 * 60 * 1000
-    ).toISOString();
+    const pruneBefore = featuredArticleRetentionCutoff();
     const { count: prunedCount, error: pruneError } = await supabase.client
-      .from("unusual_whales_news_feed")
+      .from("unusual_whales_featured_articles")
       .delete({ count: "exact" })
-      .lt("event_time", pruneBefore);
-    if (pruneError) throw new Error(`Supabase news feed prune failed: ${pruneError.message}`);
+      .lt("published_at", pruneBefore);
+    if (pruneError)
+      throw new Error(`Supabase featured articles prune failed: ${pruneError.message}`);
     let upserted = 0;
     if (rows.length) {
       const { error } = await supabase.client
@@ -621,13 +627,19 @@ export async function refreshUnusualWhalesFeaturedArticles(limit = 50) {
       contentHash,
       meta: { limit, source_url: unusualWhalesSources.featured }
     });
-    console.log("force_refresh_upserted", { source: FEATURED_METADATA_SOURCE, upserted, changed });
+    console.log("force_refresh_upserted", {
+      source: FEATURED_METADATA_SOURCE,
+      upserted,
+      changed,
+      prunedOlderThan7Days: prunedCount ?? 0
+    });
     return sourceResult({
       ok: true,
       count: rows.length,
       changed,
       contentHash,
       upserted,
+      pruned: prunedCount ?? 0,
       persisted: true
     });
   } catch (error) {

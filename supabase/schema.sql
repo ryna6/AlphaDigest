@@ -555,3 +555,11 @@ begin
 end $$;
 
 notify pgrst, 'reload schema';
+
+-- Rolling source-cache retention (maintained by scheduled refresh functions).
+delete from public.investing_economic_events
+where event_time < now() - interval '14 days';
+delete from public.unusual_whales_featured_articles
+where published_at < now() - interval '7 days';
+create index if not exists idx_investing_economic_events_event_time
+  on public.investing_economic_events (event_time);

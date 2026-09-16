@@ -51,6 +51,7 @@ export default async function handler(request: Request) {
       status: ok && (result.count ?? 0) > 0 ? "success" : "error",
       rowsFetched: result.count ?? null,
       rowsInserted: result.upserted ?? null,
+      rowsDeleted: result.pruned ?? null,
       errorMessage: ok
         ? null
         : (result.error ??
