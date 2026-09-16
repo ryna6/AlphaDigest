@@ -11,6 +11,9 @@ const INVESTING_ECONOMIC_CALENDAR_ENDPOINT =
 const INVESTING_ECONOMIC_CALENDAR_PAGE = "https://www.investing.com/economic-calendar/";
 const ECONOMIC_CALENDAR_TIMEOUT_MS = 12_000;
 const ECONOMIC_CALENDAR_RETRIES = 2;
+const INVESTING_DOMAIN_ID = "www";
+const INVESTING_BROWSER_USER_AGENT =
+  "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36";
 
 type UnknownRecord = Record<string, unknown>;
 
@@ -473,17 +476,29 @@ function sleep(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+/**
+ * Investing's pd-instruments gateway uses the Domain-Id header to select the
+ * public web tenant. The domain_id query parameter filters the calendar data,
+ * but does not replace this gateway header; requests without it are rejected
+ * with 403 before they reach the calendar service.
+ */
+export function buildInvestingEconomicCalendarRequestHeaders() {
+  return {
+    "User-Agent": INVESTING_BROWSER_USER_AGENT,
+    Accept: "application/json, text/plain, */*",
+    "Accept-Language": "en-US,en;q=0.9",
+    "Domain-Id": INVESTING_DOMAIN_ID,
+    Origin: "https://www.investing.com",
+    Referer: INVESTING_ECONOMIC_CALENDAR_PAGE
+  };
+}
+
 async function fetchWithTimeout(url: string) {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), ECONOMIC_CALENDAR_TIMEOUT_MS);
   try {
     return await fetch(url, {
-      headers: {
-        "User-Agent": "Mozilla/5.0",
-        Accept: "application/json, text/plain, */*",
-        Origin: "https://www.investing.com",
-        Referer: INVESTING_ECONOMIC_CALENDAR_PAGE
-      },
+      headers: buildInvestingEconomicCalendarRequestHeaders(),
       cache: "no-store",
       signal: controller.signal
     });
