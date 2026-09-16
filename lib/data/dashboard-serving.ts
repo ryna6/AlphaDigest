@@ -8,16 +8,23 @@ import {
   marketsPayloadSchema,
   newsCalendarPayloadSchema,
   ownershipPayloadSchema,
+  sentimentPayloadSchema,
   todayPayloadSchema,
   type FlowPayload,
   type MarketsPayload,
   type NewsCalendarPayload,
   type OwnershipPayload,
+  type SentimentPayload,
   type TodayPayload
 } from "./schemas/dashboard";
 
 export type DashboardSnapshotKey =
-  "today:latest" | "markets:latest" | "news-calendar:latest" | "flow:latest" | "ownership:latest";
+  | "today:latest"
+  | "markets:latest"
+  | "news-calendar:latest"
+  | "flow:latest"
+  | "ownership:latest"
+  | "sentiment:latest";
 
 type PayloadByKey = {
   "today:latest": TodayPayload;
@@ -25,6 +32,7 @@ type PayloadByKey = {
   "news-calendar:latest": NewsCalendarPayload;
   "flow:latest": FlowPayload;
   "ownership:latest": OwnershipPayload;
+  "sentiment:latest": SentimentPayload;
 };
 
 const schemas: { [K in DashboardSnapshotKey]: ZodType<PayloadByKey[K]> } = {
@@ -32,7 +40,8 @@ const schemas: { [K in DashboardSnapshotKey]: ZodType<PayloadByKey[K]> } = {
   "markets:latest": marketsPayloadSchema,
   "news-calendar:latest": newsCalendarPayloadSchema,
   "flow:latest": flowPayloadSchema,
-  "ownership:latest": ownershipPayloadSchema
+  "ownership:latest": ownershipPayloadSchema,
+  "sentiment:latest": sentimentPayloadSchema
 };
 
 export type ServingDashboardResult<T> =

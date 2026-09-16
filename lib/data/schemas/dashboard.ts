@@ -247,6 +247,54 @@ export const flowPayloadSchema = z.object({
 
 export const ownershipPayloadSchema = z.object({
   institutionalPositioning: z.array(z.record(z.string(), z.string())),
+  institutionalSummary: z
+    .object({
+      tickerFlow: z.array(
+        z
+          .object({
+            investorType: z.enum(["value", "activist", "13d_activist", "tiger_cub"]),
+            order: z.string(),
+            ticker: z.string(),
+            value: z.number().nullable(),
+            reportDate: z.string(),
+            increasedPositions: z.number().nullable(),
+            decreasedPositions: z.number().nullable(),
+            holdingCount: z.number().nullable(),
+            units: z.number().nullable(),
+            prevUnits: z.number().nullable()
+          })
+          .passthrough()
+      ),
+      sectorExposure: z.array(
+        z
+          .object({
+            investorType: z.enum(["value", "activist", "13d_activist", "tiger_cub"]),
+            sector: z.string(),
+            value: z.number().nullable(),
+            reportDate: z.string(),
+            qoq: z.number().finite().nullable(),
+            yoy: z.number().finite().nullable()
+          })
+          .passthrough()
+      ),
+      notices: z.array(z.string()),
+      metadata: z
+        .object({
+          selectedReportDatesByInvestorType: z.record(z.string(), z.string()),
+          rejectedPeriodsByInvestorType: z.record(
+            z.string(),
+            z.record(z.string(), z.array(z.string()))
+          )
+        })
+        .optional()
+    })
+    .optional(),
+  sourceMeta: z.array(sourceMetaSchema),
+  notices: z.array(z.string()).default([])
+});
+
+export const sentimentPayloadSchema = z.object({
+  sentiment: z.array(metricSchema),
   sourceMeta: z.array(sourceMetaSchema),
   notices: z.array(z.string()).default([])
 });
@@ -306,6 +354,7 @@ export type InsiderTradeRow = z.infer<typeof insiderTradeRowSchema>;
 export type InsiderCompanyAggregate = z.infer<typeof insiderCompanyAggregateSchema>;
 export type FlowPayload = z.infer<typeof flowPayloadSchema>;
 export type OwnershipPayload = z.infer<typeof ownershipPayloadSchema>;
+export type SentimentPayload = z.infer<typeof sentimentPayloadSchema>;
 export type InsiderTradesPayload = z.infer<typeof insiderTradesPayloadSchema>;
 export type InsiderTradeDetailPayload = z.infer<typeof insiderTradeDetailPayloadSchema>;
 export type TickerPayload = z.infer<typeof tickerPayloadSchema>;

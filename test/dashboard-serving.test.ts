@@ -28,7 +28,8 @@ test("public dashboard pages use ISR and the snapshot-only serving module", () =
     "app/markets/page.tsx": 60,
     "app/news-calendar/page.tsx": 180,
     "app/flow/page.tsx": 600,
-    "app/ownership/page.tsx": 1800
+    "app/ownership/page.tsx": 1800,
+    "app/sentiment/page.tsx": 1800
   };
   for (const [file, seconds] of Object.entries(routes)) {
     const source = readFileSync(file, "utf8");
@@ -45,4 +46,6 @@ test("public dashboard pages use ISR and the snapshot-only serving module", () =
     servingSource,
     /live-dashboard|fetchYahoo|fetchCrypto|upsertDashboardSnapshot/
   );
+  assert.match(readFileSync("app/status/page.tsx", "utf8"), /force-dynamic/);
+  assert.match(readFileSync("lib/data/dashboard-tabs.ts", "utf8"), /"sentiment:latest"/);
 });

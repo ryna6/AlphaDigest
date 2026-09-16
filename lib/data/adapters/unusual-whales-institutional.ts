@@ -104,6 +104,10 @@ export type InstitutionalSectorExposureRow = {
   value: number | null;
   reportDate: string;
   fetchedAt: string;
+  /** Percentage-point change in portfolio share from the immediately preceding quarter. */
+  qoq?: number | null;
+  /** Percentage-point change in portfolio share from the equivalent prior-year quarter. */
+  yoy?: number | null;
 };
 
 export type InstitutionalSummaryPayload = {
@@ -187,8 +191,67 @@ function normalizeSectorRow(
     sector: normalizedSector,
     value: num(raw.value),
     reportDate: isoDate,
-    fetchedAt
+    fetchedAt,
+    qoq: null,
+    yoy: null
   };
+}
+
+function comparisonQuarter(date: string, quartersBack: number) {
+  const [year, month] = date.split("-").map(Number);
+  if (!year || ![3, 6, 9, 12].includes(month)) return null;
+  const quarterIndex = year * 4 + month / 3 - 1 - quartersBack;
+  const targetYear = Math.floor(quarterIndex / 4);
+  const targetQuarter = ((quarterIndex % 4) + 4) % 4;
+  const targetMonth = (targetQuarter + 1) * 3;
+  const targetDay = targetMonth === 6 || targetMonth === 9 ? 30 : 31;
+  return `${targetYear}-${String(targetMonth).padStart(2, "0")}-${targetDay}`;
+}
+
+/**
+ * Produces the selected period's sector shares and percentage-point deltas.
+ * Comparisons use exact SEC quarter ends, never row positions or approximate day offsets.
+ */
+export function calculateInstitutionalSectorChanges(
+  rows: InstitutionalSectorExposureRow[],
+  investorType: InstitutionalInvestorType,
+  selectedReportDate: string
+) {
+  const aggregateShares = (reportDate: string) => {
+    const values = new Map<string, { value: number; row: InstitutionalSectorExposureRow }>();
+    for (const row of rows) {
+      if (
+        row.investorType !== investorType ||
+        row.reportDate !== reportDate ||
+        row.value === null ||
+        !Number.isFinite(row.value) ||
+        row.value < 0
+      )
+        continue;
+      const sector = normalizeSectorLabel(row.sector) ?? row.sector;
+      const existing = values.get(sector);
+      values.set(sector, { value: (existing?.value ?? 0) + row.value, row: { ...row, sector } });
+    }
+    const total = Array.from(values.values()).reduce((sum, item) => sum + item.value, 0);
+    if (!(total > 0))
+      return new Map<string, { share: number; row: InstitutionalSectorExposureRow }>();
+    return new Map(
+      Array.from(values, ([sector, item]) => [
+        sector,
+        { share: (item.value / total) * 100, row: item.row }
+      ])
+    );
+  };
+
+  const current = aggregateShares(selectedReportDate);
+  const previous = aggregateShares(comparisonQuarter(selectedReportDate, 1) ?? "");
+  const priorYear = aggregateShares(comparisonQuarter(selectedReportDate, 4) ?? "");
+  return Array.from(current, ([sector, item]) => ({
+    ...item.row,
+    value: current.get(sector)!.share,
+    qoq: previous.has(sector) ? item.share - previous.get(sector)!.share : null,
+    yoy: priorYear.has(sector) ? item.share - priorYear.get(sector)!.share : null
+  }));
 }
 
 const REQUIRED_SUMMARY_TICKER_ORDERS = [
@@ -1283,7 +1346,9 @@ function fromSectorDb(row: any): InstitutionalSectorExposureRow {
     sector: normalizeSectorLabel(row.sector) ?? row.sector,
     value: row.value == null ? null : Number(row.value),
     reportDate: row.report_date,
-    fetchedAt: row.fetched_at
+    fetchedAt: row.fetched_at,
+    qoq: null,
+    yoy: null
   };
 }
 
@@ -1333,10 +1398,12 @@ export async function getCachedInstitutionalSummary(): Promise<InstitutionalSumm
     tickerFlow: allTickerFlow.filter(
       (row) => selectedReportDatesByInvestorType[row.investorType] === row.reportDate
     ),
-    sectorExposure: allSectorExposure.filter(
-      (row) =>
-        selectedReportDatesByInvestorType[row.investorType] === row.reportDate && row.value !== null
-    ),
+    sectorExposure: institutionalInvestorTypes.flatMap((investor) => {
+      const selected = selectedReportDatesByInvestorType[investor.value];
+      return selected
+        ? calculateInstitutionalSectorChanges(allSectorExposure, investor.value, selected)
+        : [];
+    }),
     notices,
     metadata: { selectedReportDatesByInvestorType, rejectedPeriodsByInvestorType }
   };

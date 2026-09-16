@@ -53,11 +53,11 @@ test("long-form Unusual Whales fields remain supported", () => {
 });
 
 test("upsert row mapping includes volume and omits unsupported asset_group", () => {
-  const c: DailyCandle = { symbol:"BTCUSD", providerSymbol:"BTC-USD", tradingDate:"2026-07-09", open:1, high:2, low:1, close:2, volume:3.5, previousClose:null, source:"test", sourceTimestamp:null, fetchedAt:"now", assetGroup:"crypto" };
+  const c: DailyCandle = { symbol:"BTCUSD", providerSymbol:"BTC-USD", tradingDate:"2026-07-09", open:1, high:2, low:1, close:2, volume:3.5, previousClose:null, source:"test", sourceTimestamp:null, fetchedAt:"now" };
   const cryptoRow = dailyCandleRowsForUpsert("crypto_daily_candles", [c])[0] as any;
   assert.equal(cryptoRow.volume, 3.5); assert.equal("asset_group" in cryptoRow, false);
   const marketRow = dailyCandleRowsForUpsert("market_daily_candles", [{...c, volume:null}])[0] as any;
-  assert.equal(marketRow.volume, null); assert.equal(marketRow.asset_group, "crypto");
+  assert.equal(marketRow.volume, null); assert.equal("asset_group" in marketRow, false);
 });
 
 test("one-year cutoff handles leap years", () => {
@@ -160,6 +160,6 @@ test("futures parser maps fields, preserves Sunday, skips Saturday, and derives 
 });
 
 test("futures one-year retention uses calendar-year boundary including leap days", () => {
-  const rows = ["2024-02-28", "2024-02-29", "2025-02-28"].map((tradingDate, i) => ({ symbol:"ES=F", providerSymbol:SP500_FUTURES_HISTORY_ID, tradingDate, open:1, high:2, low:1, close:i+1, volume:null, previousClose:null, source:"Unusual Whales Futures EOD", sourceTimestamp:tradingDate, fetchedAt:tradingDate, assetGroup:"indices" }));
+  const rows = ["2024-02-28", "2024-02-29", "2025-02-28"].map((tradingDate, i) => ({ symbol:"ES=F", providerSymbol:SP500_FUTURES_HISTORY_ID, tradingDate, open:1, high:2, low:1, close:i+1, volume:null, previousClose:null, source:"Unusual Whales Futures EOD", sourceTimestamp:tradingDate, fetchedAt:tradingDate }));
   assert.deepEqual(retainTrailingFuturesYear(rows).map(r=>r.tradingDate), ["2024-02-28", "2024-02-29", "2025-02-28"]);
 });

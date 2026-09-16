@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import test from "node:test";
 import { nextTorontoRun } from "../lib/schedule/toronto";
-import { selectLatestCompleteInstitutionPeriod } from "../lib/data/adapters/unusual-whales-institutional";
+import { calculateInstitutionalSectorChanges, selectLatestCompleteInstitutionPeriod, type InstitutionalSectorExposureRow } from "../lib/data/adapters/unusual-whales-institutional";
 
 test("market and crypto daily candle crons are single UTC fallback schedules", () => {
   const market = fs.readFileSync("netlify/functions/refresh-daily-market-candles.ts", "utf8");
@@ -45,4 +45,24 @@ test("latest complete institution period falls back before Q2 2026 filing deadli
 test("latest complete institution period selects complete newer quarter", () => {
   const result = selectLatestCompleteInstitutionPeriod({ infoDates: ["2026-06-30", "2026-03-31"], holdingDates: ["2026-06-30", "2026-03-31"] });
   assert.equal(result.selectedReportDate, "2026-06-30");
+});
+
+
+test("sector changes use exact prior-quarter and prior-year periods", () => {
+  const row = (reportDate: string, sector: string, value: number): InstitutionalSectorExposureRow => ({ investorType: "value", reportDate, sector, value, fetchedAt: "2026-09-01T00:00:00Z" });
+  const rows = [row("2025-06-30", "Technology", 20), row("2025-06-30", "Energy", 80), row("2026-03-31", "Technology", 30), row("2026-03-31", "Energy", 70), row("2026-06-30", "Technology", 40), row("2026-06-30", "Energy", 60)];
+  const technology = calculateInstitutionalSectorChanges(rows, "value", "2026-06-30").find((item) => item.sector === "XLK (Technology)");
+  assert.equal(technology?.value, 40);
+  assert.equal(technology?.qoq, 10);
+  assert.equal(technology?.yoy, 20);
+});
+
+test("sector changes remain unavailable for missing or zero-total comparison periods", () => {
+  const rows: InstitutionalSectorExposureRow[] = [
+    { investorType: "value", reportDate: "2026-06-30", sector: "Energy", value: 100, fetchedAt: "now" },
+    { investorType: "value", reportDate: "2026-03-31", sector: "Energy", value: 0, fetchedAt: "now" }
+  ];
+  const result = calculateInstitutionalSectorChanges(rows, "value", "2026-06-30")[0];
+  assert.equal(result.qoq, null);
+  assert.equal(result.yoy, null);
 });

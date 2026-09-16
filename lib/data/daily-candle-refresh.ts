@@ -24,7 +24,6 @@ export type EquityCandleJob = {
   table: "market_daily_candles" | "sp500_daily_candles";
   symbol: string;
   providerSymbol: string;
-  assetGroup?: string;
   group: "markets" | "sp500";
 };
 type GroupSummary = {
@@ -110,7 +109,6 @@ export async function getDailyEquityCandleJobs(client?: SupabaseClient) {
       table: "market_daily_candles" as const,
       symbol: a.symbol,
       providerSymbol: a.finnhubSymbol!,
-      assetGroup: a.group,
       group: "markets" as const
     }));
   const sp500Jobs = sp500Symbols.map((symbol) => ({
@@ -191,7 +189,6 @@ async function processGroup(
         try {
           const q = await fetchFinnhubQuoteWithRetry(job.providerSymbol, lane.key, laneIndex + 1);
           const c = normalizeFinnhubQuote(job.symbol, job.providerSymbol, q);
-          c.assetGroup = job.assetGroup;
           const up = await upsertDailyCandles(job.table, [c], client);
           const verified = await verifyOne(job.table, job.symbol, client);
           if (!verified) throw new Error("Post-upsert verification found zero rows");

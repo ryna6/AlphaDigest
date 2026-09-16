@@ -202,8 +202,20 @@ function mergeInvestingEventsWithOccurrences(payload: UnknownRecord): UnknownRec
   });
 
   return occurrences.map((occurrence) => {
-    const key = eventIdKey(occurrence.event_id ?? occurrence.eventId ?? occurrence.id);
-    return { ...(key ? eventsById.get(key) : undefined), ...occurrence };
+    const nestedOccurrence = isRecord(occurrence.occurrence) ? occurrence.occurrence : {};
+    const key = eventIdKey(
+      occurrence.event_id ??
+        occurrence.eventId ??
+        nestedOccurrence.event_id ??
+        (isRecord(occurrence.event) ? occurrence.event.id : undefined) ??
+        occurrence.id
+    );
+    return {
+      ...(key ? eventsById.get(key) : undefined),
+      ...(isRecord(occurrence.event) ? occurrence.event : undefined),
+      ...occurrence,
+      ...nestedOccurrence
+    };
   });
 }
 
@@ -223,6 +235,16 @@ export function extractInvestingEconomicRows(payload: unknown): UnknownRecord[] 
     }
   }
   return [];
+}
+
+function isRecognizedInvestingPayload(payload: unknown): boolean {
+  if (Array.isArray(payload)) return true;
+  if (!isRecord(payload)) return false;
+  if (["data", "events", "occurrences", "results", "rows"].some((key) => key in payload))
+    return true;
+  return Object.values(payload).some(
+    (value) => isRecord(value) && isRecognizedInvestingPayload(value)
+  );
 }
 
 export function inspectInvestingEconomicPayload(payload: unknown) {
@@ -439,12 +461,10 @@ export function diagnoseInvestingEconomicCalendarPayload(
       normalizedRows: events.length,
       deduplicatedRows: deduped.length,
       skipReasons,
-      timestampSamples: deduped
-        .slice(0, 3)
-        .map((event) => ({
-          raw: event.raw.datetime ?? event.raw.timestamp ?? event.raw.date ?? null,
-          easternDate: event.eventDate
-        }))
+      timestampSamples: deduped.slice(0, 3).map((event) => ({
+        raw: event.raw.datetime ?? event.raw.timestamp ?? event.raw.date ?? null,
+        easternDate: event.eventDate
+      }))
     }
   };
 }
@@ -487,6 +507,10 @@ async function fetchPayload(url: string) {
             `Investing.com economic calendar returned non-JSON ${response.headers.get("content-type") ?? "content"}`
           );
         }
+        if (!isRecognizedInvestingPayload(payload))
+          throw new Error(
+            "Investing.com economic calendar returned JSON without an events collection"
+          );
         return {
           payload,
           response: {
@@ -531,6 +555,11 @@ export async function fetchInvestingEconomicCalendar(
     const events = analyzed.events.filter(
       (event) => event.eventDate >= startDate && event.eventDate <= endDate
     );
+    const rawRows = analyzed.diagnostics.rawRows;
+    if (typeof rawRows !== "number" || rawRows === 0)
+      throw new Error(
+        "Investing.com economic calendar returned an empty events collection; existing cache preserved"
+      );
     memoryCache.set(cacheKey, events);
     debugEconomicCalendar("fetched", { dateKey, cacheKey, numberOfEventsFetched: events.length });
     return {
@@ -655,6 +684,10 @@ export async function refreshInvestingEconomicEvents(dateKeys = defaultEconomicR
       url
     });
     const result = await fetchInvestingEconomicCalendar(dateKey);
+    if (result.mode !== "live")
+      throw new Error(
+        `Investing.com economic calendar fetch failed for ${dateKey}: ${result.message ?? "unknown provider error"}`
+      );
     fetchMeta.push({
       date: dateKey,
       mode: result.mode,
@@ -693,9 +726,7 @@ export async function refreshInvestingEconomicEvents(dateKeys = defaultEconomicR
 
   const deduped = Array.from(new Map(events.map((event) => [event.id, event])).values());
   const rows = deduped.map(economicToDbRow);
-  const contentHash = payloadContentHash(
-    rows.map(({ fetched_at: _fetchedAt, ...row }) => row)
-  );
+  const contentHash = payloadContentHash(rows.map(({ fetched_at: _fetchedAt, ...row }) => row));
   console.log("economic_rows_normalized", {
     correlationId,
     source: INVESTING_METADATA_SOURCE,
@@ -711,7 +742,14 @@ export async function refreshInvestingEconomicEvents(dateKeys = defaultEconomicR
       contentHash,
       persisted: false,
       error: supabase.message,
-      meta: { dates: uniqueDateKeys, fetches: fetchMeta, rowsFetched: events.length, rowsNormalized: rows.length, rowsUpserted: 0, rowsVerified: 0 }
+      meta: {
+        dates: uniqueDateKeys,
+        fetches: fetchMeta,
+        rowsFetched: events.length,
+        rowsNormalized: rows.length,
+        rowsUpserted: 0,
+        rowsVerified: 0
+      }
     });
 
   try {

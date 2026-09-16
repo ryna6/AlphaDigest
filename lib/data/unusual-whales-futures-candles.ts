@@ -135,8 +135,7 @@ export function parseUnusualWhalesFuturesCandles(
       previousClose: null,
       source: SP500_FUTURES_SOURCE,
       sourceTimestamp: d.sourceTimestamp,
-      fetchedAt,
-      assetGroup: "indices"
+      fetchedAt
     });
   }
   parsed.sort((a, b) => a.tradingDate.localeCompare(b.tradingDate));

@@ -57,3 +57,13 @@ test("payload inspection reports bounded array paths without logging payload val
     ["$.data.events", "$.data.occurrences"]
   );
 });
+
+test("current nested occurrence objects are flattened before normalization", () => {
+  const payload = {
+    data: { events: [event], occurrences: [{ event: { id: 101 }, occurrence: occurrence }] }
+  };
+  const result = diagnoseInvestingEconomicCalendarPayload(payload, "2026-07-30");
+  assert.equal(result.events.length, 1);
+  assert.equal(result.events[0].eventName, "Initial Jobless Claims");
+  assert.equal(result.events[0].timestamp, new Date(occurrence.datetime).toISOString());
+});

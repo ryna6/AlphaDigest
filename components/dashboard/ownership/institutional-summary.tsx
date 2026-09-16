@@ -126,6 +126,8 @@ type SectorRow = {
   sector: string;
   value: number | null;
   reportDate: string;
+  qoq?: number | null;
+  yoy?: number | null;
 };
 type InstitutionalPayload = {
   tickerFlow: TickerRow[];
@@ -297,23 +299,6 @@ function SectorBreakdown({ rows }: { rows: SectorRow[] }) {
       .sort()
       .reverse();
     const latest = dates[0] ?? "";
-    const previous = dates[1];
-    const yoyDate =
-      dates.find((date) => date.slice(5) === latest.slice(5) && date < latest) ??
-      dates.find((date) => new Date(date).getTime() <= new Date(latest).getTime() - 31536000000);
-    const shareByDate = (date?: string) => {
-      const slice = rows.filter((r) => r.reportDate === date);
-      const total = slice.reduce((sum, r) => sum + (r.value ?? 0), 0);
-      return new Map(
-        slice.map((r) => [
-          normalizedSectorLabel(r.sector),
-          total > 0 ? ((r.value ?? 0) / total) * 100 : 0
-        ])
-      );
-    };
-    const prevShares = shareByDate(previous);
-    // Retaining five quarter-end report dates should make this same-quarter-prior-year lookup available; if YoY is still blank, inspect provider report_date normalization or Supabase query coverage.
-    const yoyShares = shareByDate(yoyDate);
     const latestRows = Array.from(
       rows
         .filter((r) => r.reportDate === latest)
@@ -340,9 +325,8 @@ function SectorBreakdown({ rows }: { rows: SectorRow[] }) {
         etf: meta.etf,
         name: meta.label,
         sectorName: meta.name,
-        qoq:
-          previous && prevShares.has(meta.label) ? share - (prevShares.get(meta.label) ?? 0) : null,
-        yoy: yoyDate && yoyShares.has(meta.label) ? share - (yoyShares.get(meta.label) ?? 0) : null
+        qoq: row.qoq,
+        yoy: row.yoy
       };
     });
   }, [rows]);
@@ -489,13 +473,14 @@ function InvestorTypesModal({ onClose }: { onClose: () => void }) {
   );
 }
 
-export function InstitutionalSummary() {
+export function InstitutionalSummary({ initialData }: { initialData?: InstitutionalPayload }) {
   const [investorType, setInvestorType] = useState<InvestorType>("value");
   const [positionChange, setPositionChange] = useState<PositionChange>("increased");
-  const [payload, setPayload] = useState<InstitutionalPayload | null>(null);
+  const [payload, setPayload] = useState<InstitutionalPayload | null>(initialData ?? null);
   const [error, setError] = useState<string | null>(null);
   const [modalOpen, setModalOpen] = useState(false);
   useEffect(() => {
+    if (initialData) return;
     let active = true;
     fetch("/api/ownership/institutional", { cache: "no-cache" })
       .then((res) =>
@@ -513,7 +498,7 @@ export function InstitutionalSummary() {
     return () => {
       active = false;
     };
-  }, []);
+  }, [initialData]);
   const label = investorLabel(investorType);
   const order =
     positionChanges.find((item) => item.value === positionChange)?.order ??
@@ -538,14 +523,20 @@ export function InstitutionalSummary() {
     () => (payload?.sectorExposure ?? []).filter((row) => row.investorType === investorType),
     [payload, investorType]
   );
-  const reportDate = payload?.metadata?.selectedReportDatesByInvestorType?.[investorType] ?? sectors.reduce(
-    (max, row) => (row.reportDate > max ? row.reportDate : max),
-    ""
-  );
+  const reportDate =
+    payload?.metadata?.selectedReportDatesByInvestorType?.[investorType] ??
+    sectors.reduce((max, row) => (row.reportDate > max ? row.reportDate : max), "");
   const state = error ? (
     <EmptyRows message={error} />
   ) : !payload ? (
-    <div className="rounded-none border border-borderStrong bg-sidebar p-3" aria-busy="true" role="status"><span className="sr-only">Loading cached institutional data</span><div className="h-40 animate-pulse bg-panelHover/70" /></div>
+    <div
+      className="rounded-none border border-borderStrong bg-sidebar p-3"
+      aria-busy="true"
+      role="status"
+    >
+      <span className="sr-only">Loading cached institutional data</span>
+      <div className="h-40 animate-pulse bg-panelHover/70" />
+    </div>
   ) : null;
   return (
     <>

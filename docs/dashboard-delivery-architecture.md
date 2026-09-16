@@ -33,13 +33,19 @@ API routes use the same snapshot-only reader while retaining their CDN headers.
 | `/news-calendar`  | ISR  |  180 seconds | `news-calendar:latest` |
 | `/flow`           | ISR  |  600 seconds | `flow:latest`          |
 | `/ownership`      | ISR  | 1800 seconds | `ownership:latest`     |
+| `/sentiment`      | ISR  | 1800 seconds | `sentiment:latest`     |
 
-Time-based ISR is deliberately retained as the only invalidation mechanism.
-Netlify scheduled functions do not run inside the Next.js request context where
-`revalidatePath` is supported. Adding a secret HTTP callback would create another
-failure surface for refresh jobs, while the intervals above expose new snapshots
-quickly relative to the 5-minute, 15-minute, 30-minute, hourly, and daily refresh
-cadences. Snapshot writes remain independent of page invalidation.
+Time-based ISR remains the fallback. After a snapshot is durably written, the
+shared tab registry requests the authenticated `/api/revalidate` route, which
+calls `revalidatePath` for the owning page. Configure `ISR_REVALIDATION_SECRET`
+on both runtimes; when it is absent, pages still regenerate at the intervals
+above. Failed ingestion or snapshot writes never invalidate the last-known-good
+page. New normal dashboard tabs opt in by adding their snapshot key, path, and
+fallback interval to `lib/data/dashboard-tabs.ts`.
+
+Status is deliberately excluded from this registry and remains `force-dynamic`,
+`revalidate = 0`, and `force-no-store` so operational failures are never presented
+as static health.
 
 Scheduled Netlify functions remain the only callers of `refreshDashboardSnapshot`
 in the production refresh path. The Today snapshot writer removes article

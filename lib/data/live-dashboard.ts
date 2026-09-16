@@ -19,6 +19,7 @@ import {
   sp500RowsToTiles
 } from "./adapters/unusual-whales-sp500-heatmap";
 import { getLatestCboePutCallRatio } from "./adapters/cboe-put-call";
+import { getCachedInstitutionalSummary } from "./adapters/unusual-whales-institutional";
 import { formatSignedPercent, recordMarketSummaryHistory } from "./market-summary-history";
 import { formatEtDateKey } from "../utils/time";
 import { getHeatmapIconPath, getMetricIconPath } from "../constants/asset-icons";
@@ -48,6 +49,7 @@ import {
 } from "./flow-summary";
 import { payloadContentHash, updateRefreshMetadata } from "./adapters/supabase-refresh";
 import { createServerSupabaseClient } from "@/lib/db/supabase";
+import { requestDashboardRevalidation } from "./dashboard-tabs";
 import {
   getMajorEarningsForDate,
   groupEarningsBySession,
@@ -65,6 +67,7 @@ import type {
   InsiderTradeDetailPayload,
   InsiderTradesPayload,
   OwnershipPayload,
+  SentimentPayload,
   TodayPayload
 } from "./schemas/dashboard";
 
@@ -961,14 +964,20 @@ async function buildNewsCalendarPayload(): Promise<{
 
 export async function refreshDashboardSnapshot(
   key:
-    "today:latest" | "markets:latest" | "news-calendar:latest" | "flow:latest" | "ownership:latest"
+    | "today:latest"
+    | "markets:latest"
+    | "news-calendar:latest"
+    | "flow:latest"
+    | "ownership:latest"
+    | "sentiment:latest"
 ) {
   const builders = {
     "today:latest": { ttlSeconds: 15 * 60, build: buildTodayPayload },
     "markets:latest": { ttlSeconds: 10 * 60, build: buildMarketsPayload },
     "news-calendar:latest": { ttlSeconds: 45 * 60, build: buildNewsCalendarPayload },
     "flow:latest": { ttlSeconds: 24 * 60 * 60, build: buildFlowPayload },
-    "ownership:latest": { ttlSeconds: 24 * 60 * 60, build: buildOwnershipPayload }
+    "ownership:latest": { ttlSeconds: 24 * 60 * 60, build: buildOwnershipPayload },
+    "sentiment:latest": { ttlSeconds: 60 * 60, build: buildSentimentPayload }
   } as const;
   const entry = builders[key];
   const result = await entry.build();
@@ -1021,7 +1030,14 @@ export async function refreshDashboardSnapshot(
       })
     );
   }
-  return { ...write, key, mode: result.mode, notices: result.notices };
+  const revalidation =
+    write.ok && write.persisted
+      ? await requestDashboardRevalidation(key).catch((error) => ({
+          requested: false as const,
+          reason: error instanceof Error ? error.message : "revalidation-failed"
+        }))
+      : { requested: false as const, reason: "snapshot-not-persisted" };
+  return { ...write, key, mode: result.mode, notices: result.notices, revalidation };
 }
 
 async function isUsableMarketsSnapshot(snapshot: {
@@ -1368,7 +1384,52 @@ export async function buildOwnershipPayload(): Promise<{
   mode: "mock" | "live";
   notices: string[];
 }> {
-  return { payload: ownershipMock, mode: "mock", notices: ownershipMock.notices };
+  const institutionalSummary = await getCachedInstitutionalSummary();
+  const servingInstitutionalSummary = {
+    ...institutionalSummary,
+    sectorExposure: institutionalSummary.sectorExposure.map((row) => ({
+      ...row,
+      qoq: row.qoq ?? null,
+      yoy: row.yoy ?? null
+    }))
+  };
+  const notices = [...ownershipMock.notices, ...institutionalSummary.notices];
+  return {
+    payload: { ...ownershipMock, institutionalSummary: servingInstitutionalSummary, notices },
+    mode: institutionalSummary.sectorExposure.length ? "live" : "mock",
+    notices
+  };
+}
+
+export async function buildSentimentPayload(): Promise<{
+  payload: SentimentPayload;
+  mode: "mock" | "live";
+  notices: string[];
+}> {
+  const result = await getLatestCboePutCallRatio();
+  const ratios = putCallRatios(result.response);
+  const metrics: Metric[] = [
+    { label: "CBOE total put/call", value: formatPutCallRatio(ratios.total), tone: "neutral" },
+    { label: "CBOE equity put/call", value: formatPutCallRatio(ratios.equity), tone: "neutral" },
+    { label: "CBOE index put/call", value: formatPutCallRatio(ratios.index), tone: "neutral" }
+  ];
+  const notices = result.message ? [result.message] : [];
+  return {
+    payload: {
+      sentiment: metrics,
+      sourceMeta: [
+        liveMeta(
+          "Cboe Options Market Statistics",
+          "https://www.cboe.com/us/options/market_statistics/",
+          result.response ? "live" : "unavailable",
+          result.message
+        )
+      ],
+      notices
+    },
+    mode: result.response ? "live" : "mock",
+    notices
+  };
 }
 
 function hasRevisedFlowSummary(payload: FlowPayload) {
