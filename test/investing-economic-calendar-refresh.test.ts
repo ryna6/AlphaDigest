@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
+  buildInvestingEconomicCalendarRequestHeaders,
   diagnoseInvestingEconomicCalendarPayload,
   extractInvestingEconomicRows,
   inspectInvestingEconomicPayload
@@ -14,6 +15,14 @@ const occurrence = {
   forecast: "225K",
   previous: "221K"
 };
+
+test("calendar requests identify the public Investing web tenant", () => {
+  const headers = buildInvestingEconomicCalendarRequestHeaders();
+  assert.equal(headers["Domain-Id"], "www");
+  assert.equal(headers.Origin, "https://www.investing.com");
+  assert.equal(headers.Referer, "https://www.investing.com/economic-calendar/");
+  assert.match(headers["User-Agent"], /Mozilla\/5\.0.*Chrome\//);
+});
 
 test("current nested events/occurrences wrapper links metadata to occurrences across string IDs", () => {
   const payload = { data: { events: [event], occurrences: [occurrence], pagination: { page: 1 } } };
