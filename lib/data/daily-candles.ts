@@ -28,7 +28,6 @@ export type DailyCandle = {
   source: string;
   sourceTimestamp: string | null;
   fetchedAt: string;
-  assetGroup?: string;
 };
 export const candleApiPayloadSchema = z.object({
   symbol: z.string(),
@@ -300,7 +299,7 @@ export function dailyCandleRowsForUpsert(table: CandleTable, candles: DailyCandl
       previous_close: c.previousClose,
       source: c.source
     };
-    if (table === "market_daily_candles") return { ...equity, asset_group: c.assetGroup ?? null };
+    if (table === "market_daily_candles") return equity;
     return equity;
   });
 }

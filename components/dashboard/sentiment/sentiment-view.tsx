@@ -1,4 +1,4 @@
-import { sentimentMock } from "@/lib/data/fixtures/mock-dashboard";
+import type { SentimentPayload } from "@/lib/data/schemas/dashboard";
 import { PageTitle } from "@/components/dashboard/page-title";
 import { Panel } from "@/components/ui/panel";
 import { SectionHeader } from "@/components/ui/section-header";
@@ -10,7 +10,7 @@ function MetricPanel({
   info
 }: {
   title: string;
-  metrics: typeof sentimentMock.sentiment;
+  metrics: SentimentPayload["sentiment"];
   info?: string;
 }) {
   return (
@@ -23,8 +23,8 @@ function MetricPanel({
   );
 }
 
-function SentimentSummaryRow() {
-  const summaryCards = sentimentMock.sentiment.slice(0, 3);
+function SentimentSummaryRow({ metrics }: { metrics: SentimentPayload["sentiment"] }) {
+  const summaryCards = metrics.slice(0, 3);
 
   return (
     <Panel>
@@ -43,7 +43,9 @@ function SentimentSummaryRow() {
         ) : (
           <div className="rounded-none border border-dashed border-borderStrong bg-sidebar p-3 md:col-span-3">
             <p className="text-sm font-semibold text-textPrimary">Sentiment summary unavailable.</p>
-            <p className="mt-1 text-xs text-textMuted">Existing cached sentiment sources have not provided summary data yet.</p>
+            <p className="mt-1 text-xs text-textMuted">
+              Existing cached sentiment sources have not provided summary data yet.
+            </p>
           </div>
         )}
       </div>
@@ -51,15 +53,15 @@ function SentimentSummaryRow() {
   );
 }
 
-export function SentimentView() {
+export function SentimentView({ data }: { data: SentimentPayload }) {
   return (
     <>
       <PageTitle title="Sentiment" />
-      <SentimentSummaryRow />
+      <SentimentSummaryRow metrics={data.sentiment} />
       <div className="mt-4 grid gap-4 xl:grid-cols-2">
         <MetricPanel
           title="Sentiment & Positioning"
-          metrics={sentimentMock.sentiment}
+          metrics={data.sentiment}
           info="Put/call ratios compare option put volume with call volume; high readings can indicate defensive demand."
         />
       </div>
@@ -74,9 +76,12 @@ export function MarketExpectationsView() {
       <Panel>
         <SectionHeader title="Market Expectations" />
         <div className="rounded-none border border-dashed border-borderStrong px-4 py-8 text-center">
-          <p className="text-sm font-semibold text-textPrimary">No market expectations data available yet.</p>
+          <p className="text-sm font-semibold text-textPrimary">
+            No market expectations data available yet.
+          </p>
           <p className="mt-2 text-xs text-textMuted">
-            This section will use existing cached sources when supported; no placeholder market data is shown.
+            This section will use existing cached sources when supported; no placeholder market data
+            is shown.
           </p>
         </div>
       </Panel>

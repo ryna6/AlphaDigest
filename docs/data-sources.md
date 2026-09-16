@@ -4,17 +4,17 @@ This document records active and placeholder data sources. Accuracy matters: do 
 
 ## Source status summary
 
-| Source/provider                               | Active use today                                                                                        | Files                                                                          |
-| --------------------------------------------- | ------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------ |
-| Finnhub quote API                             | Active for market metrics, heatmaps, and optional company logos when keys exist.                        | `lib/data/live-dashboard.ts`, `lib/data/adapters/finnhub-key-router.ts`        |
-| Yahoo Finance public chart/quote endpoints    | Active for selected quotes such as `^VIX`, `^VIX3M`, and `ES=F`; has optional Supabase refresh helpers. | `lib/data/adapters/yahoo-finance.ts`                                           |
-| Unusual Whales featured news page/Next data   | Active for Today featured articles and Top News pages.                                                  | `lib/data/adapters/unusual-whales-news.ts`, `lib/data/live-dashboard.ts`       |
-| Unusual Whales headline feed PHX endpoint     | Active for News & Calendar latest market news.                                                          | `lib/data/adapters/unusual-whales-news.ts`, `lib/data/live-dashboard.ts`       |
-| Unusual Whales earnings PHX endpoint          | Active for Today and News & Calendar earnings, with Supabase/live/static fallback flow.                 | `lib/data/adapters/unusual-whales-earnings.ts`                                 |
-| Investing.com economic calendar endpoint      | Active for Today and News & Calendar economic events.                                                   | `lib/data/adapters/investing-economic-calendar.ts`                             |
-| Cboe U.S. Options Market Statistics           | Active server-side parser for intraday equity, index, and total put/call ratios.                        | `lib/data/adapters/cboe-put-call.ts`, `netlify/functions/refresh-put-call.ts`  |
-| Supabase                                      | Optional durable cache for supported refresh helpers, including put/call observations.                  | `lib/db/supabase.ts`, `supabase/`                                              |
-| Static earnings fallback JSON                 | Active fallback when Supabase/live earnings paths are unavailable.                                      | `public/data/unusual-whales/earnings-calendar.json`                            |
+| Source/provider                             | Active use today                                                                                        | Files                                                                         |
+| ------------------------------------------- | ------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------- |
+| Finnhub quote API                           | Active for market metrics, heatmaps, and optional company logos when keys exist.                        | `lib/data/live-dashboard.ts`, `lib/data/adapters/finnhub-key-router.ts`       |
+| Yahoo Finance public chart/quote endpoints  | Active for selected quotes such as `^VIX`, `^VIX3M`, and `ES=F`; has optional Supabase refresh helpers. | `lib/data/adapters/yahoo-finance.ts`                                          |
+| Unusual Whales featured news page/Next data | Active for Today featured articles and Top News pages.                                                  | `lib/data/adapters/unusual-whales-news.ts`, `lib/data/live-dashboard.ts`      |
+| Unusual Whales headline feed PHX endpoint   | Active for News & Calendar latest market news.                                                          | `lib/data/adapters/unusual-whales-news.ts`, `lib/data/live-dashboard.ts`      |
+| Unusual Whales earnings PHX endpoint        | Active for Today and News & Calendar earnings, with Supabase/live/static fallback flow.                 | `lib/data/adapters/unusual-whales-earnings.ts`                                |
+| Investing.com economic calendar endpoint    | Active for Today and News & Calendar economic events.                                                   | `lib/data/adapters/investing-economic-calendar.ts`                            |
+| Cboe U.S. Options Market Statistics         | Active server-side parser for intraday equity, index, and total put/call ratios.                        | `lib/data/adapters/cboe-put-call.ts`, `netlify/functions/refresh-put-call.ts` |
+| Supabase                                    | Optional durable cache for supported refresh helpers, including put/call observations.                  | `lib/db/supabase.ts`, `supabase/`                                             |
+| Static earnings fallback JSON               | Active fallback when Supabase/live earnings paths are unavailable.                                      | `public/data/unusual-whales/earnings-calendar.json`                           |
 
 ## Environment variables
 
@@ -302,7 +302,6 @@ The active tab APIs now prefer Supabase `dashboard_snapshots` before provider-sp
 | `markets:latest`       | `netlify/functions/refresh-markets.ts`, `netlify/functions/refresh-markets-heatmap.ts`, `netlify/functions/refresh-daily-market-candles.ts` | `getMarketsPayload()` and `/api/markets`            | Existing market quote/crypto/live builder plus cached S&P 500 heatmap/breadth, then mock market fixture |
 | `news-calendar:latest` | `netlify/functions/refresh-news.ts`                                                                                                         | `getNewsCalendarPayload()` and `/api/news-calendar` | Existing UW news, UW earnings, Investing calendar, and fixture fallback behavior                        |
 
-
 Source-specific cache status includes Supabase-backed earnings and Cboe put/call flows, plus adapter-level Supabase helpers for news, Yahoo quotes, and Investing.com economic events.
 
 ## Source table refresh corrections
@@ -391,7 +390,6 @@ Dark Pool expanded view initially shows 15 rows and reveals 30 additional rows p
 
 Unusual Whales earnings cache retention is keyed by `unusual_whales_earnings_events.report_date`: `fetch-uw-earnings` keeps only previous-week Monday through next-week Friday in Toronto/Eastern time, prunes rows outside that active window on every Supabase-backed refresh, and continues excluding `market_cap_size = micro`. The tracked cleanup migration `0029_uw_earnings_active_window_prune.sql` provides an idempotent one-time/manual cleanup for existing rows. The News & Calendar Earnings Calendar UI no longer displays the old server-cache/Supabase-optional helper text.
 
-
 Markets S&P 500 heatmap data comes from the server-side Unusual Whales PHX endpoint `sector/heatmap/options?date_range=one_day`. The cached heatmap rows remain the source of truth for current S&P 500 heatmap presentation, constituent membership, sector metadata, market-cap weighting, current live card values, participation display fallback, and Market Movers. Daily historical breadth values (`% Above 50D MA`, `% Above 200D MA`, and `New 52W Highs / Lows`) are now calculated from `sp500_daily_candles` after Finnhub daily candle ingestion.
 
 Daily Market Candles use Finnhub quote OHLC fields for S&P 500 and fixed Markets assets after the temporary Unusual Whales historical backfill is complete. Daily Crypto Candles use the Unusual Whales crypto candle endpoint for the eight configured crypto heatmap assets. The stock/market Unusual Whales candle endpoint is isolated to `scripts/backfillDailyCandlesFromUnusualWhales.ts` and must not be called by pages, chart APIs, or recurring stock refresh jobs.
@@ -459,7 +457,7 @@ Crypto daily candles continue to use the existing Unusual Whales crypto ingestio
 
 ### S&P 500 Futures daily candles
 
-The Markets S&P 500 Futures live quote card continues to use the existing Yahoo Finance quote path for the displayed strip value, while historical chart candles are stored separately in `public.market_daily_candles` under application symbol `ES=F`. The server-only futures adapter uses the centralized Unusual Whales endpoint `https://phx.unusualwhales.com/api/futures_eod_history/09abc102-cb07-420e-92c6-e220f44c1e81` and maps provider fields `date`, `open`, `high`, `low`, and `close` into daily OHLC rows. The provider UUID is stored as `provider_symbol`, `asset_group` is `indices`, `source` is `Unusual Whales Futures EOD`, and `volume` remains `null` because that endpoint does not provide volume in the configured fields.
+The Markets S&P 500 Futures live quote card continues to use the existing Yahoo Finance quote path for the displayed strip value, while historical chart candles are stored separately in `public.market_daily_candles` under application symbol `ES=F`. The server-only futures adapter uses the centralized Unusual Whales endpoint `https://phx.unusualwhales.com/api/futures_eod_history/09abc102-cb07-420e-92c6-e220f44c1e81` and maps provider fields `date`, `open`, `high`, `low`, and `close` into daily OHLC rows. The provider UUID is retained in `provider_symbol` because it cannot be reconstructed from canonical symbol `ES=F`; `source` is retained because API diagnostics and null-volume merge rules distinguish the futures feed from equity feeds. Asset grouping is reconstructed from `lib/data/market-assets.ts` and is not persisted. `volume` remains `null` because that endpoint does not provide volume in the configured fields.
 
 Only the trailing one calendar year from the latest valid provider row is retained for `ES=F`. Futures dates use the `America/New_York` calendar: Sunday rows returned by the provider are preserved, Saturday rows are skipped, and no Sunday candle is fabricated if the provider does not return one. Use `npx tsx scripts/debugUnusualWhalesFuturesCandles.ts` to inspect the sanitized response shape and `npx tsx scripts/backfillUnusualWhalesFuturesCandles.ts` to backfill the one-year futures history without running the full daily equity worker.
 

@@ -19,7 +19,7 @@ export function OwnershipView({ data: payload }: { data: OwnershipPayload }) {
         </p>
       ) : null}
       <Panel>
-        <InstitutionalSummary />
+        <InstitutionalSummary initialData={payload.institutionalSummary} />
       </Panel>
       <Panel className="mt-4">
         <InstitutionalCard />

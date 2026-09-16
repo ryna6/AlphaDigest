@@ -1,5 +1,6 @@
 import { refreshInstitutionalSummaryData } from "../../lib/data/adapters/unusual-whales-institutional";
 import { finishJobRun, startJobRun } from "../../lib/status/job-runs";
+import { refreshDashboardSnapshot } from "../../lib/data/live-dashboard";
 
 export const config = { schedule: "0 10 * * *" };
 
@@ -15,23 +16,29 @@ export default async function handler() {
   });
   try {
     const result = await refreshInstitutionalSummaryData();
+    const snapshot = result.ok ? await refreshDashboardSnapshot("ownership:latest") : null;
+    const ok = result.ok && snapshot?.ok === true;
     await finishJobRun(runId, {
-      status: result.ok && (result.count ?? 0) > 0 ? "success" : result.ok ? "warning" : "error",
+      status: ok && (result.count ?? 0) > 0 ? "success" : ok ? "warning" : "error",
       rowsFetched: result.count ?? null,
       rowsInserted: result.upserted ?? null,
-      errorMessage: result.ok ? null : result.error,
+      errorMessage: ok
+        ? null
+        : (result.error ?? snapshot?.error ?? "Ownership snapshot refresh failed."),
       warningMessage:
         result.ok && (result.count ?? 0) === 0 ? "Job completed with zero fetched rows." : null,
-      metadata: result.meta ?? {}
+      metadata: { ...(result.meta ?? {}), snapshotPersisted: snapshot?.persisted ?? false }
     });
     return json(
       {
         job: "refresh-institutional-summary",
         startedAt,
         finishedAt: new Date().toISOString(),
-        ...result
+        ...result,
+        ok,
+        snapshot
       },
-      result.ok ? 200 : 502
+      ok ? 200 : 502
     );
   } catch (error) {
     const message =

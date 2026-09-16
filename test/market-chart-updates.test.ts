@@ -14,7 +14,7 @@ test("chart ranges exclude 1D and default to 1W", () => {
   assert.match(modalSource(), /useState<Range>\("1W"\)/);
   assert.match(modalSource(), /setRange\("1W"\)/);
   assert.doesNotMatch(modalSource(), />\{r\}<\/button>.*1D/s);
-  assert.match(apiSource(), /z\.enum\(\["1W","1M","3M","YTD","1Y"\]\)\.default\("1W"\)/);
+  assert.match(apiSource(), /z\.enum\(\["1W",\s*"1M",\s*"3M",\s*"YTD",\s*"1Y"\]\)\.default\("1W"\)/);
 });
 
 test("candle schemas reject 1D while keeping daily resolution valid", () => {
