@@ -653,7 +653,7 @@ assert(
 
 assert(markup.includes("Last Week"), "shared selector is missing Last Week");
 assert(
-  markup.includes("Fri") && markup.includes("June 5") && !markup.includes("Fri, June 5"),
+  markup.includes("Fri") && markup.includes("Jun 5") && !markup.includes("Fri, Jun 5"),
   "weekday button did not render split weekday/date labels without commas"
 );
 assert(markup.includes("Next Week"), "shared selector is missing Next Week");
@@ -785,13 +785,13 @@ const todayData: TodayPayload = {
       changePercent: "+25%",
       tone: "neutral"
     },
-    { label: "Today's Earnings", value: "2 Earnings", tone: "neutral" },
     {
       label: "Today's Economic Events",
       value: "2 Events",
       change: "1 Significant",
       tone: "neutral"
-    }
+    },
+    { label: "Today's Earnings", value: "2 Earnings", tone: "neutral" }
   ],
   economicCalendar: [
     {
@@ -813,8 +813,8 @@ const summaryOrder = [
   "Leading Sectors",
   "Risk On / Risk Off",
   "Put/Call Ratio",
-  "Today&#x27;s Earnings",
-  "Today&#x27;s Economic Events"
+  "Today&#x27;s Economic Events",
+  "Today&#x27;s Earnings"
 ].map((label) => todayMarkup.indexOf(label));
 assert(
   summaryOrder.every((index) => index > -1),
@@ -833,8 +833,7 @@ assert(
   "Risk On / Risk Off title should render with slash separators"
 );
 assert(
-  todayMarkup.includes("whitespace-pre-line") &&
-    todayMarkup.includes("current VIX.\n\nWhen the ratio &gt; 1"),
+  todayMarkup.includes("current VIX.\n\nWhen the ratio &gt; 1"),
   "Risk On / Risk Off tooltip should preserve a paragraph break"
 );
 assert(

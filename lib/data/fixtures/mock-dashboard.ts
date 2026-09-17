@@ -46,13 +46,13 @@ export const todayMock: TodayPayload = {
       putCallFreshness: "fixture",
       tone: "neutral"
     },
-    { label: "Today's Earnings", value: "1 Earning", tone: "neutral" },
     {
       label: "Today's Economic Events",
       value: "2 Events",
       change: "1 Very Important",
       tone: "neutral"
-    }
+    },
+    { label: "Today's Earnings", value: "1 Earning", tone: "neutral" }
   ],
   keyStats: [
     {

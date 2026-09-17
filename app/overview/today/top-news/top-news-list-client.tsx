@@ -34,7 +34,7 @@ export function TopNewsListClient({
             </Link>
           }
         />
-        <FeaturedArticleList articles={shownArticles} from="top-news" count={visibleCount} />
+        <FeaturedArticleList articles={shownArticles} />
         <div className="mt-4 flex justify-center border-t border-borderStrong pt-4">
           <button
             type="button"

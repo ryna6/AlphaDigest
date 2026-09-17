@@ -24,8 +24,8 @@ import { formatSignedPercent, recordMarketSummaryHistory } from "./market-summar
 import { formatEtDateKey } from "../utils/time";
 import { getHeatmapIconPath, getMetricIconPath } from "../constants/asset-icons";
 import {
-  fetchUnusualWhalesFeaturedNews,
-  fetchUnusualWhalesNewsFeed,
+  getCachedUnusualWhalesFeaturedArticles,
+  getCachedUnusualWhalesNewsFeed,
   unusualWhalesSources
 } from "./adapters/unusual-whales-news";
 import {
@@ -766,7 +766,7 @@ async function buildTodayPayload(): Promise<{
   const putCallChange24h = formatSignedPercent(historyResult.changes.put_call_total);
   const [featuredNewsResult, unusualWhalesEarningsResult, todayKeyStats, economicCalendarResult] =
     await Promise.all([
-      fetchUnusualWhalesFeaturedNews(50),
+      getCachedUnusualWhalesFeaturedArticles(50),
       getCachedUnusualWhalesEarnings({ limit: 250, order: "market_cap", supabaseOnly: true }),
       todayMarketOverviewMetrics(cryptoQuotesResult),
       getEconomicCalendarEvents(todayDateKey())
@@ -817,18 +817,18 @@ async function buildTodayPayload(): Promise<{
           tone: "neutral"
         },
         {
-          label: "Today's Earnings",
-          value: earningsSummary.value,
-          change: earningsSummary.subtext,
-          tone: "neutral"
-        },
-        {
           label: "Today's Economic Events",
           value: formatEconomicEventCount(todayEconomicEvents.length),
           change: formatImportantEconomicEventCount(
             highlightedEconomicEventCount,
             todayEconomicEvents.length
           ),
+          tone: "neutral"
+        },
+        {
+          label: "Today's Earnings",
+          value: earningsSummary.value,
+          change: earningsSummary.subtext,
           tone: "neutral"
         }
       ],
@@ -902,7 +902,7 @@ async function buildNewsCalendarPayload(): Promise<{
   const earningsRange = getSelectableEarningsRange(dateKey);
   const [newsResult, earningsData, unusualWhalesEarningsResult, economicCalendarResult] =
     await Promise.all([
-      fetchUnusualWhalesNewsFeed(100),
+      getCachedUnusualWhalesNewsFeed(100),
       earningsWithLogos(),
       getCachedUnusualWhalesEarnings({
         minDate: earningsRange.minDate,

@@ -51,8 +51,7 @@ create unique index if not exists idx_uw_news_feed_id on public.unusual_whales_n
 create index if not exists idx_uw_news_feed_event_time on public.unusual_whales_news_feed (event_time desc);
 
 create table if not exists public.unusual_whales_featured_articles (
-  id text primary key,
-  slug text not null unique,
+  slug text primary key,
   title text not null,
   published_at timestamptz,
   created_at_source timestamptz,
@@ -66,7 +65,6 @@ create table if not exists public.unusual_whales_featured_articles (
   fetched_at timestamptz not null,
   updated_at timestamptz not null default now()
 );
-alter table public.unusual_whales_featured_articles add column if not exists id text;
 alter table public.unusual_whales_featured_articles add column if not exists slug text;
 alter table public.unusual_whales_featured_articles add column if not exists title text;
 alter table public.unusual_whales_featured_articles add column if not exists published_at timestamptz;
@@ -80,9 +78,15 @@ alter table public.unusual_whales_featured_articles add column if not exists raw
 alter table public.unusual_whales_featured_articles add column if not exists content_hash text;
 alter table public.unusual_whales_featured_articles add column if not exists fetched_at timestamptz;
 alter table public.unusual_whales_featured_articles add column if not exists updated_at timestamptz default now();
-create unique index if not exists idx_uw_featured_articles_id on public.unusual_whales_featured_articles (id);
 create unique index if not exists idx_uw_featured_articles_slug_unique on public.unusual_whales_featured_articles (slug);
 create index if not exists idx_uw_featured_articles_published_at on public.unusual_whales_featured_articles (published_at desc nulls last);
+alter table public.unusual_whales_featured_articles
+  drop constraint if exists unusual_whales_featured_articles_pkey;
+drop index if exists public.idx_uw_featured_articles_id;
+alter table public.unusual_whales_featured_articles
+  alter column slug set not null,
+  add constraint unusual_whales_featured_articles_pkey primary key (slug),
+  drop column if exists id;
 
 create table if not exists public.investing_economic_events (
   id text primary key,

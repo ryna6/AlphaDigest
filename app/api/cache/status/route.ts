@@ -29,7 +29,7 @@ const EXPECTED_TABLE_COLUMNS = {
   investing_economic_events: ["id", "event_id", "event_key", "event_name", "event_date", "event_time", "fetched_at"],
   market_quotes: ["symbol", "display_symbol", "price", "market_time", "fetched_at"],
   unusual_whales_earnings_events: ["id", "symbol", "report_date", "content_hash", "fetched_at", "updated_at"],
-  unusual_whales_featured_articles: ["id", "slug", "title", "published_at", "created_at_source", "source_url", "content_hash", "fetched_at", "updated_at"],
+  unusual_whales_featured_articles: ["slug", "title", "published_at", "created_at_source", "source_url", "fetched_at"],
   unusual_whales_news_feed: ["id", "headline", "event_time", "source_url", "content_hash", "fetched_at", "updated_at"],
   put_call_observations: ["external_id", "ratio_type", "value", "equity_ratio", "index_ratio", "total_ratio", "market_date", "as_of_eastern", "source_url", "fetched_at", "updated_at"],
   market_summary_history: ["metric_key", "value", "observed_at", "source", "freshness"],

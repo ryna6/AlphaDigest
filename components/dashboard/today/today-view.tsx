@@ -13,6 +13,7 @@ import { MetricRow } from "@/components/ui/metric-row";
 import { InfoTooltip } from "@/components/ui/info-tooltip";
 import { cn } from "@/lib/utils/cn";
 import { formatEtDateTime, formatEtTime, timestampTitle } from "@/lib/utils/time";
+import { featuredArticleHref } from "@/lib/routes/featured-news";
 
 const putCallInfoText =
   "This metric compares the trading volume (or open interest) of put options to call options.\n\nWhen the ratio > 1.2, it suggests traders are buying significantly more puts than calls, reflecting a more bearish sentiment. When the ratio < 0.8, it suggests traders are buying more calls than puts, reflecting a more bullish sentiment.";
@@ -45,10 +46,10 @@ function putCallValue(metric: Metric) {
   return totalLine ? totalLine.replace(/^Total:\s*/, "") : metric.value;
 }
 
-function signedValueClass(value?: string) {
+export function sentimentChangeClass(value?: string, positiveIsBullish = true) {
   if (!value) return "text-textSecondary";
-  if (/^-|\s-/.test(value)) return "text-negative";
-  if (/^\+|\s\+/.test(value)) return "text-positive";
+  if (/^-|\s-/.test(value)) return positiveIsBullish ? "text-negative" : "text-positive";
+  if (/^\+|\s\+/.test(value)) return positiveIsBullish ? "text-positive" : "text-negative";
   return "text-textSecondary";
 }
 
@@ -114,18 +115,14 @@ function featuredArticleTime(article: FeaturedArticle) {
 }
 
 export function FeaturedArticleList({
-  articles,
-  from,
-  count
+  articles
 }: {
   articles: FeaturedArticle[];
-  from: "today" | "top-news";
-  count?: number;
 }) {
   return (
     <div className="divide-y divide-borderStrong/60">
       {articles.map((article) => {
-        const href = `/overview/today/top-news/${encodeURIComponent(article.slug)}?from=${from}${count ? `&count=${count}` : ""}`;
+        const href = featuredArticleHref(article.slug);
         const timestamp = featuredArticleTime(article);
 
         return (
@@ -309,7 +306,7 @@ export function TodayView({ data }: { data: TodayPayload }) {
                       <span
                         className={cn(
                           "shrink-0 text-right text-sm font-semibold",
-                          signedValueClass(change24hText(metric))
+                          sentimentChangeClass(change24hText(metric), false)
                         )}
                       >
                         {change24hText(metric)}
@@ -321,7 +318,7 @@ export function TodayView({ data }: { data: TodayPayload }) {
                       <span
                         className={cn(
                           "shrink-0 text-right text-sm font-semibold",
-                          signedValueClass(change24hText(metric))
+                          sentimentChangeClass(change24hText(metric), true)
                         )}
                       >
                         {change24hText(metric)}
@@ -363,7 +360,7 @@ export function TodayView({ data }: { data: TodayPayload }) {
                         isLeadingSectors ? "text-[0.7rem]" : "text-sm",
                         isPutCallRatio
                           ? putCallSentimentClass(explanation)
-                          : signedValueClass(explanation)
+                          : sentimentChangeClass(explanation)
                       )}
                     >
                       {explanation}
@@ -388,7 +385,7 @@ export function TodayView({ data }: { data: TodayPayload }) {
               </Link>
             }
           />
-          <FeaturedArticleList articles={data.featuredNews.slice(0, 8)} from="today" />
+          <FeaturedArticleList articles={data.featuredNews.slice(0, 8)} />
         </Panel>
         <aside className="space-y-4">
           <KeyStatsPanel stats={data.keyStats} />

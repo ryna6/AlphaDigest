@@ -103,10 +103,10 @@ Files:
 
 Current flow:
 
-1. `fetchUnusualWhalesFeaturedNews(50)` discovers the Unusual Whales Next.js build id from `https://unusualwhales.com/news`.
-2. It fetches Next data payloads for featured news and article detail payloads when available.
-3. It normalizes article slug, title, timestamps, tags, image, excerpt, content text/html, source URL, raw payload, and fetched timestamp.
-4. Today uses returned items when available; otherwise it falls back to `todayMock.featuredNews`.
+1. `refreshUnusualWhalesFeaturedArticles(50)` discovers the Unusual Whales Next.js build id and fetches list/detail payloads.
+2. It normalizes and persists article slug, title, timestamps, tags, excerpt, content HTML, source URL, and fetched timestamp.
+3. The Today snapshot reads the persisted rows, so cards and detail routes share the same cache generation.
+4. The scheduled Today snapshot assembly reads this cache; Today falls back to fixture articles only when its cache is unavailable while building.
 
 Important separation:
 
@@ -114,7 +114,7 @@ Important separation:
 - Headline feed data feeds News & Calendar.
 - Do not merge these without an explicit product decision.
 
-Optional Supabase helper functions exist in the adapter (`refreshUnusualWhalesFeaturedArticles()` and `getCachedUnusualWhalesFeaturedArticles()`), but the current Today page directly fetches live featured news rather than reading Supabase cache.
+`slug` is both the provider article identity and the application route/database key. `excerpt` is retained as the compact preview used by cards and detail lead-ins, avoiding article-body HTML in the snapshot payload.
 
 ## Unusual Whales headline feed flow
 
@@ -132,13 +132,13 @@ https://phx.unusualwhales.com/api/news/headlines-feed?limit=100&major_only=true
 
 Current flow:
 
-1. `fetchUnusualWhalesNewsFeed(100)` fetches JSON from the endpoint.
-2. Records are normalized into `NewsItem` values.
-3. News & Calendar displays the first 12 items on the main page.
-4. `/news-calendar/news` displays up to 100 with client-side “More”.
-5. If no items are returned, `getNewsCalendarPayload()` builds fallback news from Today featured articles.
+1. `refreshUnusualWhalesNewsFeed(100)` fetches and persists normalized `NewsItem` values.
+2. The `news-calendar:latest` snapshot reads the persisted rows in descending `event_time` order.
+3. News & Calendar displays the first 12 snapshot items on the main page.
+4. `/news-calendar/news` displays the same snapshot collection, up to 100 with client-side “More”.
+5. `refresh-news` runs after the source refreshes and assembles the snapshot; fixture fallback is used only when the cache is unavailable while building.
 
-Optional Supabase helper functions exist (`refreshUnusualWhalesNewsFeed()` and `getCachedUnusualWhalesNewsFeed()`), but the current News & Calendar page directly fetches live headline feed data.
+This keeps preview and expanded views on one ordered, refresh-coupled Supabase dataset without adding provider calls.
 
 ## Unusual Whales earnings flow
 
@@ -335,7 +335,7 @@ Active source refresh functions:
 | `unusual_whales_sp500_heatmap` | `refresh-markets-heatmap` S&P 500 heatmap refresh | `id` | `open`, `high`, `low`, `close`, `ticker`, raw `sector`, normalized State Street `normalized_sector`, `marketcap`, `tape_time`, `prev_close`, `as_of_date`, `content_hash` | Created by `0030_unusual_whales_sp500_heatmap.sql`; browser code reads the cache-backed Markets payload and does not call the Unusual Whales provider. Refresh upserts the current fetched day first, then prunes rows with older `as_of_date` values so failed provider fetches do not empty the UI. |
 | `sp500_daily_candles` / `sp500_daily_candles` | `refresh-daily-market-candles` Market Breadth refresh | `id` | `sp500_daily_candles`: `above_50d_timestamp/open/high/low/close`, `above_200d_timestamp/open/high/low/close`, `fetched_at`; `sp500_daily_candles`: `highs_52w`, `lows_52w`, `fetched_at` | Provider-owned Market Breadth caches. `0035_split_market_breadth_providers.sql` quotes both exact identifiers, uses `bigint` for Investing.com millisecond timestamps, indexes latest-row reads, and backfills compatible values from the preserved old `market_breadth` table. |
 | `unusual_whales_earnings_events` | earnings refresh | `id` | compact earnings fields plus retained `call_volume`/`put_volume` for earnings put/call ratio displays calculated as `put_volume / call_volume`, `market_cap_size` for active micro filtering, `content_hash`, `fetched_at`, and `updated_at`; removed unused country/options/estimate, price/reaction history, stock volume, and fiscal-quarter cache columns | `0027_cache_table_storage_cleanup.sql` prunes `market_cap_size = micro` rows case-insensitively/trimmed and adapters skip future micro rows with trim/case-insensitive matching while preserving market-cap filters. |
-| `unusual_whales_featured_articles` | featured/news/today refreshes | `id` | includes `created_at_source`, `published_at`, `source_url`, `content_html`, and `content_hash`; `image_url` was retired by `0029_drop_featured_articles_image_url.sql` | Article body fields are retained because Top News list/detail rendering uses cached summaries/body content; ad-cleanup still strips Unusual Whales promo text before storage. |
+| `unusual_whales_featured_articles` | featured/news/today refreshes | `slug` | includes `created_at_source`, `published_at`, `source_url`, `excerpt`, and `content_html`; `image_url` was retired by `0029_drop_featured_articles_image_url.sql` | The provider slug is the route and database key. Article bodies and compact excerpts are retained for detail and preview rendering; ad-cleanup strips Unusual Whales promo text before storage. |
 | `unusual_whales_news_feed` | news feed/news refreshes | `id` | includes `event_time`, `source_url`, `content_hash` | `event_time` is retained for ordering and the 3-day retention window; refreshes prune rows older than 3 days and `0027_cache_table_storage_cleanup.sql` removes existing stale rows. |
 | `put_call_observations` | Cboe put/call adapter and `refresh-put-call` | `external_id` | `ratio_type`, `value`, `equity_ratio`, `index_ratio`, `total_ratio`, `market_date`, `as_of_eastern`, source timestamps | `0007_fix_cache_schema_mismatches.sql` and manual SQL create the table if missing. |
 | `dashboard_snapshots` | `refreshDashboardSnapshot()` / dashboard refresh functions | `key` | `key`, `payload`, `mode`, `notices`, `generated_at`, `expires_at`, `source_hash`, `metadata` | manual SQL creates/repairs and reloads schema cache. |

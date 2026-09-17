@@ -68,7 +68,9 @@ export default async function TopNewsArticlePage({
   params: { slug: string };
   searchParams?: { from?: string; count?: string };
 }) {
-  const slug = decodeURIComponent(params.slug);
+  // Next has already decoded dynamic route parameters. Decoding again corrupts
+  // valid slugs containing percent-encoded characters.
+  const slug = params.slug;
   const { article } = await getCachedUnusualWhalesFeaturedArticle(slug);
   if (!article) notFound();
 
