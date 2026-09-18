@@ -287,6 +287,7 @@ export function TodayView({ data }: { data: TodayPayload }) {
               metric.label === "Risk On Risk Off" || metric.label === "Risk On / Risk Off";
             const isLeadingSectors = metric.label === "Leading Sectors";
             const isPutCallRatio = metric.label === "Put/Call Ratio";
+            const isEconomicEvents = metric.label === "Today's Economic Events";
             const displayLabel = isRiskOnRiskOff ? "Risk On / Risk Off" : metric.label;
 
             return (
@@ -309,7 +310,11 @@ export function TodayView({ data }: { data: TodayPayload }) {
                   {isPutCallRatio ? <InfoTooltip text={putCallInfoText} placement="right" /> : null}
                 </div>
                 <div
-                  className={cn("flex flex-1 flex-col justify-center", isLeadingSectors && "mt-4")}
+                  className={cn(
+                    "flex flex-1 flex-col justify-center",
+                    isLeadingSectors && "mt-4",
+                    isEconomicEvents && "xl:-translate-y-2"
+                  )}
                 >
                   {isPutCallRatio ? (
                     <div className="flex min-w-0 items-center justify-between gap-3">

@@ -842,6 +842,10 @@ assert(
   "Today Market Summary card contents should be vertically centered"
 );
 assert(
+  todayMarkup.includes("xl:-translate-y-2"),
+  "Today Economic Events value should align with the other desktop Market Summary values"
+);
+assert(
   !todayMarkup.includes("latest cached") && todayMarkup.includes("+25%"),
   "Today Put/Call Ratio card should render the 24h change and not render latest cached freshness text"
 );
