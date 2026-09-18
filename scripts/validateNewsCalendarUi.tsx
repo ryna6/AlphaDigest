@@ -785,13 +785,13 @@ const todayData: TodayPayload = {
       changePercent: "+25%",
       tone: "neutral"
     },
+    { label: "Today's Earnings", value: "2 Earnings", tone: "neutral" },
     {
       label: "Today's Economic Events",
       value: "2 Events",
       change: "1 Significant",
       tone: "neutral"
-    },
-    { label: "Today's Earnings", value: "2 Earnings", tone: "neutral" }
+    }
   ],
   economicCalendar: [
     {

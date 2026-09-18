@@ -110,6 +110,19 @@ function capitalizeTodayEarningsImpact(metric: Metric, text?: string) {
   );
 }
 
+export function orderTodayMarketSummary(metrics: Metric[]) {
+  const economicEvents = metrics.find((metric) => metric.label === "Today's Economic Events");
+  const earnings = metrics.find((metric) => metric.label === "Today's Earnings");
+  return [
+    ...metrics.filter(
+      (metric) =>
+        metric.label !== "Today's Economic Events" && metric.label !== "Today's Earnings"
+    ),
+    ...(economicEvents ? [economicEvents] : []),
+    ...(earnings ? [earnings] : [])
+  ];
+}
+
 function featuredArticleTime(article: FeaturedArticle) {
   return article.publishedAt ?? article.createdAt ?? article.fetchedAt;
 }
@@ -268,7 +281,7 @@ export function TodayView({ data }: { data: TodayPayload }) {
       <Panel>
         <SectionHeader title="Market Summary" />
         <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
-          {data.marketSummary.map((metric) => {
+          {orderTodayMarketSummary(data.marketSummary).map((metric) => {
             const explanation = capitalizeTodayEarningsImpact(metric, roroExplanation(metric));
             const isRiskOnRiskOff =
               metric.label === "Risk On Risk Off" || metric.label === "Risk On / Risk Off";
