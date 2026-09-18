@@ -842,8 +842,9 @@ assert(
   "Today Market Summary card contents should be vertically centered"
 );
 assert(
-  todayMarkup.includes("xl:-translate-y-2"),
-  "Today Economic Events value should align with the other desktop Market Summary values"
+  todayMarkup.includes("flex h-8 shrink-0 items-start gap-2") &&
+    !todayMarkup.includes("xl:-translate-y-2"),
+  "Today Market Summary titles should reserve equal height so primary values align"
 );
 assert(
   !todayMarkup.includes("latest cached") && todayMarkup.includes("+25%"),
