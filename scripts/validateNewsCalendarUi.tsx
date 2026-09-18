@@ -813,7 +813,7 @@ const summaryOrder = [
   "Leading Sectors",
   "Risk On / Risk Off",
   "Put/Call Ratio",
-  "Today&#x27;s Economic Events",
+  "Today&#x27;s Events",
   "Today&#x27;s Earnings"
 ].map((label) => todayMarkup.indexOf(label));
 assert(
@@ -842,9 +842,10 @@ assert(
   "Today Market Summary card contents should be vertically centered"
 );
 assert(
-  todayMarkup.includes("flex h-8 shrink-0 items-start gap-2") &&
+  todayMarkup.includes("Today&#x27;s Events") &&
+    !todayMarkup.includes("flex h-8 shrink-0 items-start gap-2") &&
     !todayMarkup.includes("xl:-translate-y-2"),
-  "Today Market Summary titles should reserve equal height so primary values align"
+  "Today Market Summary should use the compact Events title without alignment overrides"
 );
 assert(
   !todayMarkup.includes("latest cached") && todayMarkup.includes("+25%"),

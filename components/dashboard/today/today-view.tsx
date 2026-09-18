@@ -287,14 +287,18 @@ export function TodayView({ data }: { data: TodayPayload }) {
               metric.label === "Risk On Risk Off" || metric.label === "Risk On / Risk Off";
             const isLeadingSectors = metric.label === "Leading Sectors";
             const isPutCallRatio = metric.label === "Put/Call Ratio";
-            const displayLabel = isRiskOnRiskOff ? "Risk On / Risk Off" : metric.label;
+            const displayLabel = isRiskOnRiskOff
+              ? "Risk On / Risk Off"
+              : metric.label === "Today's Economic Events"
+                ? "Today's Events"
+                : metric.label;
 
             return (
               <div
                 key={metric.label}
                 className="flex min-h-32 flex-col rounded-none border border-borderStrong bg-sidebar p-4"
               >
-                <div className="flex h-8 shrink-0 items-start gap-2">
+                <div className="flex items-center gap-2">
                   <p className="text-xs font-semibold uppercase tracking-[0.2em] text-textMuted">
                     {displayLabel}
                   </p>
