@@ -653,7 +653,7 @@ assert(
 
 assert(markup.includes("Last Week"), "shared selector is missing Last Week");
 assert(
-  markup.includes("Fri") && markup.includes("June 5") && !markup.includes("Fri, June 5"),
+  markup.includes("Fri") && markup.includes("Jun 5") && !markup.includes("Fri, Jun 5"),
   "weekday button did not render split weekday/date labels without commas"
 );
 assert(markup.includes("Next Week"), "shared selector is missing Next Week");
@@ -813,8 +813,8 @@ const summaryOrder = [
   "Leading Sectors",
   "Risk On / Risk Off",
   "Put/Call Ratio",
-  "Today&#x27;s Earnings",
-  "Today&#x27;s Economic Events"
+  "Today&#x27;s Events",
+  "Today&#x27;s Earnings"
 ].map((label) => todayMarkup.indexOf(label));
 assert(
   summaryOrder.every((index) => index > -1),
@@ -833,14 +833,19 @@ assert(
   "Risk On / Risk Off title should render with slash separators"
 );
 assert(
-  todayMarkup.includes("whitespace-pre-line") &&
-    todayMarkup.includes("current VIX.\n\nWhen the ratio &gt; 1"),
+  todayMarkup.includes("current VIX.\n\nWhen the ratio &gt; 1"),
   "Risk On / Risk Off tooltip should preserve a paragraph break"
 );
 assert(
   todayMarkup.includes("flex min-h-32 flex-col") &&
-    todayMarkup.includes("flex flex-1 flex-col justify-center"),
-  "Today Market Summary card contents should be vertically centered"
+    todayMarkup.includes("grid flex-1 grid-rows-[auto_1.25rem] content-center gap-2"),
+  "Today Market Summary primary and supporting rows should share a consistent grid"
+);
+assert(
+  todayMarkup.includes("Today&#x27;s Events") &&
+    !todayMarkup.includes("flex h-8 shrink-0 items-start gap-2") &&
+    !todayMarkup.includes("xl:-translate-y-2"),
+  "Today Market Summary should use the compact Events title without alignment overrides"
 );
 assert(
   !todayMarkup.includes("latest cached") && todayMarkup.includes("+25%"),

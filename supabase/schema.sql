@@ -218,8 +218,7 @@ create index if not exists idx_uw_news_feed_event_time
 on unusual_whales_news_feed (event_time desc);
 
 create table if not exists unusual_whales_featured_articles (
-  id text primary key,
-  slug text not null unique,
+  slug text primary key,
   title text not null,
   published_at timestamptz,
   created_at_source timestamptz,
@@ -292,7 +291,6 @@ alter table unusual_whales_news_feed add column if not exists fetched_at timesta
 alter table unusual_whales_news_feed add column if not exists updated_at timestamptz not null default now();
 create unique index if not exists idx_uw_news_feed_id on unusual_whales_news_feed (id);
 
-alter table unusual_whales_featured_articles add column if not exists id text;
 alter table unusual_whales_featured_articles add column if not exists slug text;
 alter table unusual_whales_featured_articles add column if not exists title text;
 alter table unusual_whales_featured_articles add column if not exists published_at timestamptz;
@@ -305,7 +303,6 @@ alter table unusual_whales_featured_articles add column if not exists raw jsonb;
 alter table unusual_whales_featured_articles add column if not exists content_hash text;
 alter table unusual_whales_featured_articles add column if not exists fetched_at timestamptz;
 alter table unusual_whales_featured_articles add column if not exists updated_at timestamptz not null default now();
-create unique index if not exists idx_uw_featured_articles_id on unusual_whales_featured_articles (id);
 create unique index if not exists idx_uw_featured_articles_slug_unique on unusual_whales_featured_articles (slug);
 
 alter table investing_economic_events add column if not exists id text;

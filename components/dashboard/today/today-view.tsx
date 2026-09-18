@@ -13,6 +13,7 @@ import { MetricRow } from "@/components/ui/metric-row";
 import { InfoTooltip } from "@/components/ui/info-tooltip";
 import { cn } from "@/lib/utils/cn";
 import { formatEtDateTime, formatEtTime, timestampTitle } from "@/lib/utils/time";
+import { featuredArticleHref } from "@/lib/routes/featured-news";
 
 const putCallInfoText =
   "This metric compares the trading volume (or open interest) of put options to call options.\n\nWhen the ratio > 1.2, it suggests traders are buying significantly more puts than calls, reflecting a more bearish sentiment. When the ratio < 0.8, it suggests traders are buying more calls than puts, reflecting a more bullish sentiment.";
@@ -45,10 +46,10 @@ function putCallValue(metric: Metric) {
   return totalLine ? totalLine.replace(/^Total:\s*/, "") : metric.value;
 }
 
-function signedValueClass(value?: string) {
+export function sentimentChangeClass(value?: string, positiveIsBullish = true) {
   if (!value) return "text-textSecondary";
-  if (/^-|\s-/.test(value)) return "text-negative";
-  if (/^\+|\s\+/.test(value)) return "text-positive";
+  if (/^-|\s-/.test(value)) return positiveIsBullish ? "text-negative" : "text-positive";
+  if (/^\+|\s\+/.test(value)) return positiveIsBullish ? "text-positive" : "text-negative";
   return "text-textSecondary";
 }
 
@@ -109,23 +110,32 @@ function capitalizeTodayEarningsImpact(metric: Metric, text?: string) {
   );
 }
 
+export function orderTodayMarketSummary(metrics: Metric[]) {
+  const economicEvents = metrics.find((metric) => metric.label === "Today's Economic Events");
+  const earnings = metrics.find((metric) => metric.label === "Today's Earnings");
+  return [
+    ...metrics.filter(
+      (metric) =>
+        metric.label !== "Today's Economic Events" && metric.label !== "Today's Earnings"
+    ),
+    ...(economicEvents ? [economicEvents] : []),
+    ...(earnings ? [earnings] : [])
+  ];
+}
+
 function featuredArticleTime(article: FeaturedArticle) {
   return article.publishedAt ?? article.createdAt ?? article.fetchedAt;
 }
 
 export function FeaturedArticleList({
-  articles,
-  from,
-  count
+  articles
 }: {
   articles: FeaturedArticle[];
-  from: "today" | "top-news";
-  count?: number;
 }) {
   return (
     <div className="divide-y divide-borderStrong/60">
       {articles.map((article) => {
-        const href = `/overview/today/top-news/${encodeURIComponent(article.slug)}?from=${from}${count ? `&count=${count}` : ""}`;
+        const href = featuredArticleHref(article.slug);
         const timestamp = featuredArticleTime(article);
 
         return (
@@ -271,13 +281,17 @@ export function TodayView({ data }: { data: TodayPayload }) {
       <Panel>
         <SectionHeader title="Market Summary" />
         <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
-          {data.marketSummary.map((metric) => {
+          {orderTodayMarketSummary(data.marketSummary).map((metric) => {
             const explanation = capitalizeTodayEarningsImpact(metric, roroExplanation(metric));
             const isRiskOnRiskOff =
               metric.label === "Risk On Risk Off" || metric.label === "Risk On / Risk Off";
             const isLeadingSectors = metric.label === "Leading Sectors";
             const isPutCallRatio = metric.label === "Put/Call Ratio";
-            const displayLabel = isRiskOnRiskOff ? "Risk On / Risk Off" : metric.label;
+            const displayLabel = isRiskOnRiskOff
+              ? "Risk On / Risk Off"
+              : metric.label === "Today's Economic Events"
+                ? "Today's Events"
+                : metric.label;
 
             return (
               <div
@@ -298,9 +312,7 @@ export function TodayView({ data }: { data: TodayPayload }) {
                   ) : null}
                   {isPutCallRatio ? <InfoTooltip text={putCallInfoText} placement="right" /> : null}
                 </div>
-                <div
-                  className={cn("flex flex-1 flex-col justify-center", isLeadingSectors && "mt-4")}
-                >
+                <div className="grid flex-1 grid-rows-[auto_1.25rem] content-center gap-2">
                   {isPutCallRatio ? (
                     <div className="flex min-w-0 items-center justify-between gap-3">
                       <p className="min-w-0 truncate text-2xl font-semibold text-textPrimary">
@@ -309,7 +321,7 @@ export function TodayView({ data }: { data: TodayPayload }) {
                       <span
                         className={cn(
                           "shrink-0 text-right text-sm font-semibold",
-                          signedValueClass(change24hText(metric))
+                          sentimentChangeClass(change24hText(metric), false)
                         )}
                       >
                         {change24hText(metric)}
@@ -321,7 +333,7 @@ export function TodayView({ data }: { data: TodayPayload }) {
                       <span
                         className={cn(
                           "shrink-0 text-right text-sm font-semibold",
-                          signedValueClass(change24hText(metric))
+                          sentimentChangeClass(change24hText(metric), true)
                         )}
                       >
                         {change24hText(metric)}
@@ -339,7 +351,7 @@ export function TodayView({ data }: { data: TodayPayload }) {
                   )}
                   {isLeadingSectors && metric.leadingSectors ? (
                     <p
-                      className="mt-2 text-[0.7rem] tabular-nums"
+                      className="text-[0.7rem] tabular-nums"
                       aria-label={leadingSectorsDescription(metric.leadingSectors)}
                     >
                       {metric.leadingSectors.map((sector, index) => (
@@ -359,16 +371,17 @@ export function TodayView({ data }: { data: TodayPayload }) {
                   ) : explanation ? (
                     <p
                       className={cn(
-                        "mt-2",
                         isLeadingSectors ? "text-[0.7rem]" : "text-sm",
                         isPutCallRatio
                           ? putCallSentimentClass(explanation)
-                          : signedValueClass(explanation)
+                          : sentimentChangeClass(explanation)
                       )}
                     >
                       {explanation}
                     </p>
-                  ) : null}
+                  ) : (
+                    <span aria-hidden="true" />
+                  )}
                 </div>
               </div>
             );
@@ -388,7 +401,7 @@ export function TodayView({ data }: { data: TodayPayload }) {
               </Link>
             }
           />
-          <FeaturedArticleList articles={data.featuredNews.slice(0, 8)} from="today" />
+          <FeaturedArticleList articles={data.featuredNews.slice(0, 8)} />
         </Panel>
         <aside className="space-y-4">
           <KeyStatsPanel stats={data.keyStats} />

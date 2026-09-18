@@ -450,7 +450,6 @@ function newsFromDbRow(row: UnknownRecord): NewsItem {
 
 function featuredToDbRow(item: FeaturedArticle, fetchedAt: string) {
   return {
-    id: `uw-featured:${item.slug}`,
     slug: item.slug,
     title: item.title,
     published_at: item.publishedAt ?? null,
@@ -464,7 +463,7 @@ function featuredToDbRow(item: FeaturedArticle, fetchedAt: string) {
 }
 
 function featuredFromDbRow(row: UnknownRecord): FeaturedArticle {
-  const slug = String(row.slug ?? String(row.id ?? "").replace(/^uw-featured:/, ""));
+  const slug = String(row.slug ?? "");
   return {
     slug,
     title: String(row.title ?? slug),
@@ -616,7 +615,7 @@ export async function refreshUnusualWhalesFeaturedArticles(limit = 50) {
     if (rows.length) {
       const { error } = await supabase.client
         .from("unusual_whales_featured_articles")
-        .upsert(rows, { onConflict: "id" });
+        .upsert(rows, { onConflict: "slug" });
       if (error) throw new Error(`Supabase featured articles upsert failed: ${error.message}`);
       upserted = rows.length;
     }
@@ -697,7 +696,7 @@ export async function getCachedUnusualWhalesFeaturedArticles(
   const { data, error } = await supabase.client
     .from("unusual_whales_featured_articles")
     .select(
-      "id,slug,title,published_at,created_at_source,tags,excerpt,content_html,source_url,fetched_at"
+      "slug,title,published_at,created_at_source,tags,excerpt,content_html,source_url,fetched_at"
     )
     .order("published_at", { ascending: false, nullsFirst: false })
     .limit(limit);
@@ -720,7 +719,7 @@ export async function getCachedUnusualWhalesFeaturedArticle(slug: string) {
   const { data, error } = await supabase.client
     .from("unusual_whales_featured_articles")
     .select(
-      "id,slug,title,published_at,created_at_source,tags,excerpt,content_html,source_url,fetched_at"
+      "slug,title,published_at,created_at_source,tags,excerpt,content_html,source_url,fetched_at"
     )
     .eq("slug", slug)
     .maybeSingle();

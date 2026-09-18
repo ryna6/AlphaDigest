@@ -95,12 +95,11 @@ function weekdayLabelForDateKey(dateKey: string) {
   }).format(new Date(`${dateKey}T12:00:00Z`));
 }
 
-function calendarDateLabelForDateKey(dateKey: string) {
-  return new Intl.DateTimeFormat("en-US", {
-    month: "long",
-    day: "numeric",
-    timeZone: "UTC"
-  }).format(new Date(`${dateKey}T12:00:00Z`));
+export function compactCalendarDateLabel(dateKey: string) {
+  const date = new Date(`${dateKey}T12:00:00Z`);
+  const month = new Intl.DateTimeFormat("en-US", { month: "short", timeZone: "UTC" }).format(date);
+  const compactMonth = month === "Sep" ? "Sept" : month;
+  return `${compactMonth} ${date.getUTCDate()}`;
 }
 
 export function buildWeekDays(weekOffset: WeekOffset, today = new Date()) {
@@ -111,7 +110,7 @@ export function buildWeekDays(weekOffset: WeekOffset, today = new Date()) {
     return {
       date: dayDateKey,
       weekdayLabel: weekdayLabelForDateKey(dayDateKey),
-      dateLabel: calendarDateLabelForDateKey(dayDateKey),
+      dateLabel: compactCalendarDateLabel(dayDateKey),
       weekday: index + 1
     };
   });
