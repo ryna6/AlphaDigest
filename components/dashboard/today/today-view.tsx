@@ -312,12 +312,7 @@ export function TodayView({ data }: { data: TodayPayload }) {
                   ) : null}
                   {isPutCallRatio ? <InfoTooltip text={putCallInfoText} placement="right" /> : null}
                 </div>
-                <div
-                  className={cn(
-                    "flex flex-1 flex-col justify-center",
-                    isLeadingSectors && "mt-4"
-                  )}
-                >
+                <div className="grid flex-1 grid-rows-[auto_1.25rem] content-center gap-2">
                   {isPutCallRatio ? (
                     <div className="flex min-w-0 items-center justify-between gap-3">
                       <p className="min-w-0 truncate text-2xl font-semibold text-textPrimary">
@@ -356,7 +351,7 @@ export function TodayView({ data }: { data: TodayPayload }) {
                   )}
                   {isLeadingSectors && metric.leadingSectors ? (
                     <p
-                      className="mt-2 text-[0.7rem] tabular-nums"
+                      className="text-[0.7rem] tabular-nums"
                       aria-label={leadingSectorsDescription(metric.leadingSectors)}
                     >
                       {metric.leadingSectors.map((sector, index) => (
@@ -376,7 +371,6 @@ export function TodayView({ data }: { data: TodayPayload }) {
                   ) : explanation ? (
                     <p
                       className={cn(
-                        "mt-2",
                         isLeadingSectors ? "text-[0.7rem]" : "text-sm",
                         isPutCallRatio
                           ? putCallSentimentClass(explanation)
@@ -385,7 +379,9 @@ export function TodayView({ data }: { data: TodayPayload }) {
                     >
                       {explanation}
                     </p>
-                  ) : null}
+                  ) : (
+                    <span aria-hidden="true" />
+                  )}
                 </div>
               </div>
             );

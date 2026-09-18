@@ -838,8 +838,8 @@ assert(
 );
 assert(
   todayMarkup.includes("flex min-h-32 flex-col") &&
-    todayMarkup.includes("flex flex-1 flex-col justify-center"),
-  "Today Market Summary card contents should be vertically centered"
+    todayMarkup.includes("grid flex-1 grid-rows-[auto_1.25rem] content-center gap-2"),
+  "Today Market Summary primary and supporting rows should share a consistent grid"
 );
 assert(
   todayMarkup.includes("Today&#x27;s Events") &&
