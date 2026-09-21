@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
+import fs from "node:fs";
 import test from "node:test";
-import { classifyStatusJob, type StatusJob } from "../lib/status/jobs";
+import { classifyStatusJob, STATUS_JOBS, type StatusJob } from "../lib/status/jobs";
 import { STATUS_DOT_CLASS } from "../lib/status/presentation";
 
 const weekdayJob: StatusJob = {
@@ -48,8 +49,43 @@ test("daily jobs do not become idle on weekends and errors take precedence", () 
   );
 });
 
+test("weekday provider jobs with no retained telemetry are idle late Sunday in Toronto", () => {
+  const sundayBeforeMidnightToronto = new Date("2026-09-21T03:30:00Z");
+  const expectedIdleIds = [
+    "flow-insider-trades",
+    "flow-dark-pool",
+    "flow-whale-feed",
+    "markets-indices-heatmaps",
+    "markets-sp500-heatmap",
+    "markets-daily-candles",
+    "markets-movers"
+  ];
+
+  for (const id of expectedIdleIds) {
+    const job = STATUS_JOBS.find((candidate) => candidate.id === id);
+    assert.ok(job, `${id} must remain registered with its provider schedule`);
+    assert.equal(classifyStatusJob(job, undefined, undefined, sundayBeforeMidnightToronto), "Idle", id);
+  }
+});
+
+test("missing telemetry is offline when a job is expected to be active", () => {
+  assert.equal(
+    classifyStatusJob(weekdayJob, undefined, undefined, new Date("2026-09-22T16:00:00Z")),
+    "Offline"
+  );
+});
+
 test("warning and idle use distinct semantic colors", () => {
   assert.equal(STATUS_DOT_CLASS.Warning, "bg-[#d97706]");
   assert.equal(STATUS_DOT_CLASS.Idle, "bg-[#a3a83a]");
   assert.notEqual(STATUS_DOT_CLASS.Warning, STATUS_DOT_CLASS.Idle);
+});
+
+test("status breakdown exposes exactly the five product states in the requested order", () => {
+  const source = fs.readFileSync("components/status/status-breakdown-button.tsx", "utf8");
+  const labels = [...source.matchAll(/label: "(Good|Warning|Critical|Idle|Offline)"/g)].map(
+    (match) => match[1]
+  );
+  assert.deepEqual(labels, ["Good", "Warning", "Critical", "Idle", "Offline"]);
+  assert.doesNotMatch(source, /label: "Unknown"/);
 });

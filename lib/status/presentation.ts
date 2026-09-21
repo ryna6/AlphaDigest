@@ -5,8 +5,7 @@ export const STATUS_DOT_CLASS: Record<StatusValue, string> = {
   Warning: "bg-[#d97706]",
   Idle: "bg-[#a3a83a]",
   Offline: "bg-[#6b7280]",
-  Error: "bg-[#ff5a5f]",
-  Unknown: "bg-[#9ca3af]"
+  Error: "bg-[#ff5a5f]"
 };
 
 export const STATUS_LABEL: Record<StatusValue, string> = {
@@ -14,6 +13,5 @@ export const STATUS_LABEL: Record<StatusValue, string> = {
   Warning: "Warning",
   Idle: "Idle",
   Offline: "Offline",
-  Error: "Critical",
-  Unknown: "Unknown"
+  Error: "Critical"
 };

@@ -8,10 +8,9 @@ import { STATUS_DOT_CLASS } from "@/lib/status/presentation";
 const statusRows: { status: StatusValue; label: string; description: string }[] = [
   { status: "Healthy", label: "Good", description: "Component is healthy and recently updated." },
   { status: "Warning", label: "Warning", description: "Component is delayed, missing, or needs attention soon." },
-  { status: "Idle", label: "Idle", description: "Component is not expected to run in the current schedule window." },
-  { status: "Offline", label: "Offline", description: "An expected refresh is overdue beyond its freshness allowance." },
   { status: "Error", label: "Critical", description: "Component has a major issue or requires action." },
-  { status: "Unknown", label: "Unknown", description: "No status telemetry is available." }
+  { status: "Idle", label: "Idle", description: "Component is not expected to run in the current schedule window." },
+  { status: "Offline", label: "Offline", description: "An expected refresh is overdue, or no status telemetry is available." }
 ];
 
 function StatusBreakdownModal({ onClose }: { onClose: () => void }) {
