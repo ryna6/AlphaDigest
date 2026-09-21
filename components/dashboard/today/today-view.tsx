@@ -14,6 +14,10 @@ import { InfoTooltip } from "@/components/ui/info-tooltip";
 import { cn } from "@/lib/utils/cn";
 import { formatEtDateTime, formatEtTime, timestampTitle } from "@/lib/utils/time";
 import { featuredArticleHref } from "@/lib/routes/featured-news";
+import {
+  SentimentChange,
+  type ChangeSentiment
+} from "@/components/dashboard/today/sentiment-change";
 
 const putCallInfoText =
   "This metric compares the trading volume (or open interest) of put options to call options.\n\nWhen the ratio > 1.2, it suggests traders are buying significantly more puts than calls, reflecting a more bearish sentiment. When the ratio < 0.8, it suggests traders are buying more calls than puts, reflecting a more bullish sentiment.";
@@ -46,11 +50,25 @@ function putCallValue(metric: Metric) {
   return totalLine ? totalLine.replace(/^Total:\s*/, "") : metric.value;
 }
 
+export function sentimentChangeAppearance(
+  value?: string,
+  positiveIsBullish = true
+): ChangeSentiment {
+  const signedValue = value?.match(/(?:^|\s)([+-])\s*(\d+(?:\.\d+)?)/);
+  if (!signedValue || Number(signedValue[2]) === 0) {
+    return { sentiment: null, className: "text-textSecondary" };
+  }
+
+  const isPositive = signedValue[1] === "+";
+  const isBullish = isPositive === positiveIsBullish;
+  return {
+    sentiment: isBullish ? "Bullish" : "Bearish",
+    className: isBullish ? "text-positive" : "text-negative"
+  };
+}
+
 export function sentimentChangeClass(value?: string, positiveIsBullish = true) {
-  if (!value) return "text-textSecondary";
-  if (/^-|\s-/.test(value)) return positiveIsBullish ? "text-negative" : "text-positive";
-  if (/^\+|\s\+/.test(value)) return positiveIsBullish ? "text-positive" : "text-negative";
-  return "text-textSecondary";
+  return sentimentChangeAppearance(value, positiveIsBullish).className;
 }
 
 export function sectorChangeClass(value: number | null) {
@@ -287,6 +305,11 @@ export function TodayView({ data }: { data: TodayPayload }) {
               metric.label === "Risk On Risk Off" || metric.label === "Risk On / Risk Off";
             const isLeadingSectors = metric.label === "Leading Sectors";
             const isPutCallRatio = metric.label === "Put/Call Ratio";
+            const changeText = change24hText(metric);
+            const changeAppearance = sentimentChangeAppearance(
+              changeText,
+              !isPutCallRatio
+            );
             const displayLabel = isRiskOnRiskOff
               ? "Risk On / Risk Off"
               : metric.label === "Today's Economic Events"
@@ -318,26 +341,12 @@ export function TodayView({ data }: { data: TodayPayload }) {
                       <p className="min-w-0 truncate text-2xl font-semibold text-textPrimary">
                         {putCallValue(metric)}
                       </p>
-                      <span
-                        className={cn(
-                          "shrink-0 text-right text-sm font-semibold",
-                          sentimentChangeClass(change24hText(metric), false)
-                        )}
-                      >
-                        {change24hText(metric)}
-                      </span>
+                      <SentimentChange value={changeText} appearance={changeAppearance} />
                     </div>
                   ) : isRiskOnRiskOff ? (
                     <div className="flex min-w-0 items-center justify-between gap-3">
                       <p className="text-2xl font-semibold text-textPrimary">{metric.value}</p>
-                      <span
-                        className={cn(
-                          "shrink-0 text-right text-sm font-semibold",
-                          sentimentChangeClass(change24hText(metric), true)
-                        )}
-                      >
-                        {change24hText(metric)}
-                      </span>
+                      <SentimentChange value={changeText} appearance={changeAppearance} />
                     </div>
                   ) : (
                     <p

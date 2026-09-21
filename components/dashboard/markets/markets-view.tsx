@@ -41,7 +41,6 @@ export function MarketBreadthAdvancersRow({ metric }: { metric: MarketsPayload["
     <div className="flex items-center justify-between gap-3 border-b border-borderStrong/60 py-2 last:border-b-0">
       <div className="min-w-0">
         <p className="truncate text-sm text-textMuted">{metric.label}</p>
-        {metric.subtext ? <p className="mt-1 text-xs text-textFaint">{metric.subtext}</p> : null}
       </div>
       <div className="shrink-0 text-right tabular" aria-label={`${advancers} advancers, ${decliners} decliners`}>
         <p className="text-base font-semibold text-textPrimary">
