@@ -4,6 +4,7 @@ import { featuredArticleHref } from "../lib/routes/featured-news";
 import { compactCalendarDateLabel } from "../components/dashboard/news-calendar/news-calendar-view";
 import {
   orderTodayMarketSummary,
+  sentimentChangeAppearance,
   sentimentChangeClass
 } from "../components/dashboard/today/today-view";
 
@@ -25,6 +26,29 @@ test("Today change colors reflect metric sentiment direction", () => {
   assert.equal(sentimentChangeClass("+2.0%", false), "text-negative");
   assert.equal(sentimentChangeClass("-2.0%", false), "text-positive");
   assert.equal(sentimentChangeClass("0.0%", false), "text-textSecondary");
+});
+
+test("Today sentiment changes share tooltip labels and semantic colors", () => {
+  assert.deepEqual(sentimentChangeAppearance("+2.0%", true), {
+    sentiment: "Bullish",
+    className: "text-positive"
+  });
+  assert.deepEqual(sentimentChangeAppearance("-2.0%", true), {
+    sentiment: "Bearish",
+    className: "text-negative"
+  });
+  assert.deepEqual(sentimentChangeAppearance("+2.0%", false), {
+    sentiment: "Bearish",
+    className: "text-negative"
+  });
+  assert.deepEqual(sentimentChangeAppearance("-2.0%", false), {
+    sentiment: "Bullish",
+    className: "text-positive"
+  });
+  assert.deepEqual(sentimentChangeAppearance("+0.00%", false), {
+    sentiment: null,
+    className: "text-textSecondary"
+  });
 });
 
 test("Today always renders Economic Events immediately left of right-most Earnings", () => {
