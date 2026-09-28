@@ -3,20 +3,15 @@
 import { useEffect, useId, useState } from "react";
 import { cn } from "@/lib/utils/cn";
 import type { StatusValue } from "@/lib/status/jobs";
+import { STATUS_DOT_CLASS } from "@/lib/status/presentation";
 
 const statusRows: { status: StatusValue; label: string; description: string }[] = [
   { status: "Healthy", label: "Good", description: "Component is healthy and recently updated." },
   { status: "Warning", label: "Warning", description: "Component is delayed, missing, or needs attention soon." },
   { status: "Error", label: "Critical", description: "Component has a major issue or requires action." },
-  { status: "Unknown", label: "Offline", description: "No recent status is available." }
+  { status: "Idle", label: "Idle", description: "Component is not expected to run in the current schedule window." },
+  { status: "Offline", label: "Offline", description: "An expected refresh is overdue, or no status telemetry is available." }
 ];
-
-const statusDot: Record<StatusValue, string> = {
-  Healthy: "bg-[#22c55e]",
-  Warning: "bg-[#facc15]",
-  Error: "bg-[#ff5a5f]",
-  Unknown: "bg-[#9ca3af]"
-};
 
 function StatusBreakdownModal({ onClose }: { onClose: () => void }) {
   const titleId = useId();
@@ -65,7 +60,7 @@ function StatusBreakdownModal({ onClose }: { onClose: () => void }) {
               key={row.status}
               className="grid grid-cols-[0.625rem_minmax(4.75rem,auto)] items-start gap-x-3 gap-y-1 sm:grid-cols-[0.625rem_5.25rem_minmax(0,1fr)]"
             >
-              <span className={cn("mt-2 h-2.5 w-2.5 rounded-full", statusDot[row.status])} aria-hidden="true" />
+              <span className={cn("mt-2 h-2.5 w-2.5 rounded-full", STATUS_DOT_CLASS[row.status])} aria-hidden="true" />
               <span className="font-semibold text-textPrimary">{row.label}</span>
               <span className="col-span-2 pl-[calc(0.625rem+0.75rem)] sm:col-span-1 sm:pl-0">
                 {row.description}

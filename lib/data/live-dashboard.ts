@@ -21,7 +21,6 @@ import {
 import { getLatestCboePutCallRatio } from "./adapters/cboe-put-call";
 import { getCachedInstitutionalSummary } from "./adapters/unusual-whales-institutional";
 import { formatSignedPercent, recordMarketSummaryHistory } from "./market-summary-history";
-import { formatEtDateKey } from "../utils/time";
 import { getHeatmapIconPath, getMetricIconPath } from "../constants/asset-icons";
 import {
   getCachedUnusualWhalesFeaturedArticles,
@@ -34,6 +33,7 @@ import {
   investingEconomicSources,
   type InvestingEconomicEvent
 } from "./adapters/investing-economic-calendar";
+import { economicCalendarReferenceDate } from "../calendar/reference";
 import type { UnusualWhalesEarningsEvent } from "./adapters/unusual-whales-earnings";
 import { getCachedUnusualWhalesEarnings } from "./adapters/unusual-whales-earnings";
 import { readDarkPoolRows } from "./adapters/unusual-whales-dark-pool";
@@ -285,7 +285,7 @@ function earningsSnapshotFromUnusualWhales(events: UnusualWhalesEarningsEvent[])
 }
 
 function todayDateKey(date = new Date()) {
-  return formatEtDateKey(date) ?? date.toISOString().slice(0, 10);
+  return economicCalendarReferenceDate(date);
 }
 
 function getSelectableEarningsRange(dateKey = todayDateKey()) {

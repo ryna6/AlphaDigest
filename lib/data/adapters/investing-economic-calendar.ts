@@ -1,5 +1,6 @@
 import { formatEtDateKey, formatEtTime } from "@/lib/utils/time";
 import type { ImportantEconomicEventKey } from "../config/included-economic-events";
+import { economicCalendarReferenceDate } from "../../calendar/reference";
 import {
   getImportantEconomicEventKey,
   getImportantEconomicEventLabel,
@@ -714,7 +715,7 @@ function dateKeysBetween(startDate: string, endDate: string) {
 }
 
 export function defaultEconomicRefreshDateKeys(date = new Date()) {
-  const todayKey = formatEtDateKey(date) ?? dateKeyFromDate(date);
+  const todayKey = economicCalendarReferenceDate(date);
   const currentWeek = buildInvestingEconomicCalendarWeekRange(todayKey).startDate;
   return [currentWeek];
 }

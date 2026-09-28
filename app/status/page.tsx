@@ -4,26 +4,12 @@ import { Panel } from "@/components/ui/panel";
 import { StatusAutoRefresh } from "@/components/status/status-auto-refresh";
 import { StatusBreakdownButton } from "@/components/status/status-breakdown-button";
 import { getStatusRowsWithDiagnostics, STATUS_GROUPS, type StatusValue } from "@/lib/status/jobs";
+import { STATUS_DOT_CLASS, STATUS_LABEL } from "@/lib/status/presentation";
 
 export const metadata = { title: "Status" };
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 export const fetchCache = "force-no-store";
-
-const statusDot: Record<StatusValue, string> = {
-  Healthy: "bg-[#22c55e]",
-  Warning: "bg-[#facc15]",
-  Error: "bg-[#ff5a5f]",
-  Unknown: "bg-[#9ca3af]"
-};
-
-const statusLabel: Record<StatusValue, string> = {
-  Healthy: "Good",
-  Warning: "Warning",
-  Error: "Critical",
-  Unknown: "Offline"
-};
-
 
 const STATUS_PAGE_TIME_FORMATTER = new Intl.DateTimeFormat("en-US", {
   month: "short",
@@ -92,9 +78,9 @@ export default async function StatusPage() {
                           <span className="block text-xs text-textSecondary">{row.functionName}</span>
                         </td>
                         <td className="py-3 px-4 text-center">
-                          <span className="inline-flex min-w-[6.5rem] items-center justify-center gap-2 text-textPrimary" aria-label={`Status: ${statusLabel[row.status]}`}>
-                            <span className={`h-2.5 w-2.5 rounded-full ${statusDot[row.status]}`} aria-hidden="true" />
-                            <span>{statusLabel[row.status]}</span>
+                          <span className="inline-flex min-w-[6.5rem] items-center justify-center gap-2 text-textPrimary" aria-label={`Status: ${STATUS_LABEL[row.status]}`}>
+                            <span className={`h-2.5 w-2.5 rounded-full ${STATUS_DOT_CLASS[row.status]}`} aria-hidden="true" />
+                            <span>{STATUS_LABEL[row.status]}</span>
                           </span>
                         </td>
                         <td className="py-3 pr-4 text-textSecondary">{row.source}</td>

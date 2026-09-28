@@ -1,8 +1,13 @@
 import { createServerSupabaseClient } from "@/lib/db/supabase";
 import { TORONTO_TIME_ZONE } from "@/lib/utils/time";
-import { nextTorontoRun, type TorontoRunWindowOptions } from "@/lib/schedule/toronto";
+import {
+  getTorontoParts,
+  nextTorontoRun,
+  shouldRunInTorontoWindow,
+  type TorontoRunWindowOptions
+} from "@/lib/schedule/toronto";
 
-export type StatusValue = "Healthy" | "Warning" | "Error" | "Unknown";
+export type StatusValue = "Healthy" | "Warning" | "Error" | "Idle" | "Offline";
 
 export type StatusGroup =
   "Today" | "Markets" | "News & Calendar" | "Flow" | "Ownership" | "Sentiment";
@@ -226,18 +231,6 @@ export const STATUS_JOBS: StatusJob[] = [
     nextRunUtcRule: { hours: [1], minutes: [40] }
   },
   {
-    id: "news-calendar-source-retention",
-    group: "News & Calendar",
-    job: "Source Data Retention",
-    functionName: "cleanup-source-retention",
-    source: "Supabase",
-    frequency: "Daily",
-    staleAfterMinutes: 1560,
-    schedule: "20 3 * * *",
-    scheduleDescription: "Daily at 03:20 UTC, independently of provider refreshes.",
-    nextRunUtcRule: { hours: [3], minutes: [20] }
-  },
-  {
     id: "news-calendar-earnings",
     group: "News & Calendar",
     job: "Earnings Calendar",
@@ -283,18 +276,6 @@ export const STATUS_JOBS: StatusJob[] = [
     schedule: "2 * * * 1-5",
     scheduleDescription: "Every hour at :02 Monday-Friday.",
     nextRunRule: { days: [1, 2, 3, 4, 5], intervalMinutes: 60, minuteOffset: 2 },
-    staleAfterMinutes: 90
-  },
-  {
-    id: "flow-snapshot",
-    group: "Flow",
-    job: "Flow Snapshot",
-    functionName: "refresh-flow",
-    source: "Supabase",
-    frequency: "Every 1h at :05, Mon–Fri",
-    schedule: "5 * * * *",
-    scheduleDescription: "Every hour at 5 minutes after the hour, Monday-Friday.",
-    nextRunRule: { days: [1, 2, 3, 4, 5], intervalMinutes: 60, minuteOffset: 5 },
     staleAfterMinutes: 90
   },
   {
@@ -368,33 +349,65 @@ function nextScheduledRun(job: StatusJob) {
   return next ? formatStatusDateTime(next) : "—";
 }
 
-function isStale(timestamp: string | null | undefined, staleAfterMinutes?: number) {
+function isStale(timestamp: string | null | undefined, staleAfterMinutes?: number, now = new Date()) {
   if (!timestamp || !staleAfterMinutes) return false;
-  const ageMs = Date.now() - new Date(timestamp).getTime();
+  const ageMs = now.getTime() - new Date(timestamp).getTime();
   return Number.isFinite(ageMs) && ageMs > staleAfterMinutes * 60 * 1000;
 }
 
-function statusFor(job: StatusJob, latestRun?: JobRunRow, latestSuccess?: JobRunRow): StatusValue {
-  if (job.functionName === "TBD") return "Unknown";
-  if (!latestRun) return "Unknown";
-  const runningAgeMs = Date.now() - new Date(latestRun.started_at).getTime();
+function isIdleWindow(job: StatusJob, now: Date) {
+  if (!job.nextRunRule) return false;
+  const { hours, utcHours, minutes, intervalMinutes, minuteOffset, enforceInterval, ...activeWindow } =
+    job.nextRunRule;
+  // Days and explicit sessions describe whether the job is applicable now. Cadence
+  // fields describe an expected invocation and must not make a missed run look idle.
+  if (!shouldRunInTorontoWindow({ ...activeWindow, now }).shouldRun) return true;
+
+  const parts = getTorontoParts(now);
+  const scheduledMinute = Math.min(...(minutes?.length ? minutes : [0]));
+  if (utcHours?.length) {
+    const firstUtcMinute = Math.min(...utcHours) * 60 + scheduledMinute;
+    return now.getUTCHours() * 60 + now.getUTCMinutes() < firstUtcMinute;
+  }
+  if (hours?.length) {
+    const firstTorontoMinute = Math.min(...hours) * 60 + scheduledMinute;
+    return parts.hour * 60 + parts.minute < firstTorontoMinute;
+  }
+
+  // An interval job has no expected run before its first offset on an active day.
+  const start = job.nextRunRule.startTime?.split(":").map(Number) ?? [0, 0];
+  const firstMinute = start[0] * 60 + start[1] + (minuteOffset ?? 0);
+  return Boolean(intervalMinutes && parts.hour * 60 + parts.minute < firstMinute);
+}
+
+/** Explicit failures take precedence; idle only describes healthy scheduled inactivity. */
+export function classifyStatusJob(
+  job: StatusJob,
+  latestRun?: JobRunRow,
+  latestSuccess?: JobRunRow,
+  now = new Date()
+): StatusValue {
+  if (!latestRun) return isIdleWindow(job, now) ? "Idle" : "Offline";
+  const runningAgeMs = now.getTime() - new Date(latestRun.started_at).getTime();
   if (latestRun.status === "running") return runningAgeMs > 30 * 60 * 1000 ? "Error" : "Warning";
   if (latestRun.status === "error" || latestRun.error_message) return "Error";
   if (latestRun.status === "warning") return "Warning";
+  if (isIdleWindow(job, now) && latestSuccess) return "Idle";
   if (latestRun.status === "skipped") {
-    if (!latestSuccess) return "Unknown";
-    return isStale(latestSuccess.finished_at ?? latestSuccess.started_at, job.staleAfterMinutes)
-      ? "Warning"
+    if (!latestSuccess) return "Offline";
+    return isStale(latestSuccess.finished_at ?? latestSuccess.started_at, job.staleAfterMinutes, now)
+      ? "Offline"
       : "Healthy";
   }
   if ((latestRun.rows_fetched ?? 1) === 0) return "Warning";
   if (
     isStale(
       latestSuccess?.finished_at ?? latestRun.finished_at ?? latestRun.started_at,
-      job.staleAfterMinutes
+      job.staleAfterMinutes,
+      now
     )
   )
-    return "Warning";
+    return "Offline";
   return "Healthy";
 }
 
@@ -405,6 +418,7 @@ export async function getStatusRows(): Promise<StatusRow[]> {
 
 export async function getStatusRowsWithDiagnostics(): Promise<StatusRowsResult> {
   const checkedAt = new Date().toISOString();
+  const checkedAtDate = new Date(checkedAt);
   const supabase = createServerSupabaseClient();
   if (!supabase.ok) {
     const supabaseReadHealth: SupabaseReadHealth = {
@@ -415,7 +429,7 @@ export async function getStatusRowsWithDiagnostics(): Promise<StatusRowsResult> 
     return {
       rows: STATUS_JOBS.map((job) => ({
         ...job,
-        status: "Unknown",
+        status: isIdleWindow(job, checkedAtDate) ? "Idle" : "Offline",
         lastRun: "—",
         nextRun: nextScheduledRun(job),
         rowsFetched: null,
@@ -449,7 +463,7 @@ export async function getStatusRowsWithDiagnostics(): Promise<StatusRowsResult> 
     return {
       rows: STATUS_JOBS.map((job) => ({
         ...job,
-        status: "Unknown",
+        status: isIdleWindow(job, checkedAtDate) ? "Idle" : "Offline",
         lastRun: "—",
         nextRun: nextScheduledRun(job),
         rowsFetched: null,
@@ -478,7 +492,7 @@ export async function getStatusRowsWithDiagnostics(): Promise<StatusRowsResult> 
         : null;
       return {
         ...job,
-        status: statusFor(job, latestRun, latestSuccess),
+        status: classifyStatusJob(job, latestRun, latestSuccess, checkedAtDate),
         lastRun: lastTimestamp ? formatStatusDateTime(lastTimestamp) : "—",
         nextRun: nextScheduledRun(job),
         rowsFetched: latestDisplayRun?.rows_fetched ?? null,

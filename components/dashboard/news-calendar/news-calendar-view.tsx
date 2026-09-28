@@ -16,6 +16,11 @@ import { formatEtDateKey, formatEtDateTime, formatEtTime, timestampTitle } from 
 import { cn } from "@/lib/utils/cn";
 import { getMajorEarningsForDate, groupEarningsBySession } from "@/lib/data/earnings-utils";
 import { getEconomicActualTone } from "@/lib/data/economic-surprise";
+import {
+  addCalendarDays,
+  economicCalendarReferenceDate,
+  mondayForCalendarDate
+} from "@/lib/calendar/reference";
 
 export type WeekOffset = -1 | 0 | 1;
 type EarningsGroupKey = "premarket" | "postmarket";
@@ -69,9 +74,7 @@ function isDateKey(value: string | undefined | null) {
 }
 
 function addDaysToDateKey(dateKey: string, days: number) {
-  const date = new Date(`${dateKey}T12:00:00Z`);
-  date.setUTCDate(date.getUTCDate() + days);
-  return date.toISOString().slice(0, 10);
+  return addCalendarDays(dateKey, days);
 }
 
 function weekdayForDateKey(dateKey: string) {
@@ -79,13 +82,11 @@ function weekdayForDateKey(dateKey: string) {
 }
 
 function mondayForDateKey(dateKey: string) {
-  const weekday = new Date(`${dateKey}T12:00:00Z`).getUTCDay();
-  const daysFromMonday = weekday === 0 ? 6 : weekday - 1;
-  return addDaysToDateKey(dateKey, -daysFromMonday);
+  return mondayForCalendarDate(dateKey);
 }
 
 function localDateKey(date: Date) {
-  return formatEtDateKey(date) ?? date.toISOString().slice(0, 10);
+  return economicCalendarReferenceDate(date);
 }
 
 function weekdayLabelForDateKey(dateKey: string) {
@@ -119,8 +120,8 @@ export function buildWeekDays(weekOffset: WeekOffset, today = new Date()) {
 export function initialDaySelection(today = new Date()): DaySelection {
   const todayKey = localDateKey(today);
   const todayWeekday = weekdayForDateKey(todayKey);
-  const selectedWeekday = todayWeekday >= 1 && todayWeekday <= 5 ? todayWeekday : 1;
-  const weekOffset = todayWeekday === 0 || todayWeekday === 6 ? 1 : 0;
+  const selectedWeekday = todayWeekday;
+  const weekOffset = 0;
   const days = buildWeekDays(weekOffset, today);
   return {
     weekOffset,
